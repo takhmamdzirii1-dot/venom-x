@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.5.0'
+local VERSION = '3.6.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.5.0',
+  versionTag = 'v3.6.0',
   ready = 'VENOM X READY - tap the VENOM X launcher',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -223,6 +223,10 @@ local state = {
 
 local config = {}
 local stored = nil
+
+-- Lua lexical scoping: drawHud() is defined before speedoRect().
+-- Forward-declare the local variable or the HUD tab calls a NIL GLOBAL.
+local speedoRect
 
 local function car() return ac.getCar(0) end
 local function sim() return ac.getSim() end
@@ -1303,7 +1307,7 @@ local function drawToasts()
   popGlass()
 end
 
-local function speedoRect()
+speedoRect = function()
   local scr = getScreenSize()
   local k = clamp(state.hudScale or 100, 80, 130) / 100
   local w = math.floor(220 * k)
@@ -1366,56 +1370,65 @@ local function drawSpeedometer()
   if not state.hudVisible then return end
   local c = car()
   if not c then return end
-  local spd = tonumber(c.speedKmh) or 0
-  if spd < 0 then spd = 0 end
-  local rpm = tonumber(c.rpm) or 0
-  if rpm < 0 then rpm = 0 end
+  local speed = math.max(0, tonumber(c.speedKmh) or 0)
+  local rpm = math.max(0, tonumber(c.rpm) or 0)
   local gearNum = tonumber(c.gear) or 0
   local x0, y0, w, h, k = speedoRect()
   x0, y0 = handleSpeedoDrag(x0, y0, w, h)
   if state.spdX < 0 then
-    state.spdX = x0
-    state.spdY = y0
+    state.spdX, state.spdY = x0, y0
   end
-  local op = clamp(state.hudOp or 90, 40, 100) / 100
+  local opacity = clamp(state.hudOp or 90, 40, 100) / 100
+
+  -- CSP's transparent window drawing space starts at (0,0) relative to its
+  -- own position. NEVER add window screen offsets a second time: that caused
+  -- the speedometer to be fully clipped even while its renderer said ACTIVE.
   withWindow('vx_speedo', vec2(x0, y0), vec2(w, h), function()
-    ui.drawRectFilled(vec2(x0, y0), vec2(x0 + w, y0 + h), col(C.cardSolid, op), 14)
-    ui.drawRect(vec2(x0, y0), vec2(x0 + w, y0 + h), col(C.accentFaint, op), 14, ui.CornerFlags.All, 1.5)
-    local targetSpeed = math.max(0, spd)
-    state.smoothSpeed = anim(state.smoothSpeed, targetSpeed, 9, state.dt)
+    ui.drawRectFilled(vec2(0, 0), vec2(w, h), col(C.cardSolid, opacity), 14)
+    ui.drawRect(vec2(0, 0), vec2(w, h), col(C.accentFaint, opacity), 14, ui.CornerFlags.All, 1.5)
+
+    state.smoothSpeed = anim(state.smoothSpeed, speed, 9, state.dt)
     local speedStr = tostring(math.floor(state.smoothSpeed + 0.5))
     local fs = math.floor(46 * k)
-    local sz = ui.measureDWriteText(speedStr, fs, -1)
-    ui.dwriteDrawText(speedStr, fs, vec2(x0 + (w - sz.x) * 0.5, y0 + 8 * k), col(C.text, op))
-    local ks = ui.measureDWriteText(L.kmh, 13, -1)
-    ui.dwriteDrawText(L.kmh, 13, vec2(x0 + (w - ks.x) * 0.5, y0 + 64 * k), col(C.accentSoft, op))
-    ui.dwriteDrawText(string.format(L.gear, gearString(gearNum)), 15, vec2(x0 + 14, y0 + 88 * k), col(C.text, op))
+    local speedTextSize = ui.measureDWriteText(speedStr, fs, -1)
+    ui.dwriteDrawText(speedStr, fs,
+      vec2((w - speedTextSize.x) * 0.5, 8 * k), col(C.text, opacity))
+
+    local kmTextSize = ui.measureDWriteText(L.kmh, 13, -1)
+    ui.dwriteDrawText(L.kmh, 13,
+      vec2((w - kmTextSize.x) * 0.5, 64 * k), col(C.accentSoft, opacity))
+
+    ui.dwriteDrawText(string.format(L.gear, gearString(gearNum)), 15,
+      vec2(14 * k, 88 * k), col(C.text, opacity))
+
     state.smoothRpm = anim(state.smoothRpm, rpm, 12, state.dt)
     local rpmStr = tostring(math.floor(state.smoothRpm / 10) * 10)
-    local rs = ui.measureDWriteText(rpmStr, 15, -1)
-    ui.dwriteDrawText(string.format(L.rpmLabel, rpmStr), 15, vec2(x0 + w - 14 - rs.x - 38, y0 + 88 * k), col(C.dim, op))
+    local rpmLabel = string.format(L.rpmLabel, rpmStr)
+    local rpmTextSize = ui.measureDWriteText(rpmLabel, 15, -1)
+    ui.dwriteDrawText(rpmLabel, 15,
+      vec2(w - 14 * k - rpmTextSize.x, 88 * k), col(C.dim, opacity))
+
     if state.rpmBar then
       local maxRpm = tonumber(c.rpmLimiter) or 8000
       if maxRpm <= 0 then maxRpm = 8000 end
       local frac = clamp(state.smoothRpm / maxRpm, 0, 1)
-      local bx0, by0 = x0 + 14, y0 + 112 * k
-      local bx1, by1 = x0 + w - 14, y0 + 122 * k
-      ui.drawRectFilled(vec2(bx0, by0), vec2(bx1, by1), col(C.bar, op), 5)
+      local x1, y1, x2, y2 = 14 * k, 112 * k, w - 14 * k, 122 * k
+      ui.drawRectFilled(vec2(x1, y1), vec2(x2, y2), col(C.bar, opacity), 5)
       if frac > 0.005 then
-        local band
-        if frac <= 0.85 then
-          band = C.accent
-        elseif frac < 0.95 then
+        local band = C.accent
+        if frac > 0.85 and frac < 0.95 then
           band = mixCol(C.accent, C.warn, (frac - 0.85) / 0.10)
-        elseif frac < 0.98 then
+        elseif frac >= 0.95 and frac < 0.98 then
           band = mixCol(C.warn, C.danger, (frac - 0.95) / 0.03)
-        else
+        elseif frac >= 0.98 then
           band = C.danger
         end
-        ui.drawRectFilled(vec2(bx0, by0), vec2(bx0 + (bx1 - bx0) * frac, by1), col(band, op), 5)
+        ui.drawRectFilled(vec2(x1, y1), vec2(x1 + (x2 - x1) * frac, y2),
+          col(band, opacity), 5)
       end
     end
-    ui.dwriteDrawText(L.title, 11, vec2(x0 + 14, y0 + 132 * k), col(C.accentSoft, op * 0.5))
+    ui.dwriteDrawText(L.title, 11, vec2(14 * k, 132 * k),
+      col(C.accentSoft, opacity * 0.6))
   end)
 end
 
