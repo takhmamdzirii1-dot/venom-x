@@ -1569,8 +1569,11 @@ local function probeTimeController()
   local aOK, ack=pcall(ac.load, STORE_APPLIED)
   if aOK then applied=ack end
   tm.helper=status
-  tm.helperSeen=type(status)=='string' and status~='' and
-    status~='hook-missing' and status~='loader-error'
+  -- Merely seeing a Pure loader message is not proof that the sky hook works.
+  -- Accept only runtime offset stages; reject explicit hook and direction errors.
+  tm.helperSeen=type(status)=='string' and status:find('^offset%-')~=nil and
+    status:find('error',1,true)==nil and
+    status:find('no-direction',1,true)==nil
   tm.applied=applied=='yes' and 'yes' or 'no'
 
   -- Detect the existing Gingys installation passively. Its bridge is controlled
