@@ -997,60 +997,54 @@ local function drawTime()
   local tm = state.time
   if tm.probeAt < 0 or (state.frames - tm.probeAt) > 60 then
     tm.probeAt = state.frames
-    local ok, st = pcall(ac.load, STORE_STATUS)
+    local ok, status = pcall(ac.load, STORE_STATUS)
     if ok then
-      tm.helper = st
-      if st ~= nil then tm.helperSeen = true end
+      tm.helper = status
+      if status ~= nil then tm.helperSeen = true end
     end
-    local ok2, ap = pcall(ac.load, STORE_APPLIED)
-    if ok2 and ap ~= nil then tm.applied = ap end
+    local okay, applied = pcall(ac.load, STORE_APPLIED)
+    if okay and applied ~= nil then tm.applied = applied end
   end
-  local installed = tm.helperSeen
-  local hookMissing = type(tm.helper) == 'string' and tm.helper:find('hook-missing', 1, true) ~= nil
-  local visualSec = wrapDay(serverSec() + tm.curOffset)
-  local p = ui.cursorScreenPos()
-  ui.dwriteDrawText(fmtSec(visualSec), 38, p, C.text)
-  local tsz = ui.measureDWriteText(fmtSec(visualSec), 38, -1)
-  ui.dummy(vec2(0, tsz.y + 2))
-  local chipY = ui.cursorScreenPos().y
-  local cx = p.x
-  cx = cx + drawChip(vec2(cx, chipY), L.localTime, C.accent, 96) + 6
-  local ctrl = hookMissing and L.controllerWfx or L.controllerPure
-  cx = cx + drawChip(vec2(cx, chipY), ctrl, hookMissing and C.danger or C.ok, 84) + 6
-  if installed and not hookMissing then
-    drawChip(vec2(cx, chipY), tm.applied == 'yes' and L.timeReady or L.timeWaiting, tm.applied == 'yes' and C.ok or C.warn, 110)
-  end
-  ui.dummy(vec2(0, 30))
+
+  sectionLabel('TIME & SKY')
+  local canShift = tm.helperSeen and
+    not (type(tm.helper) == 'string' and tm.helper:find('hook-missing',1,true))
+  local clockValue = wrapDay(serverSec() + (canShift and tm.curOffset or 0))
+  ui.dummy(vec2(0, 8))
+  ui.textColored('CURRENT SUN TIME', C.dim)
+  ui.textColored(fmtSec(clockValue), C.text)
+  ui.textColored(canShift and
+    (tm.applied == 'yes' and 'LOCAL / PURE ACTIVE' or 'LOCAL / PURE CONNECTED')
+    or 'SERVER / SYNCHRONIZED', canShift and C.ok or C.accentSoft)
   ui.separator()
-  if hookMissing then
-    ui.textColored(L.timeUnavailable, C.warn)
-    return
-  end
-  if not installed then
-    sectionLabel('SERVER TIME')
-    ui.textWrapped('Core VENOM X features work from the server script alone. Local sky-time override needs client-side weather access and is not available with a single CSP online script. The server clock remains available above.')
-    return
-  end
-  local tv = wrapDay(serverSec() + tm.curOffset)
-  local nv = ui.slider('##vx_tl', tv, 0, 86399, '', 1)
-  if math.abs(nv - tv) > 0.5 then
-    tm.want = wrapOffset(nv - serverSec())
-  end
-  local bw = (PANEL_W - 40) / 2
-  for i, pr in ipairs(TIME_PRESETS) do
-    if (i - 1) % 2 > 0 then ui.sameLine() end
-    if ui.button(pr.label, vec2(bw, 28)) then
-      tm.want = wrapOffset(pr.sec - serverSec())
-      if pr.sec >= 21 * 3600 or pr.sec < 3600 then
-        toast(L.nightMode)
+
+  if canShift then
+    sectionLabel('SUN POSITION')
+    local tv = wrapDay(serverSec() + tm.curOffset)
+    local nv = ui.slider('##vx_time_slider', tv, 0, 86399, '', 1)
+    if math.abs(nv - tv) > 0.5 then tm.want = wrapOffset(nv - serverSec()) end
+    ui.dummy(vec2(0, 7))
+    local bw = math.max(105, (PANEL_W - 56) / 2)
+    for idx, preset in ipairs(TIME_PRESETS) do
+      if (idx - 1) % 2 == 1 then ui.sameLine() end
+      if ui.button(preset.label .. '##vx_time_' .. idx, vec2(bw, 31)) then
+        tm.want = wrapOffset(preset.sec - serverSec())
+        toast('SUN: ' .. preset.label)
       end
     end
+    if ui.button('RESET / MATCH SERVER TIME##vx_reset_sun',vec2(0,29)) then
+      tm.want = 0
+      toast(L.resetDone)
+    end
+  else
+    sectionLabel('SUN CONTROL')
+    ui.textWrapped('The Gingys project changes the sun using a local Pure helper. The server-delivered VENOM X menu cannot perform that client-only override by itself.')
   end
-  if ui.button(L.timeReset, vec2(0, 30)) then
-    tm.want = 0
-    toast(L.resetDone)
-  end
-  ui.textColored(string.format(L.timeActive, tm.curOffset / 3600), C.dim)
+
+  ui.separator()
+  sectionLabel('CLOUD COVER')
+  ui.textWrapped('Clouds and sky conditions follow the server weather. The provided Gingys controller does not change cloud density.')
+  ui.textDisabled('No artificial sky overlay or fake cloud preset.')
 end
 
 local function drawHud()
