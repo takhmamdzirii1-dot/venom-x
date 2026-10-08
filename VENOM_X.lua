@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.9.2'
+local VERSION = '3.9.3'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.9.2',
+  versionTag = 'v3.9.3',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -223,6 +223,12 @@ local state = {
     nativeAttempted = false,
     nativeAvailable = false,
     nativeApplied = false,
+    nativeResult = 'NOT CALLED',
+    nativeCalls = 0,
+    lastControl = 'NONE',
+    lastSunHeight = nil,
+    skyProbeAt = -999,
+    skyProbeError = nil,
     lastNativeAt = -999,
     lastNativeOffset = math.huge,
     gingysSeen = false,
@@ -1035,9 +1041,8 @@ local function drawTime()
     ui.textDisabled('Bridge state: ' .. tostring(tm.helper or 'UNKNOWN'))
   elseif tm.mode == 'CSP NATIVE' then
     ui.textColored('CSP WEATHERFX / LOCAL TIME', C.accentSoft)
-    ui.textDisabled(tm.nativeApplied and
-      'Time request sent. Confirm sun position visually.' or
-      'Sending time request to the active controller...')
+    ui.textDisabled('API result: ' .. tostring(tm.nativeResult))
+    ui.textDisabled('Calls made: ' .. tostring(tm.nativeCalls))
   else
     ui.textColored('AUTO / SERVER SKY',C.warn)
     ui.textWrapped('Individual sky time requires a compatible client weather bridge. CSP online scripts cannot install that bridge automatically.')
@@ -1053,6 +1058,7 @@ local function drawTime()
     if math.abs(nv-tv)>0.5 then
       tm.want=wrapOffset(nv-serverSec())
       tm.astronomical=false
+      tm.lastControl='SLIDER'
     end
     ui.dummy(vec2(0,6))
     local bw=math.max(95,(PANEL_W-56)/2)
@@ -1060,13 +1066,15 @@ local function drawTime()
       if (i-1)%2 == 1 then ui.sameLine() end
       if ui.button(preset.label..'##vx_solar_'..i,vec2(bw,32)) then
         setTimePreset(preset,i)
-        toast('TIME: ' .. preset.label)
+        tm.lastControl=preset.label
+        toast('TIME REQUEST: ' .. preset.label)
       end
     end
     if ui.button('SYNC TO SERVER##vx_sync_sun',vec2(0,30)) then
       tm.want=0
       tm.astronomical=false
-      toast('SERVER TIME RESTORED')
+      tm.lastControl='SYNC SERVER'
+      toast('SERVER TIME REQUESTED')
     end
     ui.dummy(vec2(0, 5))
     sectionLabel('FINE TUNE / SUN HEIGHT')
@@ -1077,12 +1085,28 @@ local function drawTime()
       local label=string.format('%+d min',minutes)
       if ui.button(label..'##vx_fine_'..i,vec2(fineW,29)) then
         tm.want=wrapOffset(tm.want+minutes*60)
+        tm.lastControl=label
       end
     end
     ui.textDisabled('Adjust if the track date changes the golden hour.')
   else
     ui.textDisabled('Sun position follows the server weather.')
   end
+  ui.separator()
+  sectionLabel('LIVE DIAGNOSTICS')
+  ui.textDisabled('Last input: ' .. tostring(tm.lastControl))
+  ui.textDisabled('Target clock: ' .. fmtSec(wrapDay(serverSec()+tm.want)))
+  if tm.lastSunHeight ~= nil then
+    ui.textDisabled(string.format('Actual sun Y: %.3f',tm.lastSunHeight))
+    if tm.lastSunHeight > 0 then
+      ui.textDisabled('Sun currently ABOVE horizon.')
+    else
+      ui.textDisabled('Sun currently BELOW horizon.')
+    end
+  else
+    ui.textDisabled('Sun direction API: ' .. tostring(tm.skyProbeError or 'NOT AVAILABLE'))
+  end
+  ui.textDisabled('Status: ' .. tostring(tm.mode))
   ui.separator()
   sectionLabel('CLOUDS & LIGHTING')
   ui.textWrapped('Automatic: the active weather controller owns sky, exposure, reflections and cloud cover. No brightness overlay or artificial night filter.')
@@ -1565,6 +1589,18 @@ local function timeBridgeUpdate(dt)
     tm.probeAt=state.frames
     probeTimeController()
   end
+  -- Sun altitude is sampled read-only, independently of the requested clock,
+  -- to determine whether a local weather controller is actually responsive.
+  if state.clock-tm.skyProbeAt>1 then
+    tm.skyProbeAt=state.clock
+    local ok,y=pcall(function()
+      if type(ac.getSkyFeatureDirection)~='function' or not ac.SkyFeature then return nil end
+      local v=ac.getSkyFeatureDirection(ac.SkyFeature.Sun)
+      return v and tonumber(v.y) or nil
+    end)
+    tm.lastSunHeight=ok and y or nil
+    tm.skyProbeError=tm.lastSunHeight==nil and (ok and 'NO READ API' or 'RESTRICTED') or nil
+  end
   pcall(function()
     ac.store(STORE_ENABLED, true)
     ac.store(STORE_OFFSET,tm.curOffset/3600)
@@ -1578,17 +1614,18 @@ local function timeBridgeUpdate(dt)
     (math.abs(tm.curOffset-tm.lastNativeOffset)>1 or not tm.nativeAttempted) then
     tm.lastNativeAt=state.clock
     tm.nativeAttempted=true
-    local ok,err=pcall(function()
-      ac.setWeatherTimeOffset(tm.curOffset,true)
-    end)
-    if ok then
+    tm.nativeCalls=tm.nativeCalls+1
+    local ok,ret=pcall(ac.setWeatherTimeOffset,tm.curOffset,true)
+    if ok and ret~=false then
       tm.nativeApplied=true
+      tm.nativeResult=ret==nil and 'CALLED (NO CONFIRMATION)' or 'CALLED (RETURNED '..tostring(ret)..')'
       tm.lastNativeOffset=tm.curOffset
     else
       tm.nativeRejected=true
       tm.nativeApplied=false
+      tm.nativeResult=ok and 'RETURNED FALSE' or ('ERROR: '..tostring(ret):sub(1,85))
       tm.mode='SERVER'
-      pcall(ac.log,'VENOM X native time unavailable: '..tostring(err))
+      pcall(ac.log,'VENOM X native time rejected: '..tostring(ret))
     end
   end
 end
