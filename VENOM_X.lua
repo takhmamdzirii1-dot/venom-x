@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.9.1'
+local VERSION = '3.9.2'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.9.1',
+  versionTag = 'v3.9.2',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -70,10 +70,10 @@ local L = {
   timeActive = 'SHIFT %+.1f h',
   timeReset = 'RESET TO SERVER',
   timeWaiting = 'WAITING FOR WEATHER SCRIPT',
-  presetSunrise = 'SUNRISE 06:30',
+  presetSunrise = 'GOLDEN RISE 07:15',
   presetDay = 'DAY 12:00',
-  presetSunset = 'SUNSET 19:00',
-  presetBlue = 'BLUE HOUR 20:00',
+  presetSunset = 'GOLDEN SET 18:00',
+  presetBlue = 'BLUE HOUR 18:40',
   presetNight = 'NIGHT 00:00',
   hudSettings = 'HUD SETTINGS',
   speedometer = 'Speedometer',
@@ -134,10 +134,10 @@ local PRESETS = {
 }
 
 local TIME_PRESETS = {
-  { label = L.presetSunrise, sec = 6 * 3600 + 1800 },
+  { label = L.presetSunrise, sec = 7 * 3600 + 15 * 60 },
   { label = L.presetDay, sec = 12 * 3600 },
-  { label = L.presetSunset, sec = 19 * 3600 },
-  { label = L.presetBlue, sec = 20 * 3600 },
+  { label = L.presetSunset, sec = 18 * 3600 },
+  { label = L.presetBlue, sec = 18 * 3600 + 40 * 60 },
   { label = L.presetNight, sec = 0 },
 }
 
@@ -714,69 +714,14 @@ local function serverSec()
   return s.timeTotalSeconds or 0
 end
 
--- Astronomical presets are based on the track/date supplied by CSP, not
--- fixed clock guesses. We sample sun altitude with safe capability checks.
-local function sunAltitudeAt(timestamp)
-  if type(ac.getSkyFeatureDirection) ~= 'function' or not ac.SkyFeature then return nil end
-  local ok, direction = pcall(function()
-    return ac.getSkyFeatureDirection(ac.SkyFeature.Sun, nil, timestamp)
-  end)
-  if ok and direction and tonumber(direction.y) then return tonumber(direction.y) end
-  return nil
-end
-
-local function bestSolarOffset(presetIndex)
-  local s = sim()
-  local now = s and tonumber(s.timestamp)
-  if not now or now < 1000000 then return nil end
-  now = now - (tonumber(s.timePhotoModeOffset) or 0)
-  -- Solar altitude crosses the horizon at sunrise/sunset; an offset of
-  -- -6 degrees on the setting branch corresponds to blue hour.
-  local threshold = presetIndex == 4 and math.sin(-math.pi / 30) or 0
-  local span, step = 24 * 3600, 1800
-  local t0 = now - span
-  local lastY = sunAltitudeAt(t0)
-  if lastY == nil then return nil end
-  local best, bestDist, bestHeight
-  for i=1, math.floor((2 * span) / step) do
-    local nextT = t0 + step * i
-    local nextY = sunAltitudeAt(nextT)
-    if nextY == nil then return nil end
-    if presetIndex == 1 or presetIndex == 3 or presetIndex == 4 then
-      local rise = presetIndex == 1
-      local crosses = rise and lastY < threshold and nextY >= threshold
-        or (not rise and lastY >= threshold and nextY < threshold)
-      if crosses then
-        local frac = (threshold - lastY) / (nextY - lastY)
-        local crossing = (nextT - step) + step * clamp(frac, 0, 1)
-        local dist = math.abs(crossing - now)
-        if not bestDist or dist < bestDist then best, bestDist = crossing, dist end
-      end
-    else
-      local elev = presetIndex == 2 and nextY or -nextY
-      local dist = math.abs(nextT - now)
-      if bestHeight == nil or elev > bestHeight + 0.00001 or
-          (math.abs(elev - bestHeight) < 0.00001 and dist < bestDist) then
-        best, bestDist, bestHeight = nextT, dist, elev
-      end
-    end
-    lastY = nextY
-  end
-  if not best then return nil end
-  return wrapOffset(best - now)
-end
-
+-- Gold-hour presets intentionally use deterministic in-game clock values.
+-- Sampling a dynamic sky feature timestamp from this CSP online sandbox did
+-- not produce reliable per-client sun positions. Keep the path that previously
+-- worked, and provide fine adjustment around the local weather conditions.
 local function setTimePreset(preset, index)
-  local astro = bestSolarOffset(index)
-  if astro ~= nil then
-    state.time.want = astro
-    state.time.astronomical = true
-  else
-    state.time.want = wrapOffset(preset.sec - serverSec())
-    state.time.astronomical = false
-  end
+  state.time.want = wrapOffset(preset.sec - serverSec())
+  state.time.astronomical = false
 end
-
 
 local function setPanelSize(idx)
   idx = clamp(idx, 0, 2)
@@ -1089,18 +1034,20 @@ local function drawTime()
       or 'PURE BRIDGE / WAITING FOR APPLICATION', tm.applied == 'yes' and C.ok or C.warn)
     ui.textDisabled('Bridge state: ' .. tostring(tm.helper or 'UNKNOWN'))
   elseif tm.mode == 'CSP NATIVE' then
-    ui.textColored('AUTO / CSP WEATHERFX API', C.ok)
-    ui.textDisabled('Time API accepted; visual controller dependent.')
+    ui.textColored('CSP WEATHERFX / LOCAL TIME', C.accentSoft)
+    ui.textDisabled(tm.nativeApplied and
+      'Time request sent. Confirm sun position visually.' or
+      'Sending time request to the active controller...')
   else
     ui.textColored('AUTO / SERVER SKY',C.warn)
     ui.textWrapped('Individual sky time requires a compatible client weather bridge. CSP online scripts cannot install that bridge automatically.')
     ui.textDisabled('VENOM Pure hook: ' .. tostring(tm.helper or 'NOT DETECTED'))
     ui.textDisabled('Gingys controller: ' .. (tm.gingysSeen and 'DETECTED (SEPARATE KEYS)' or 'NOT DETECTED'))
-    ui.textDisabled('CSP native online: NOT A RELIABLE SKY CONTROLLER')
+    ui.textDisabled('CSP time API: unavailable or rejected on this client')
   end
   ui.separator()
   if capable then
-    sectionLabel('SUN PATH / DATE-AWARE')
+    sectionLabel('GOLDEN HOUR / CLOCK PRESETS')
     local tv=wrapDay(serverSec()+tm.curOffset)
     local nv=ui.slider('##vx_real_sun_slider',tv,0,86399,'',1)
     if math.abs(nv-tv)>0.5 then
@@ -1113,7 +1060,7 @@ local function drawTime()
       if (i-1)%2 == 1 then ui.sameLine() end
       if ui.button(preset.label..'##vx_solar_'..i,vec2(bw,32)) then
         setTimePreset(preset,i)
-        toast(tm.astronomical and 'SUN PATH CALCULATED' or 'CLOCK PRESET')
+        toast('TIME: ' .. preset.label)
       end
     end
     if ui.button('SYNC TO SERVER##vx_sync_sun',vec2(0,30)) then
@@ -1121,8 +1068,18 @@ local function drawTime()
       tm.astronomical=false
       toast('SERVER TIME RESTORED')
     end
-    ui.textDisabled(tm.astronomical and 'Astronomy: actual sun horizon' or
-      'Astronomy: clock fallback / manual adjustment')
+    ui.dummy(vec2(0, 5))
+    sectionLabel('FINE TUNE / SUN HEIGHT')
+    local fineW=math.max(56,(PANEL_W-57)/4)
+    local shifts={-15,-5,5,15}
+    for i,minutes in ipairs(shifts) do
+      if i>1 then ui.sameLine() end
+      local label=string.format('%+d min',minutes)
+      if ui.button(label..'##vx_fine_'..i,vec2(fineW,29)) then
+        tm.want=wrapOffset(tm.want+minutes*60)
+      end
+    end
+    ui.textDisabled('Adjust if the track date changes the golden hour.')
   else
     ui.textDisabled('Sun position follows the server weather.')
   end
@@ -1583,12 +1540,10 @@ local function probeTimeController()
   -- by its own app; never overwrite its storage and fight its user settings.
   local gok,gstatus=pcall(ac.load,'GingysClientTime.PureBridge.Status')
   tm.gingysSeen=gok and type(gstatus)=='string' and gstatus~=''
-  -- An online script may expose the API symbol without permission to affect
-  -- the rendered sky. Never equate its presence with a functional controller.
-  local racing=sim()
-  local inOnlineRace=not racing or racing.isOnlineRace~=false
-  local native=not inOnlineRace and
-    type(ac.setWeatherTimeOffset)=='function' and not tm.nativeRejected
+  -- Restore the user-tested native CSP route from v3.9.0. The v3.9.1
+  -- online-race guard incorrectly disabled this route in live sessions.
+  -- Only show API-request status: do not claim the sky has visually changed.
+  local native=type(ac.setWeatherTimeOffset)=='function' and not tm.nativeRejected
   tm.nativeAvailable=native
   if tm.helperSeen then
     tm.mode='PURE BRIDGE'
