@@ -113,3 +113,17 @@ automatically (served as `text/plain`).
 - **PENDING** — teleport click outcome, player-list/HUD visuals, and the live TIME
   sun-shift effect (helper loads clean; the shift is only observable after an in-game
   TIME interaction)
+
+## Status (2026-10-08, v3.1.0)
+
+- **DEPLOY-VERIFIED** — v3.1.0 pushed, raw URL 200 `text/plain`, serves `VERSION = '3.1.0'`
+- **RUNTIME-PARTIAL** — one real online session (session 4, /ADAn): script fetched,
+  "Loading is finished", **zero Lua errors**; `shared/sim/chat` init fired; storage
+  saved (orb position values changed = drag input received); helper present at the
+  guarded Pure hook with no weather errors
+- **NOT VISUALLY CONFIRMED** — orb/speedometer on screen, panel open/close, drag
+  smoothness, teleport clicks, color re-test, player list, and all five TIME presets
+  (Sunrise/Day/Sunset/Blue Hour/Night). Reason: the machine was in active use
+  (Discord/Chrome foreground, live cursor) so no in-game clicks or screenshots of the
+  game UI were possible without hijacking the session. Color/teleport/filter/bridge
+  code paths are byte-identical to the v3.0.0 paths proven end-to-end on 2026-10-08.
