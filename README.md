@@ -114,17 +114,16 @@ automatically (served as `text/plain`).
   sun-shift effect (helper loads clean; the shift is only observable after an in-game
   TIME interaction)
 
-## Status (2026-10-08, v3.1.1)
+## Status (2026-10-08, v3.2.0)
 
-- **DEPLOY-VERIFIED** — v3.1.1 pushed, raw URL 200 `text/plain`, serves `VERSION = '3.1.1'`
-- **RUNTIME-PARTIAL** — one real online session (session 4, /ADAn): script fetched,
-  "Loading is finished", **zero Lua errors**; `shared/sim/chat` init fired; storage
-  saved mid-session (launcher persist path executed); helper present at the
-  guarded Pure hook with no weather errors
-- **NOT VISUALLY CONFIRMED** — launcher icon on screen, click-to-open, drag
-  smoothness, panel open/close. Reason: the machine was in continuous active use
-  (Chrome/Discord/Gmail foreground, live cursor), so no in-game clicks or game-UI
-  screenshots were possible without hijacking the session.
+- **DEPLOY-VERIFIED** — v3.2.0 pushed, raw URL 200 `text/plain`, serves `VERSION = '3.2.0'`
+- **RUNTIME-NONE** — v3.2.0 has never loaded in-game yet: the local server was shut
+  down and the client moved to a foreign server, so no session fetched it.
+  Load + all 14 visual checks are pending a fresh join on the VENOM server.
+- Prior version notes (v3.1.1 session: fetched clean, zero Lua errors, chat init
+  fired, storage saved) and the v3.0.0 end-to-end proofs (color change persisted,
+  panel used in-game) are unchanged. All color/teleport/filter/bridge/helper
+  code paths are byte-identical to those proven versions.
 
 ## Status (2026-10-08, v3.1.0)
 
