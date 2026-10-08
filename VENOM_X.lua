@@ -1,12 +1,12 @@
 script = script or {}
 
-local VERSION = '3.6.0'
+local VERSION = '3.7.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.6.0',
-  ready = 'VENOM X READY - tap the VENOM X launcher',
+  versionTag = 'v3.7.0',
+  ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
   navTp = 'TP',
@@ -81,7 +81,7 @@ local L = {
   opacity = 'HUD opacity',
   scale = 'HUD scale',
   resetPositions = 'Reset positions',
-  hudNote = 'Drag the orb or the speedometer. Short click on the orb opens the panel.',
+  hudNote = 'Drag the X or panel header with your mouse. CTRL+SHIFT+X toggles the menu.',
   nightMode = 'NIGHT MODE',
   resetDone = 'Reset to server time',
   spdOn = 'SPEEDOMETER ON',
@@ -144,9 +144,9 @@ local TIME_PRESETS = {
 local HUMAN_SESSION_IDS = { [0] = true, [1] = true, [2] = true, [3] = true, [4] = true, [5] = true }
 
 local ORB_SIZE = 56
-local PANEL_W = 340
-local PANEL_H = 430
-local PANEL_SIZES = { { 300, 380 }, { 340, 430 }, { 390, 500 } }
+local PANEL_W = 370
+local PANEL_H = 515
+local PANEL_SIZES = { { 318, 440 }, { 370, 515 }, { 438, 590 } }
 local OPEN_DUR = 0.24
 local DRAG_THRESHOLD = 6
 local STORE_ENABLED = 'venomx.time.enabled'
@@ -168,8 +168,8 @@ local state = {
   spdX = -1,
   spdY = -1,
   panelSize = 1,
-  panelW = 340,
-  panelH = 430,
+  panelW = 370,
+  panelH = 515,
   section = 'HOME',
   sectT = 1,
   navX = -1,
@@ -332,8 +332,8 @@ local function getScreenSize()
 end
 
 local function applyPanelSize()
-  PANEL_W = clamp(math.floor(state.panelW or 340), 260, 560)
-  PANEL_H = clamp(math.floor(state.panelH or 430), 330, 640)
+  PANEL_W = clamp(math.floor(state.panelW or 370), 300, 560)
+  PANEL_H = clamp(math.floor(state.panelH or 515), 380, 680)
 end
 
 local function panelTargetPos()
@@ -343,7 +343,7 @@ local function panelTargetPos()
     px = state.orbX - PANEL_W - 12
   end
   if px < 8 then px = 8 end
-  local py = clamp(state.orbY - 20, 56, scr.y - PANEL_H - 12)
+  local py = clamp(state.orbY - 20, 48, math.max(48, scr.y - PANEL_H - 12))
   return px, py
 end
 
@@ -367,8 +367,8 @@ local function loadStored()
       vx_sx = -1,
       vx_sy = -1,
       vx_psz = 1,
-      vx_pw = 340,
-      vx_ph = 430,
+      vx_pw = 370,
+      vx_ph = 515,
       vx_sec = 'HOME',
     })
   end)
@@ -383,8 +383,8 @@ local function loadStored()
     if type(res.vx_sx) == 'number' and (res.vx_sx == -1 or (res.vx_sx >= -50 and res.vx_sx <= 4000)) then state.spdX = res.vx_sx end
     if type(res.vx_sy) == 'number' and (res.vx_sy == -1 or (res.vx_sy >= -50 and res.vx_sy <= 4000)) then state.spdY = res.vx_sy end
     if type(res.vx_psz) == 'number' then state.panelSize = clamp(math.floor(res.vx_psz + 0.5), -1, 2) end
-    if type(res.vx_pw) == 'number' then state.panelW = clamp(res.vx_pw, 260, 560) end
-    if type(res.vx_ph) == 'number' then state.panelH = clamp(res.vx_ph, 330, 640) end
+    if type(res.vx_pw) == 'number' then state.panelW = clamp(res.vx_pw, 300, 560) end
+    if type(res.vx_ph) == 'number' then state.panelH = clamp(res.vx_ph, 380, 680) end
     if type(res.vx_sec) == 'string' then state.section = res.vx_sec end
   end
 end
@@ -772,20 +772,26 @@ local function popGlass()
   ui.popStyleVar(5)
 end
 
-local function withWindow(id, pos, size, content, noPad)
+local function withWindow(id, pos, size, content, noPad, interactiveTool)
   pushGlass()
   local begun = false
   local ok, err = pcall(function()
-    ui.beginTransparentWindow(id, pos, size, noPad or false, true)
+    if interactiveTool then
+      ui.beginToolWindow(id, pos, size, noPad == true, true)
+    else
+      -- Keep the working HUD/speedometer rendering pipeline intact.
+      ui.beginTransparentWindow(id, pos, size, noPad == true, true)
+    end
     begun = true
     content()
   end)
   if begun then
-    local ended, endErr = pcall(ui.endTransparentWindow)
-    if not ended and ok then ok, err = false, endErr end
+    local endOK, endErr = pcall(function()
+      if interactiveTool then ui.endToolWindow() else ui.endTransparentWindow() end
+    end)
+    if not endOK and ok then ok, err = false, endErr end
   end
   popGlass()
-  -- Errors must reach the protected renderer; otherwise a broken HUD reports ACTIVE.
   if not ok then error('VENOM X [' .. tostring(id) .. '] ' .. tostring(err), 0) end
 end
 
@@ -810,37 +816,28 @@ local function drawChip(p, text, color, minWidth)
 end
 
 local function drawHome()
-  local s = sim()
-  local cc = (s and type(s.connectedCars) == 'number') and s.connectedCars or 0
-  local p = ui.cursorScreenPos()
-  local w1 = drawChip(p, L.online, C.ok, 86)
-  drawChip(vec2(p.x + w1 + 8, p.y), string.format(L.playersChip, cc), C.accent, 100)
-  ui.dummy(vec2(0, 30))
-  ui.dwriteDrawText(config.DISPLAY_NAME or L.title, 20, ui.cursorScreenPos(), C.text)
-  ui.dummy(vec2(0, 28))
-  ui.dwriteDrawText(config.DISPLAY_SUB or L.subtitle, 13, ui.cursorScreenPos(), C.dim)
-  ui.dummy(vec2(0, 22))
+  refreshPlayers(false)
+  local realHumans = #state.players + 1
+  ui.textColored('LA CANYONS  /  FREEROAM', C.accentSoft)
   ui.separator()
-  local bw = (PANEL_W - 34) / 2
-  if ui.button(L.quickTeleport, vec2(bw, 34)) then openPanel('TELEPORT') end
-  ui.sameLine()
-  if ui.button(L.quickColor, vec2(bw, 34)) then openPanel('COLOR') end
-  if ui.button(L.quickTime, vec2(bw, 34)) then openPanel('TIME') end
-  ui.sameLine()
-  if ui.button(L.quickPit, vec2(bw, 34)) then returnToPits() end
+  ui.textColored('WELCOME TO VENOM X', C.text)
+  ui.textDisabled('Connected drivers: ' .. tostring(realHumans))
+  ui.textDisabled('Quick access to your favorite features.')
+  ui.dummy(vec2(0, 8))
+
+  if ui.button('TELEPORT LOCATIONS   >##vxhomeTP', vec2(0, 39)) then setSection('TELEPORT') end
+  if ui.button('ONLINE PLAYERS   >##vxhomePL', vec2(0, 39)) then setSection('PLAYERS') end
+  if ui.button('CUSTOM CAR COLOR   >##vxhomeCL', vec2(0, 39)) then setSection('COLOR') end
+  if ui.button('TIME & SKY   >##vxhomeTM', vec2(0, 39)) then setSection('TIME') end
   ui.separator()
-  if ui.button(L.returnToPits, vec2(0, 30)) then returnToPits() end
   local me = car()
   if me then
-    local lb = (PANEL_W - 34) / 2
-    if ui.button(me.headlightsActive and 'LIGHTS ON' or 'LIGHTS OFF', vec2(lb, 30)) then toggleHeadlights() end
+    local halfW = math.max(90,(PANEL_W - 43) * 0.5)
+    if ui.button(me.headlightsActive and 'LIGHTS ON##vxlts' or 'LIGHTS OFF##vxlts', vec2(halfW, 31)) then toggleHeadlights() end
     ui.sameLine()
-    if ui.button(me.highBeams and 'BEAMS ON' or 'BEAMS OFF', vec2(lb, 30)) then toggleHighBeams() end
+    if ui.button(me.highBeams and 'BEAMS ON##vxhb' or 'BEAMS OFF##vxhb', vec2(halfW, 31)) then toggleHighBeams() end
   end
-  ui.separator()
-  local tm = state.time
-  ui.textDisabled('TIME: ' .. (tm.helper == nil and 'NO HELPER' or tostring(tm.helper)) .. ' / ' .. tostring(tm.applied))
-  ui.textDisabled(string.format(L.footer, VERSION))
+  if ui.button('RETURN TO PITS##vxpit', vec2(0, 34)) then returnToPits() end
 end
 
 local function drawTeleport()
@@ -1114,165 +1111,184 @@ end
 
 local function drawVenomLauncher()
   local scr = getScreenSize()
-  if state.orbY < 0 or state.orbX < -ORB_SIZE or state.orbY < -ORB_SIZE or state.orbX > scr.x or state.orbY > scr.y then
+  if state.orbY < 0 or state.orbX < 0 or state.orbY > scr.y - ORB_SIZE or state.orbX > scr.x - ORB_SIZE then
     state.orbX = 16
-    state.orbY = math.floor(scr.y * 0.5 - ORB_SIZE / 2)
+    state.orbY = math.floor(scr.y * 0.5 - ORB_SIZE * 0.5)
     persist()
   end
-  local mp = ui.mousePos()
-  withWindow('vx_launcher', vec2(state.orbX - 2, state.orbY - 2), vec2(ORB_SIZE + 4, ORB_SIZE + 4), function()
-    local widgetClicked = ui.invisibleButton('##vxlaunch', vec2(ORB_SIZE, ORB_SIZE))
-    local mn = ui.itemRectMin()
-    local mx = ui.itemRectMax()
-    local bx, by = mn.x, mn.y
-    local bw, bh = mx.x - mn.x, mx.y - mn.y
-    ui.drawRectFilled(vec2(bx, by), vec2(bx + bw, by + bh), C.glassDeep, 16)
-    ui.drawRect(vec2(bx, by), vec2(bx + bw, by + bh), col(C.accent, 0.5 + state.orbHover * 0.3 + (state.orbPress and 0.2 or 0)), 16, ui.CornerFlags.All, 2)
-    local cx = bx + bw * 0.5
-    local xt = ui.measureDWriteText('X', 30, -1)
-    ui.dwriteDrawText('X', 30, vec2(cx - xt.x * 0.5, by + 1), col(C.accent, 0.9))
-    local cap = ui.measureDWriteText('VENOM X', 9, -1)
-    ui.dwriteDrawText('VENOM X', 9, vec2(cx - cap.x * 0.5, by + bh - 13), C.dim)
-    local r = { x = bx, y = by, w = bw, h = bh }
-    local over = inRect(r, mp) and not state.dragging and not panelBlocks()
-    state.orbHover = anim(state.orbHover, over and 1 or 0, 12, state.dt)
-    local press = state.orbPress
-    if not press and not state.dragging and not panelBlocks() and ui.mouseClicked(0) and inRect(r, mp) then
-      press = { ox = state.orbX, oy = state.orbY, mx = mp.x, my = mp.y, moved = false }
-      state.orbPress = press
+
+  -- CSP tool windows are explicitly interactive, unlike ordinary HUD overlays.
+  withWindow('vx_floating_launch', vec2(state.orbX, state.orbY), vec2(ORB_SIZE, ORB_SIZE), function()
+    ui.setCursor(vec2(0, 0))
+    local clicked = ui.invisibleButton('##vxlauncher_btn', vec2(ORB_SIZE, ORB_SIZE))
+    local hovered, active = ui.itemHovered(), ui.itemActive()
+    local mouse = ui.mousePos()
+
+    if not state.orbPress and hovered and ui.mouseClicked(0) then
+      state.orbPress = { mx = mouse.x, my = mouse.y, x = state.orbX, y = state.orbY, moved = false }
     end
+    local press = state.orbPress
     if press then
       if ui.mouseDown(0) then
-        if not press.moved then
-          local dx = mp.x - press.mx
-          local dy = mp.y - press.my
-          if dx * dx + dy * dy > DRAG_THRESHOLD * DRAG_THRESHOLD then
-            press.moved = true
-            state.dragging = 'orb'
-          end
-        end
+        local dx, dy = mouse.x - press.mx, mouse.y - press.my
+        if (dx * dx + dy * dy) > DRAG_THRESHOLD * DRAG_THRESHOLD then press.moved = true end
         if press.moved then
-          state.orbX, state.orbY = clampPos(press.ox + (mp.x - press.mx), press.oy + (mp.y - press.my), scr.x, scr.y)
+          state.orbX, state.orbY = clampPos(press.x + dx, press.y + dy, scr.x, scr.y)
         end
       else
         if press.moved then
-          state.orbX, state.orbY = clampPos(state.orbX, state.orbY, scr.x, scr.y)
           persist()
-        elseif widgetClicked or inRect(r, mp) then
+        elseif clicked or hovered then
           if state.panelOpen then closePanel() else openPanel(nil) end
         end
         state.orbPress = nil
-        state.dragging = nil
       end
+    elseif clicked and not state.dragging then
+      if state.panelOpen then closePanel() else openPanel(nil) end
     end
-  end, true)
+
+    state.orbHover = anim(state.orbHover, hovered and 1 or 0, 12, state.dt)
+    local glow = (0.33 + state.orbHover * 0.30 + (active and 0.12 or 0))
+    ui.drawRectFilled(vec2(0, 0), vec2(ORB_SIZE, ORB_SIZE), C.glassDeep, 15)
+    ui.drawRect(vec2(1, 1), vec2(ORB_SIZE - 1, ORB_SIZE - 1), col(C.accent, glow), 14, ui.CornerFlags.All, 1.7)
+    if state.panelOpen then
+      ui.drawRectFilled(vec2(8, ORB_SIZE - 5), vec2(ORB_SIZE - 8, ORB_SIZE - 3), C.accent, 1)
+    end
+    local titleSize = ui.measureDWriteText('X', 28, -1)
+    ui.dwriteDrawText('X', 28, vec2((ORB_SIZE - titleSize.x) * .5, 2), C.accent)
+    local capSize = ui.measureDWriteText('VENOM', 9, -1)
+    ui.dwriteDrawText('VENOM', 9, vec2((ORB_SIZE - capSize.x) * .5, 37), C.dim)
+  end, true, true)
 end
 
 local function drawVenomPanel()
-  local t = easeOutCubic(clamp(state.openT, 0, 1))
-  if t <= 0.01 then return end
+  if state.openT < .015 then return end
+  local progress = easeOutCubic(clamp(state.openT, 0, 1))
   local px, py, pw, ph
-  if state.openT >= 0.95 then
+  if state.openT >= .97 then
     px, py, pw, ph = state.panelTX, state.panelTY, PANEL_W, PANEL_H
   else
-    px = lerp(state.orbX, state.panelTX, t)
-    py = lerp(state.orbY, state.panelTY, t)
-    pw = lerp(ORB_SIZE, PANEL_W, t)
-    ph = lerp(ORB_SIZE, PANEL_H, t)
+    px = lerp(state.orbX, state.panelTX, progress)
+    py = lerp(state.orbY, state.panelTY, progress)
+    pw = lerp(ORB_SIZE, PANEL_W, progress)
+    ph = lerp(ORB_SIZE, PANEL_H, progress)
   end
 
-  withWindow('vx_panel', vec2(px, py), vec2(pw, ph), function()
-    -- Avoid rendering interactive children before the animated panel is fully open.
-    if state.openT < 0.95 then
-      ui.dwriteDrawText('VENOM X', 14, vec2(px + 12, py + 12), C.accent)
+  withWindow('vx_main_overlay', vec2(px, py), vec2(pw, ph), function()
+    -- A tiny expanding preview stays non-interactive during the morph animation.
+    ui.drawRectFilled(vec2(0, 0), vec2(pw, ph), C.glassDeep, 12)
+    ui.drawRect(vec2(0, 0), vec2(pw, ph), col(C.accent, .23), 12, ui.CornerFlags.All, 1)
+    ui.drawRectFilled(vec2(12, 0), vec2(math.max(12, pw - 12), 2), C.accent, 1)
+
+    if state.openT < .90 then
+      ui.dwriteDrawText('X', 22, vec2(14, 12), C.accent)
       return
     end
 
-    -- All hitboxes are normal ImGui widgets in one consistent UI coordinate system.
-    -- Only this header starts a panel drag, never a nav button or another child.
-    ui.invisibleButton('##vxheader', vec2(math.max(80, PANEL_W - 100), 30))
-    local hmin, hmax = ui.itemRectMin(), ui.itemRectMax()
-    ui.dwriteDrawText('VENOM X', 17, vec2(hmin.x + 4, hmin.y + 3), C.accent)
-    local mp = ui.mousePos()
-    local head = { x = hmin.x, y = hmin.y, w = hmax.x - hmin.x, h = hmax.y - hmin.y }
-    if not state.panelDrag and not state.dragging and not state.orbPress
-       and ui.mouseClicked(0) and inRect(head, mp) then
-      state.panelDrag = true
-      state.dragging = 'panel'
-      state.panelDragMouse = vec2(mp.x, mp.y)
-      state.panelDragBase = vec2(state.panelTX, state.panelTY)
+    -- Two-layer header: single native drag hitbox plus a real close button.
+    ui.drawRectFilled(vec2(1, 2), vec2(pw - 1, 67), C.cardSolid, 11)
+    ui.setCursor(vec2(12, 10))
+    ui.invisibleButton('##vxhead_drag', vec2(math.max(90, PANEL_W - 76), 51))
+    local hovered = ui.itemHovered()
+    local mouse = ui.mousePos()
+    if not state.panelDrag and hovered and ui.mouseClicked(0) then
+      state.panelDrag = {
+        x = state.panelTX, y = state.panelTY,
+        mx = mouse.x, my = mouse.y, moved = false
+      }
     end
-    if state.panelDrag then
+    local dp = state.panelDrag
+    if dp then
       if ui.mouseDown(0) then
-        local scr = getScreenSize()
-        state.panelTX = clamp(state.panelDragBase.x + mp.x - state.panelDragMouse.x,
-          8, math.max(8, scr.x - PANEL_W - 8))
-        state.panelTY = clamp(state.panelDragBase.y + mp.y - state.panelDragMouse.y,
-          40, math.max(40, scr.y - PANEL_H - 8))
+        local dx, dy = mouse.x - dp.mx, mouse.y - dp.my
+        if dx * dx + dy * dy > 9 then dp.moved = true end
+        if dp.moved then
+          local scr = getScreenSize()
+          state.panelTX = clamp(dp.x + dx, 8, math.max(8, scr.x - PANEL_W - 8))
+          state.panelTY = clamp(dp.y + dy, 48, math.max(48, scr.y - PANEL_H - 8))
+        end
       else
+        if dp.moved then persist() end
         state.panelDrag = false
-        state.dragging = nil
       end
     end
-    ui.sameLine()
-    if ui.button('X##vxclose', vec2(36, 30)) then closePanel() end
+    ui.dwriteDrawText('VENOM', 18, vec2(18, 12), C.text)
+    ui.dwriteDrawText('X', 18, vec2(93, 12), C.accent)
+    ui.dwriteDrawText('LA CANYONS   /   ONLINE', 11, vec2(18, 38), C.dim)
 
-    ui.separator()
-    -- Consistent two-row navigation prevents clipping across S/M/L.
-    local navW = math.max(60, (PANEL_W - 44) / 3)
+    ui.setCursor(vec2(PANEL_W - 46, 17))
+    if ui.button('X##vx_panel_close', vec2(30, 28)) then closePanel() end
+
+    -- Compact segmented navigation with meaningful hover/active styling.
+    local navW = math.floor((PANEL_W - 36) / 3)
     for i, item in ipairs(NAV) do
-      if (i - 1) % 3 ~= 0 then ui.sameLine() end
+      local row = math.floor((i - 1) / 3)
+      local column = (i - 1) % 3
+      local xx = 12 + column * (navW + 6)
+      local yy = 76 + row * 36
       local selected = state.section == item.key
+      ui.setCursor(vec2(xx, yy))
       if selected then
         ui.pushStyleColor(ui.StyleColor.Button, C.btnActive)
         ui.pushStyleColor(ui.StyleColor.Text, C.text)
       end
-      if ui.button(item.label .. '##vxnav' .. i, vec2(navW, 29)) then
-        setSection(item.key)
+      local click = ui.button(item.label .. '##vxnav_' .. i, vec2(navW, 30))
+      if selected then
+        ui.popStyleColor(2)
+        ui.drawRectFilled(vec2(xx + 16, yy + 29),
+          vec2(xx + navW - 16, yy + 31), col(C.accent, clamp(state.sectT * 2, .3, 1)), 1)
       end
-      if selected then ui.popStyleColor(2) end
-    end
-    ui.separator()
-    local contentHeight = math.max(120, PANEL_H - 166)
-    local begun = false
-    local childOpen, childErr = pcall(function()
-      begun = true
-      return ui.beginChild('vx_content', vec2(0, contentHeight), false, ui.WindowFlags.None)
-    end)
-    if not childOpen then
-      if begun then pcall(ui.endChild) end
-      error('Content container: ' .. tostring(childErr), 0)
-    end
-    local sectionOk, sectionErr = pcall(function()
-      if childErr then drawSection(state.section) end
-    end)
-    local endOk, endErr = pcall(ui.endChild)
-    if not endOk then error('Content end: ' .. tostring(endErr), 0) end
-    if not sectionOk then
-      -- Keep launcher and navigation alive if a feature tab is unsupported.
-      state.panelErrorMsg = tostring(sectionErr)
-      ui.textColored('Section error (see CSP log)', C.warn)
-      if not state.reportedSectionError then
-        state.reportedSectionError = true
-        pcall(ac.log, 'VENOM X section ' .. state.section .. ': ' .. state.panelErrorMsg)
-      end
-    else
-      state.reportedSectionError = false
+      if click then setSection(item.key) end
     end
 
-    ui.separator()
-    ui.textDisabled('VENOM X ' .. VERSION)
-    ui.sameLine()
-    if ui.button('-##vxsmaller', vec2(24, 23)) then
-      setPanelSize(math.max(0, state.panelSize == -1 and 1 or state.panelSize - 1))
+    ui.drawLine(vec2(13, 153), vec2(PANEL_W - 13, 153), C.accentFaint, 1)
+    ui.setCursor(vec2(12, 160))
+    local contentH = math.max(100, PANEL_H - 218)
+    local opened = ui.beginChild('vx_feature_content', vec2(PANEL_W - 24, contentH), false, ui.WindowFlags.None)
+    local ok, err = pcall(function()
+      if opened then
+        -- Native alpha is applied only to content, not the button hitboxes around it.
+        local fade = clamp((state.openT - .90) / .10, 0.05, 1)
+        withAlpha(fade * clamp(state.sectT * 2, .1, 1), function()
+          drawSection(state.section)
+        end)
+      end
+    end)
+    ui.endChild()
+    if not ok then
+      state.panelErrorMsg = tostring(err)
+      if state.reportedSectionError ~= tostring(err) then
+        pcall(ac.log, 'VENOM X section ' .. state.section .. ': ' .. tostring(err))
+        state.reportedSectionError = tostring(err)
+      end
+    else
+      state.reportedSectionError = nil
+      state.panelErrorMsg = nil
     end
-    ui.sameLine()
-    if ui.button('+##vxlarger', vec2(24, 23)) then
-      setPanelSize(math.min(2, state.panelSize + 1))
+
+    local footY = PANEL_H - 45
+    ui.drawLine(vec2(13, footY - 5), vec2(PANEL_W - 13, footY - 5), C.accentFaint, 1)
+    ui.dwriteDrawText('VENOM X   ' .. VERSION, 11, vec2(15, footY + 3), C.dim)
+    ui.dwriteDrawText('CTRL+SHIFT+X', 10, vec2(15, footY + 20), C.accentSoft)
+
+    -- Bottom right drag handle, size changes in real time. No full-screen input.
+    ui.setCursor(vec2(PANEL_W - 39, PANEL_H - 39))
+    ui.invisibleButton('##vxresize', vec2(28, 29))
+    if ui.itemActive() and ui.mouseDown(0) then
+      local delta = ui.mouseDelta()
+      local scr = getScreenSize()
+      if delta and (delta.x ~= 0 or delta.y ~= 0) then
+        state.panelW = clamp(PANEL_W + delta.x, 300, math.min(560, scr.x - 18))
+        state.panelH = clamp(PANEL_H + delta.y, 380, math.min(680, scr.y - 50))
+        state.panelSize = -1
+        applyPanelSize()
+      end
+    elseif state.panelSize == -1 and ui.itemHovered() and ui.mouseReleased(0) then
+      persist()
     end
-    ui.sameLine()
-    if ui.button('CLOSE##vxbottomclose', vec2(68, 23)) then closePanel() end
-  end)
+    ui.drawLine(vec2(PANEL_W - 11, PANEL_H - 31), vec2(PANEL_W - 27, PANEL_H - 15), C.accentSoft, 2)
+    ui.drawLine(vec2(PANEL_W - 11, PANEL_H - 23), vec2(PANEL_W - 19, PANEL_H - 15), C.dim, 2)
+  end, true, true)
 end
 
 local function drawToasts()
@@ -1467,6 +1483,16 @@ local function drawEmergency()
   end
 end
 
+-- CSP native configurable hotkey, available with server-delivered online scripts.
+-- If unavailable on a client, lightbulb remains a backup action.
+do
+  local ok, key = pcall(function()
+    return ac.ControlButton('venomx/Toggle VENOM X Menu',
+      { keyboard = { key = ui.KeyIndex.X, ctrl = true, shift = true } })
+  end)
+  if ok then state.menuShortcut = key end
+end
+
 local function timeBridgeUpdate(dt)
   local tm = state.time
   tm.curOffset = anim(tm.curOffset, tm.want, 2.2, dt)
@@ -1494,6 +1520,9 @@ function script.update(dt)
     if t.t < t.dur then alive[#alive + 1] = t end
   end
   state.toasts = alive
+  if state.menuShortcut and state.menuShortcut:pressed() then
+    if state.panelOpen then closePanel() else openPanel(nil) end
+  end
   local speed = (1 / OPEN_DUR)
   if state.panelOpen then
     state.openT = math.min(1, state.openT + state.dt * speed)
@@ -1575,27 +1604,13 @@ loadChat()
 refreshDestinations(true)
 setSection(state.section)
 
--- CSP's lightbulb is the supported interactive entry point for server scripts.
--- This is a minimal actionable fallback if gameplay mouse is captured by the game.
+-- Lightbulb fallback is a one-click toggle, never an extra floating panel.
 ui.registerOnlineExtra(ui.Icons.Bulb, L.title,
   function() return true end,
-  function()
-    ui.text('VENOM X ' .. VERSION)
-    ui.textWrapped('Click OPEN to show the floating VENOM X control panel.')
-    if ui.button(state.panelOpen and 'CLOSE VENOM X' or 'OPEN VENOM X', vec2(250, 36)) then
-      if state.panelOpen then closePanel() else openPanel(nil) end
-    end
-    if ui.button('RESET POSITIONS', vec2(250, 32)) then
-      state.orbX, state.orbY = 16, -1
-      state.spdX, state.spdY = -1, -1
-      state.hudVisible = true
-      persist()
-    end
-    if state.panelErrorMsg then ui.textWrapped('Last panel error: ' .. tostring(state.panelErrorMsg):sub(1, 250)) end
-    return false
-  end,
   nil,
-  ui.OnlineExtraFlags.Tool,
-  bit.bor(ui.WindowFlags.NoCollapse, ui.WindowFlags.NoFocusOnAppearing),
-  vec2(285, 205)
+  function(clicked)
+    if clicked == false then return end
+    if state.panelOpen then closePanel() else openPanel(nil) end
+  end,
+  ui.OnlineExtraFlags.None
 )
