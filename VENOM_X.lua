@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.1.1'
+local VERSION = '3.2.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.1.1',
+  versionTag = 'v3.2.0',
   ready = 'VENOM X READY - tap the VENOM X launcher',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -146,6 +146,7 @@ local HUMAN_SESSION_IDS = { [0] = true, [1] = true, [2] = true, [3] = true, [4] 
 local ORB_SIZE = 56
 local PANEL_W = 340
 local PANEL_H = 430
+local PANEL_SIZES = { { 300, 380 }, { 340, 430 }, { 390, 500 } }
 local OPEN_DUR = 0.24
 local DRAG_THRESHOLD = 6
 local STORE_ENABLED = 'venomx.time.enabled'
@@ -166,6 +167,7 @@ local state = {
   orbY = -1,
   spdX = -1,
   spdY = -1,
+  panelSize = 1,
   section = 'HOME',
   sectT = 1,
   navX = -1,
@@ -317,6 +319,11 @@ local function getScreenSize()
   return state.screen
 end
 
+local function applyPanelSize()
+  local s = PANEL_SIZES[(state.panelSize or 1) + 1] or PANEL_SIZES[2]
+  PANEL_W, PANEL_H = s[1], s[2]
+end
+
 local function panelTargetPos()
   local scr = getScreenSize()
   local px = state.orbX + ORB_SIZE + 12
@@ -347,6 +354,7 @@ local function loadStored()
       vx_oy = -1,
       vx_sx = -1,
       vx_sy = -1,
+      vx_psz = 1,
       vx_sec = 'HOME',
     })
   end)
@@ -360,6 +368,7 @@ local function loadStored()
     if type(res.vx_oy) == 'number' then state.orbY = res.vx_oy end
     if type(res.vx_sx) == 'number' then state.spdX = res.vx_sx end
     if type(res.vx_sy) == 'number' then state.spdY = res.vx_sy end
+    if type(res.vx_psz) == 'number' then state.panelSize = clamp(math.floor(res.vx_psz + 0.5), 0, 2) end
     if type(res.vx_sec) == 'string' then state.section = res.vx_sec end
   end
 end
@@ -374,6 +383,7 @@ local function persist()
   stored.vx_oy = state.orbY
   stored.vx_sx = state.spdX
   stored.vx_sy = state.spdY
+  stored.vx_psz = state.panelSize
   stored.vx_sec = state.section
 end
 
@@ -492,11 +502,21 @@ local function teleportToPlayer(p)
     return
   end
   local me = car()
+  if not me then
+    toast(L.teleportFailed, 'warn')
+    return
+  end
   if me.speedKmh > 5 then
     toast(L.stopCarFirst, 'warn')
     return
   end
-  local lx, lz = target.look.x, target.look.z
+  local lk = target.look
+  local lx, lz
+  if lk and type(lk.x) == 'number' and type(lk.z) == 'number' then
+    lx, lz = lk.x, lk.z
+  else
+    lx, lz = 0, -1
+  end
   local len = math.sqrt(lx * lx + lz * lz)
   if len < 0.001 then
     lx, lz, len = 0, -1, 1
@@ -533,7 +553,9 @@ end
 local function refreshPlayers(force)
   if not force and (state.frames - state.playersAt) < 30 then return end
   state.playersAt = state.frames
-  local myPos = car().position
+  local me = car()
+  if not me or not me.position then return end
+  local myPos = me.position
   local list = {}
   for _, c in ac.iterateCars() do
     if c.index ~= 0 and c.isConnected and c.isActive then
@@ -663,6 +685,12 @@ local function serverSec()
   return s.timeTotalSeconds or 0
 end
 
+local function setPanelSize(idx)
+  state.panelSize = clamp(idx, 0, 2)
+  applyPanelSize()
+  persist()
+end
+
 local function setSection(key)
   if state.section ~= key then
     state.section = key
@@ -722,10 +750,10 @@ local function popGlass()
   ui.popStyleVar(5)
 end
 
-local function withWindow(id, pos, size, content)
+local function withWindow(id, pos, size, content, noPad)
   pushGlass()
   local okc = pcall(function()
-    ui.beginTransparentWindow(id, pos, size, false, true)
+    ui.beginTransparentWindow(id, pos, size, noPad or false, true)
     content()
     ui.endTransparentWindow()
   end)
@@ -757,14 +785,15 @@ end
 
 local function drawHome()
   local s = sim()
+  local cc = (s and type(s.connectedCars) == 'number') and s.connectedCars or 0
   local p = ui.cursorScreenPos()
   local w1 = drawChip(p, L.online, C.ok, 86)
-  drawChip(vec2(p.x + w1 + 8, p.y), string.format(L.playersChip, s.connectedCars), C.accent, 100)
-  ui.setCursorScreenPos(vec2(p.x, p.y + 32))
+  drawChip(vec2(p.x + w1 + 8, p.y), string.format(L.playersChip, cc), C.accent, 100)
+  ui.dummy(vec2(0, 30))
   ui.dwriteDrawText(config.DISPLAY_NAME or L.title, 20, ui.cursorScreenPos(), C.text)
-  ui.setCursorScreenPos(vec2(p.x, p.y + 58))
+  ui.dummy(vec2(0, 28))
   ui.dwriteDrawText(config.DISPLAY_SUB or L.subtitle, 13, ui.cursorScreenPos(), C.dim)
-  ui.setCursorScreenPos(vec2(p.x, p.y + 82))
+  ui.dummy(vec2(0, 22))
   ui.separator()
   local bw = (PANEL_W - 34) / 2
   if ui.button(L.quickTeleport, vec2(bw, 34)) then openPanel('TELEPORT') end
@@ -776,10 +805,12 @@ local function drawHome()
   ui.separator()
   if ui.button(L.returnToPits, vec2(0, 30)) then returnToPits() end
   local me = car()
-  local lb = (PANEL_W - 34) / 2
-  if ui.button(me.headlightsActive and 'LIGHTS ON' or 'LIGHTS OFF', vec2(lb, 30)) then toggleHeadlights() end
-  ui.sameLine()
-  if ui.button(me.highBeams and 'BEAMS ON' or 'BEAMS OFF', vec2(lb, 30)) then toggleHighBeams() end
+  if me then
+    local lb = (PANEL_W - 34) / 2
+    if ui.button(me.headlightsActive and 'LIGHTS ON' or 'LIGHTS OFF', vec2(lb, 30)) then toggleHeadlights() end
+    ui.sameLine()
+    if ui.button(me.highBeams and 'BEAMS ON' or 'BEAMS OFF', vec2(lb, 30)) then toggleHighBeams() end
+  end
   ui.separator()
   local tm = state.time
   ui.textDisabled('TIME: ' .. (tm.helper == nil and 'NO HELPER' or tostring(tm.helper)) .. ' / ' .. tostring(tm.applied))
@@ -815,7 +846,7 @@ local function drawTeleport()
   for _, gname in ipairs(order) do
     local g = groups[gname]
     local open = state.groupOpen[gname]
-    if open == nil then open = true end
+    if open == nil then open = false end
     local label = (open and '-  ' or '+  ') .. gname .. '  (' .. #g .. ')'
     ui.pushStyleColor(ui.StyleColor.Button, open and C.btnActive or C.btnFlat)
     ui.pushStyleColor(ui.StyleColor.Text, C.accent)
@@ -827,8 +858,6 @@ local function drawTeleport()
     end
     if open then
       for _, d in ipairs(g) do
-        local cp = ui.cursorScreenPos()
-        ui.setCursorScreenPos(vec2(cp.x + 14, cp.y))
         if ui.button(d.name, vec2(0, 23)) then
           teleportDest(d)
         end
@@ -855,15 +884,15 @@ local function drawPlayers()
   end
   for _, pl in ipairs(state.players) do
     ui.pushStyleVar(ui.StyleVar.ChildRounding, 10)
-    local opened = ui.beginChild('vx_pl' .. pl.index, vec2(0, 58), false, ui.WindowFlags.None)
+    local opened = ui.beginChild('vx_pl' .. pl.index, vec2(0, 72), false, ui.WindowFlags.None)
     local okp, errp = pcall(function()
       if opened then
-        local p = ui.cursorScreenPos()
-        ui.dwriteDrawText(pl.name, 15, vec2(p.x + 10, p.y + 7), C.text)
-        local sub = string.format('%s   %d m', prettyModel(pl.model), math.floor(pl.dist + 0.5))
-        ui.dwriteDrawText(sub, 12, vec2(p.x + 10, p.y + 32), C.dim)
-        ui.setCursorScreenPos(vec2(p.x + PANEL_W - 142, p.y + 14))
-        if ui.button('TELEPORT##pl' .. pl.index, vec2(104, 30)) then
+        local title = pl.name
+        if #title > 24 then title = title:sub(1, 24) end
+        ui.dwriteDrawText(title, 14, ui.cursorScreenPos(), C.text)
+        ui.dummy(vec2(0, 18))
+        ui.textDisabled(string.format('%s - %d m', prettyModel(pl.model), math.floor(pl.dist + 0.5)))
+        if ui.button('TELEPORT##pl' .. pl.index, vec2(0, 24)) then
           teleportToPlayer(pl)
         end
       end
@@ -883,22 +912,46 @@ local function drawColor()
   initPicker()
   sectionLabel(L.carColor)
   local me = car()
+  if not me then
+    ui.textColored(L.colorNoModule, C.warn)
+    return
+  end
   local cc = me.customCarColor
   local p = ui.cursorScreenPos()
   local hasCustom = cc and cc.r == cc.r
   local prev = hasCustom and cc or state.picker
   ui.drawRectFilled(p, vec2(p.x + 34, p.y + 34), rgbm(prev.r, prev.g, prev.b, 1), 8)
   ui.drawRect(p, vec2(p.x + 34, p.y + 34), rgbm(1, 1, 1, 0.4), 8, ui.CornerFlags.All, 1)
-  ui.setCursorScreenPos(vec2(p.x + 44, p.y + 2))
-  ui.dwriteDrawText(hasCustom and 'CURRENT' or 'LIVERY', 12, ui.cursorScreenPos(), C.dim)
-  ui.setCursorScreenPos(vec2(p.x + 44, p.y + 18))
-  ui.dwriteDrawText(string.format('%d %d %d', math.floor(prev.r * 255 + 0.5), math.floor(prev.g * 255 + 0.5), math.floor(prev.b * 255 + 0.5)), 12, ui.cursorScreenPos(), C.text)
+  ui.dwriteDrawText(hasCustom and 'CURRENT' or 'LIVERY', 12, vec2(p.x + 44, p.y + 2), C.dim)
+  ui.dwriteDrawText(string.format('%d %d %d', math.floor(prev.r * 255 + 0.5), math.floor(prev.g * 255 + 0.5), math.floor(prev.b * 255 + 0.5)), 12, vec2(p.x + 44, p.y + 18), C.text)
+  ui.dummy(vec2(0, 40))
   if not state.chatEx then
     ui.textColored(L.colorNoModule, C.warn)
     return
   end
   if state.colorAllowed == false then
     ui.textColored(L.colorNotAllowed, C.warn)
+  end
+  local swW = math.floor((PANEL_W - 40 - 30) / 6)
+  if swW < 24 then swW = 24 end
+  for i, pr in ipairs(PRESETS) do
+    if i > 1 and (i - 1) % 6 ~= 0 then ui.sameLine() end
+    local c = rgbm(pr.r, pr.g, pr.b, 1)
+    if ui.colorButton('##pw' .. i, c, ui.ColorPickerFlags.NoAlpha, vec2(swW, 28)) then
+      state.picker.r = pr.r
+      state.picker.g = pr.g
+      state.picker.b = pr.b
+      applyColor(c)
+    end
+    ui.setTooltip(pr.label)
+  end
+  ui.dummy(vec2(0, 66))
+  if ui.button(L.colorApply, vec2((PANEL_W - 44) / 2, 30)) then
+    applyColor(state.picker)
+  end
+  ui.sameLine()
+  if ui.button(L.colorReset, vec2((PANEL_W - 44) / 2, 30)) then
+    applyColor(nil)
   end
   local pickerFlags = bit.bor(ui.ColorPickerFlags.NoAlpha, ui.ColorPickerFlags.PickerHueBar, ui.ColorPickerFlags.NoSidePreview)
   local changed = ui.colorPicker('##vx_picker', state.picker, pickerFlags)
@@ -908,26 +961,6 @@ local function drawColor()
   if state.pickerDirty and not ui.mouseDown(0) then
     state.pickerDirty = false
     applyColor(state.picker)
-  end
-  local rp = ui.cursorScreenPos()
-  for i, pr in ipairs(PRESETS) do
-    if i > 1 and (i - 1) % 6 ~= 0 then ui.sameLine() end
-    local c = rgbm(pr.r, pr.g, pr.b, 1)
-    if ui.colorButton('##pw' .. i, c, ui.ColorPickerFlags.NoAlpha, vec2(44, 30)) then
-      state.picker.r = pr.r
-      state.picker.g = pr.g
-      state.picker.b = pr.b
-      applyColor(c)
-    end
-    ui.setTooltip(pr.label)
-  end
-  ui.setCursorScreenPos(vec2(rp.x, rp.y + 76))
-  if ui.button(L.colorApply, vec2((PANEL_W - 44) / 2, 30)) then
-    applyColor(state.picker)
-  end
-  ui.sameLine()
-  if ui.button(L.colorReset, vec2((PANEL_W - 44) / 2, 30)) then
-    applyColor(nil)
   end
   ui.textDisabled(L.liveryNote)
 end
@@ -948,9 +981,10 @@ local function drawTime()
   local hookMissing = type(tm.helper) == 'string' and tm.helper:find('hook-missing', 1, true) ~= nil
   local visualSec = wrapDay(serverSec() + tm.curOffset)
   local p = ui.cursorScreenPos()
-  ui.dwriteDrawText(fmtSec(visualSec), 42, p, C.text)
-  local tsz = ui.measureDWriteText(fmtSec(visualSec), 42, -1)
-  local chipY = p.y + tsz.y + 6
+  ui.dwriteDrawText(fmtSec(visualSec), 38, p, C.text)
+  local tsz = ui.measureDWriteText(fmtSec(visualSec), 38, -1)
+  ui.dummy(vec2(0, tsz.y + 2))
+  local chipY = ui.cursorScreenPos().y
   local cx = p.x
   cx = cx + drawChip(vec2(cx, chipY), L.localTime, C.accent, 96) + 6
   local ctrl = hookMissing and L.controllerWfx or L.controllerPure
@@ -958,7 +992,7 @@ local function drawTime()
   if installed and not hookMissing then
     drawChip(vec2(cx, chipY), tm.applied == 'yes' and L.timeReady or L.timeWaiting, tm.applied == 'yes' and C.ok or C.warn, 110)
   end
-  ui.setCursorScreenPos(vec2(p.x, chipY + 30))
+  ui.dummy(vec2(0, 30))
   ui.separator()
   if hookMissing then
     ui.textColored(L.timeUnavailable, C.warn)
@@ -980,7 +1014,7 @@ local function drawTime()
   local bw = (PANEL_W - 40) / 2
   for i, pr in ipairs(TIME_PRESETS) do
     if (i - 1) % 2 > 0 then ui.sameLine() end
-    if ui.button(pr.label, vec2(bw, 32)) then
+    if ui.button(pr.label, vec2(bw, 28)) then
       tm.want = wrapOffset(pr.sec - serverSec())
       if pr.sec >= 21 * 3600 or pr.sec < 3600 then
         toast(L.nightMode)
@@ -1016,6 +1050,15 @@ local function drawHud()
     toast(L.resetPositions)
   end
   ui.separator()
+  sectionLabel('PANEL SIZE')
+  local szW = (PANEL_W - 40) / 3
+  local szNames = { 'S', 'M', 'L' }
+  for i = 0, 2 do
+    if i > 0 then ui.sameLine() end
+    local lbl = (state.panelSize == i) and ('[' .. szNames[i + 1] .. ']') or (' ' .. szNames[i + 1] .. ' ')
+    if ui.button(lbl, vec2(szW, 28)) then setPanelSize(i) end
+  end
+  ui.separator()
   ui.textDisabled(L.hudNote)
 end
 
@@ -1042,77 +1085,52 @@ local function drawVenomLauncher()
     persist()
   end
   local mp = ui.mousePos()
-  local r = { x = state.orbX - 2, y = state.orbY - 2, w = ORB_SIZE + 4, h = ORB_SIZE + 4 }
-  local over = inRect(r, mp) and not state.dragging and not panelBlocks()
-  state.orbHover = anim(state.orbHover, over and 1 or 0, 12, state.dt)
-  local press = state.orbPress
-  if not press and not state.dragging and not panelBlocks() and ui.mouseClicked(0) and inRect(r, mp) then
-    press = { ox = state.orbX, oy = state.orbY, mx = mp.x, my = mp.y, moved = false }
-    state.orbPress = press
-  end
-  if press then
-    if ui.mouseDown(0) then
-      if not press.moved then
-        local dx = mp.x - press.mx
-        local dy = mp.y - press.my
-        if dx * dx + dy * dy > DRAG_THRESHOLD * DRAG_THRESHOLD then
-          press.moved = true
-          state.dragging = 'orb'
-        end
-      end
-      if press.moved then
-        state.orbX, state.orbY = clampPos(press.ox + (mp.x - press.mx), press.oy + (mp.y - press.my), scr.x, scr.y)
-      end
-    else
-      if press.moved then
-        state.orbX, state.orbY = clampPos(state.orbX, state.orbY, scr.x, scr.y)
-        persist()
-      else
-        if state.panelOpen then closePanel() else openPanel(nil) end
-      end
-      state.orbPress = nil
-      state.dragging = nil
-    end
-  end
-  local hover = state.orbHover
   withWindow('vx_launcher', vec2(state.orbX - 2, state.orbY - 2), vec2(ORB_SIZE + 4, ORB_SIZE + 4), function()
-    ui.drawRectFilled(vec2(state.orbX, state.orbY), vec2(state.orbX + ORB_SIZE, state.orbY + ORB_SIZE), C.glassDeep, 16)
-    ui.drawRect(vec2(state.orbX, state.orbY), vec2(state.orbX + ORB_SIZE, state.orbY + ORB_SIZE), col(C.accent, 0.55 + hover * 0.45), 16, ui.CornerFlags.All, 2)
-    local cx = state.orbX + ORB_SIZE / 2
+    local hit = ui.invisibleButton('##vxlaunch', vec2(ORB_SIZE, ORB_SIZE))
+    local mn = ui.itemRectMin()
+    local mx = ui.itemRectMax()
+    local bx, by = mn.x, mn.y
+    local bw, bh = mx.x - mn.x, mx.y - mn.y
+    ui.drawRectFilled(vec2(bx, by), vec2(bx + bw, by + bh), C.glassDeep, 16)
+    ui.drawRect(vec2(bx, by), vec2(bx + bw, by + bh), col(C.accent, 0.55 + state.orbHover * 0.45), 16, ui.CornerFlags.All, 2)
+    local cx = bx + bw * 0.5
     local xt = ui.measureDWriteText('X', 30, -1)
-    ui.dwriteDrawText('X', 30, vec2(cx - xt.x * 0.5, state.orbY + 1), col(C.accent, 0.85 + hover * 0.15))
+    ui.dwriteDrawText('X', 30, vec2(cx - xt.x * 0.5, by + 1), col(C.accent, 0.9))
     local cap = ui.measureDWriteText('VENOM X', 9, -1)
-    ui.dwriteDrawText('VENOM X', 9, vec2(cx - cap.x * 0.5, state.orbY + ORB_SIZE - 13), C.dim)
-  end)
-end
-
-local function handlePanelDrag()
-  local mp = ui.mousePos()
-  if state.panelDrag then
-    if ui.mouseDown(0) then
-      local scr = getScreenSize()
-      local nx = state.panelDragBase.x + (mp.x - state.panelDragMouse.x)
-      local ny = state.panelDragBase.y + (mp.y - state.panelDragMouse.y)
-      state.panelTX = clamp(nx, 8, scr.x - PANEL_W - 8)
-      state.panelTY = clamp(ny, 48, scr.y - 80)
-      return false
+    ui.dwriteDrawText('VENOM X', 9, vec2(cx - cap.x * 0.5, by + bh - 13), C.dim)
+    local r = { x = bx, y = by, w = bw, h = bh }
+    local over = inRect(r, mp) and not state.dragging and not panelBlocks()
+    state.orbHover = anim(state.orbHover, over and 1 or 0, 12, state.dt)
+    local press = state.orbPress
+    if not press and not state.dragging and not panelBlocks() and ui.mouseClicked(0) and inRect(r, mp) then
+      press = { ox = state.orbX, oy = state.orbY, mx = mp.x, my = mp.y, moved = false }
+      state.orbPress = press
     end
-    state.panelDrag = false
-    state.dragging = nil
-    return false
-  end
-  local hr = { x = state.panelTX, y = state.panelTY, w = PANEL_W, h = 34 }
-  local closeR = { x = state.panelTX + PANEL_W - 32, y = state.panelTY + 4, w = 26, h = 26 }
-  if ui.mouseClicked(0) and inRect(closeR, mp) then
-    return true
-  end
-  if ui.mouseClicked(0) and inRect(hr, mp) and not state.dragging and not state.orbPress then
-    state.panelDrag = true
-    state.dragging = 'panel'
-    state.panelDragMouse = mp
-    state.panelDragBase = vec2(state.panelTX, state.panelTY)
-  end
-  return false
+    if press then
+      if ui.mouseDown(0) then
+        if not press.moved then
+          local dx = mp.x - press.mx
+          local dy = mp.y - press.my
+          if dx * dx + dy * dy > DRAG_THRESHOLD * DRAG_THRESHOLD then
+            press.moved = true
+            state.dragging = 'orb'
+          end
+        end
+        if press.moved then
+          state.orbX, state.orbY = clampPos(press.ox + (mp.x - press.mx), press.oy + (mp.y - press.my), scr.x, scr.y)
+        end
+      else
+        if press.moved then
+          state.orbX, state.orbY = clampPos(state.orbX, state.orbY, scr.x, scr.y)
+          persist()
+        elseif hit then
+          if state.panelOpen then closePanel() else openPanel(nil) end
+        end
+        state.orbPress = nil
+        state.dragging = nil
+      end
+    end
+  end, true)
 end
 
 local function drawVenomPanel()
@@ -1120,10 +1138,6 @@ local function drawVenomPanel()
   if t <= 0.01 then return end
   local px, py, pw, ph
   if state.openT >= 0.9 then
-    if handlePanelDrag() then
-      closePanel()
-      return
-    end
     px, py, pw, ph = state.panelTX, state.panelTY, PANEL_W, PANEL_H
   else
     px = lerp(state.orbX, state.panelTX, t)
@@ -1142,42 +1156,70 @@ local function drawVenomPanel()
     end
     local alpha = clamp((state.openT - 0.9) / 0.1, 0, 1)
     withAlpha(alpha, function()
-      local x = px + 14
-      local y = py + 8
-      ui.dwriteDrawText(L.title, 16, vec2(x, y), C.accent)
-      local tw = ui.measureDWriteText(L.title, 16, -1)
-      ui.dwriteDrawText(state.section, 13, vec2(x + tw.x + 10, y + 3), C.text)
-      local closeR = { x = px + PANEL_W - 32, y = py + 4, w = 26, h = 26 }
+      local headW = PANEL_W - 28
+      ui.invisibleButton('##vxhead', vec2(headW - 32, 28))
+      local hmn = ui.itemRectMin()
+      local hmx = ui.itemRectMax()
       local mp = ui.mousePos()
-      ui.dwriteDrawText('X', 15, vec2(px + PANEL_W - 24, y + 3), inRect(closeR, mp) and C.danger or C.dim)
-      ui.drawRectFilled(vec2(px + 10, y + 30), vec2(px + PANEL_W - 10, y + 31), C.accentFaint, 0)
-      local navY = y + 38
-      local itemW = (PANEL_W - 28) / #NAV
-      local navTarget = nil
-      for i, item in ipairs(NAV) do
-        local ix = px + 14 + (i - 1) * itemW
-        local active = state.section == item.key
-        local ir = { x = ix, y = navY, w = itemW, h = 26 }
-        local mpn = ui.mousePos()
-        local hov = inRect(ir, mpn)
-        if hov or active then
-          ui.drawRectFilled(vec2(ix, navY), vec2(ix + itemW - 4, navY + 26), active and C.btnActive or C.btn, 8)
+      local hr = { x = hmn.x, y = hmn.y, w = hmx.x - hmn.x, h = hmx.y - hmn.y }
+      if not state.panelDrag and not state.dragging and not state.orbPress and ui.mouseClicked(0) and inRect(hr, mp) then
+        state.panelDrag = true
+        state.dragging = 'panel'
+        state.panelDragMouse = mp
+        state.panelDragBase = vec2(state.panelTX, state.panelTY)
+      end
+      if state.panelDrag then
+        if ui.mouseDown(0) then
+          local scr = getScreenSize()
+          state.panelTX = clamp(state.panelDragBase.x + (mp.x - state.panelDragMouse.x), 8, scr.x - PANEL_W - 8)
+          state.panelTY = clamp(state.panelDragBase.y + (mp.y - state.panelDragMouse.y), 48, scr.y - 80)
+        else
+          state.panelDrag = false
+          state.dragging = nil
         end
-        local tsz = ui.measureDWriteText(item.label, 11, -1)
-        ui.dwriteDrawText(item.label, 11, vec2(ix + (itemW - 4 - tsz.x) * 0.5, navY + 7), active and C.text or (hov and C.accentSoft or C.dim))
-        if active then navTarget = ix + (itemW - 4) * 0.5 end
-        if state.openT >= 0.999 and ui.mouseClicked(0) and inRect(ir, mpn) and not state.dragging then
+      end
+      ui.dwriteDrawText(L.title, 15, vec2(hmn.x + 6, hmn.y + 4), C.accent)
+      local tw = ui.measureDWriteText(L.title, 15, -1)
+      ui.dwriteDrawText(state.section, 12, vec2(hmn.x + 6 + tw.x + 8, hmn.y + 6), C.text)
+      ui.sameLine()
+      if ui.button('X', vec2(26, 26)) then closePanel() end
+      ui.separator()
+      local twoRow = PANEL_W < 320
+      local perRow = twoRow and 3 or 6
+      local itemW = (PANEL_W - 28 - (perRow - 1) * 6) / perRow
+      local navTargetX, navTargetY = nil, nil
+      for i, item in ipairs(NAV) do
+        if i > 1 and ((i - 1) % perRow ~= 0) then ui.sameLine() end
+        local active = state.section == item.key
+        if active then
+          ui.pushStyleColor(ui.StyleColor.Button, C.btnActive)
+          ui.pushStyleColor(ui.StyleColor.Text, C.text)
+        else
+          ui.pushStyleColor(ui.StyleColor.Button, C.btnFlat)
+          ui.pushStyleColor(ui.StyleColor.Text, C.dim)
+        end
+        local navHit = ui.button(item.label, vec2(itemW, 26))
+        ui.popStyleColor(2)
+        if navHit and state.openT >= 0.999 and not state.dragging then
           setSection(item.key)
         end
+        if active then
+          local amn = ui.itemRectMin()
+          local amx = ui.itemRectMax()
+          navTargetX = (amn.x + amx.x) * 0.5
+          navTargetY = amx.y + 1
+        end
       end
-      if navTarget then
-        if state.navX < 0 then state.navX = navTarget end
-        state.navX = anim(state.navX, navTarget, 14, state.dt)
-        ui.drawRectFilled(vec2(state.navX - 14, navY + 27), vec2(state.navX + 14, navY + 29), C.accent, 1)
+      if navTargetX then
+        if state.navX < 0 then state.navX = navTargetX end
+        state.navX = anim(state.navX, navTargetX, 14, state.dt)
+        ui.drawRectFilled(vec2(state.navX - 14, navTargetY), vec2(state.navX + 14, navTargetY + 2), C.accent, 1)
       end
-      ui.setCursorScreenPos(vec2(px + 12, navY + 36))
+      local cy = ui.cursorScreenPos()
+      local childH = (py + PANEL_H - 8) - cy.y
+      if childH < 60 then childH = 60 end
       withAlpha(alpha * clamp(state.sectT * 1.4, 0, 1), function()
-        local opened = ui.beginChild('vx_section', vec2(PANEL_W - 24, PANEL_H - 112), false, ui.WindowFlags.None)
+        local opened = ui.beginChild('vx_section', vec2(PANEL_W - 24, childH), false, ui.WindowFlags.None)
         local okd, errd = pcall(function()
           if opened then drawSection(state.section) end
         end)
@@ -1271,6 +1313,8 @@ end
 
 local function drawSpeedometer()
   if not state.hudVisible then return end
+  local c = car()
+  if not c then return end
   local x0, y0, w, h, k = speedoRect()
   x0, y0 = handleSpeedoDrag(x0, y0, w, h)
   if state.spdX < 0 then
@@ -1278,7 +1322,6 @@ local function drawSpeedometer()
     state.spdY = y0
   end
   local op = state.hudOp / 100
-  local c = car()
   withWindow('vx_speedo', vec2(x0, y0), vec2(w, h), function()
     ui.drawRectFilled(vec2(x0, y0), vec2(x0 + w, y0 + h), col(C.cardSolid, op), 14)
     ui.drawRect(vec2(x0, y0), vec2(x0 + w, y0 + h), col(C.accentFaint, op), 14, ui.CornerFlags.All, 1.5)
@@ -1434,6 +1477,7 @@ function script.drawUI()
 end
 
 loadStored()
+applyPanelSize()
 loadConfig()
 buildConfigDests()
 loadChat()
