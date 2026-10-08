@@ -3,6 +3,24 @@
 Premium in-game HUD for the **VENOM LA Canyons** AssettoServer freeroam server, built as a
 [CSP](https://customshaderspatch.me) Online Script. Version 3.
 
+## VENOM X v3.9 — Automatic TIME / SKY routing
+
+VENOM X automatically chooses an available client-side time control path:
+
+1. **Active VENOM Pure bridge**: an offset-stage acknowledgment in `venomx.time.status` enables the Pure route. The client helper updates its sun, moon, and lighting state.
+2. **CSP native API**: attempts `ac.setWeatherTimeOffset()` if the API exists and the sandbox permits it. A denied operation falls back automatically.
+3. **No supported controller**: keeps server weather and disables local-time presets instead of simulating sunset by darkening the picture.
+
+Pure is **optional**, but detecting Pure alone is not enough to inject a protected weather-script hook. The Pure bridge must already be active or the native CSP time API must be available.
+
+Sunrise, sunset, solar noon, blue hour and night can use the actual simulated-date sun path via `ac.getSkyFeatureDirection()`. If it is inaccessible, clock presets are used.
+
+**AssettoServer configuration:** set `EnableWeatherFx: true` in `extra_cfg.yml`, and keep `LockServerDate: true` for calendar-accurate solar times. Confirm the current server configuration before replacing it.
+
+Weather, clouds, reflections and PP filters remain controlled by the user's active weather system. An online Lua script cannot guarantee the same image quality on devices with different Pure/CSP installations.
+
+All HUD, launcher, teleport and color features still ship in one server script. Client-by-client visual validation is necessary; a successful API call is not itself proof of visual adjustment.
+
 ## What's new in V3
 
 - **Floating orb + expanding glass panel** — a small draggable orb snaps to either screen
