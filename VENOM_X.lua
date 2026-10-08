@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.0.0'
+local VERSION = '3.1.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.0.0',
+  versionTag = 'v3.1.0',
   ready = 'VENOM X READY - tap the orb on the left edge',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -70,13 +70,11 @@ local L = {
   timeActive = 'SHIFT %+.1f h',
   timeReset = 'RESET TO SERVER',
   timeWaiting = 'WAITING FOR WEATHER SCRIPT',
-  presetDawn = 'DAWN 06:00',
-  presetMorning = 'MORNING 08:00',
+  presetSunrise = 'SUNRISE 06:30',
   presetDay = 'DAY 12:00',
-  presetGolden = 'GOLDEN HOUR 17:30',
   presetSunset = 'SUNSET 19:00',
-  presetNight = 'NIGHT 22:00',
-  presetMidnight = 'MIDNIGHT 00:00',
+  presetBlue = 'BLUE HOUR 20:00',
+  presetNight = 'NIGHT 00:00',
   hudSettings = 'HUD SETTINGS',
   speedometer = 'Speedometer',
   rpmBar = 'RPM bar',
@@ -136,20 +134,18 @@ local PRESETS = {
 }
 
 local TIME_PRESETS = {
-  { label = L.presetDawn, sec = 6 * 3600 },
-  { label = L.presetMorning, sec = 8 * 3600 },
+  { label = L.presetSunrise, sec = 6 * 3600 + 1800 },
   { label = L.presetDay, sec = 12 * 3600 },
-  { label = L.presetGolden, sec = 1050 * 60 },
   { label = L.presetSunset, sec = 19 * 3600 },
-  { label = L.presetNight, sec = 22 * 3600 },
-  { label = L.presetMidnight, sec = 0 },
+  { label = L.presetBlue, sec = 20 * 3600 },
+  { label = L.presetNight, sec = 0 },
 }
 
 local HUMAN_SESSION_IDS = { [0] = true, [1] = true, [2] = true, [3] = true, [4] = true, [5] = true }
 
 local ORB_SIZE = 52
-local PANEL_W = 360
-local PANEL_H = 500
+local PANEL_W = 340
+local PANEL_H = 430
 local OPEN_DUR = 0.24
 local DRAG_THRESHOLD = 6
 local STORE_ENABLED = 'venomx.time.enabled'
@@ -535,7 +531,7 @@ local function isHumanCar(c, nm, mid, sid)
 end
 
 local function refreshPlayers(force)
-  if not force and (state.frames - state.playersAt) < 90 then return end
+  if not force and (state.frames - state.playersAt) < 30 then return end
   state.playersAt = state.frames
   local myPos = car().position
   local list = {}
@@ -768,16 +764,15 @@ local function drawHome()
   ui.dwriteDrawText(config.DISPLAY_NAME or L.title, 20, ui.cursorScreenPos(), C.text)
   ui.setCursorScreenPos(vec2(p.x, p.y + 58))
   ui.dwriteDrawText(config.DISPLAY_SUB or L.subtitle, 13, ui.cursorScreenPos(), C.dim)
-  ui.setCursorScreenPos(vec2(p.x, p.y + 84))
+  ui.setCursorScreenPos(vec2(p.x, p.y + 82))
   ui.separator()
-  ui.setCursorScreenPos(vec2(p.x, p.y + 94))
   local bw = (PANEL_W - 34) / 2
-  if ui.button(L.quickTeleport, vec2(bw, 36)) then openPanel('TELEPORT') end
+  if ui.button(L.quickTeleport, vec2(bw, 34)) then openPanel('TELEPORT') end
   ui.sameLine()
-  if ui.button(L.quickColor, vec2(bw, 36)) then openPanel('COLOR') end
-  if ui.button(L.quickTime, vec2(bw, 36)) then openPanel('TIME') end
+  if ui.button(L.quickColor, vec2(bw, 34)) then openPanel('COLOR') end
+  if ui.button(L.quickTime, vec2(bw, 34)) then openPanel('TIME') end
   ui.sameLine()
-  if ui.button(L.quickPit, vec2(bw, 36)) then returnToPits() end
+  if ui.button(L.quickPit, vec2(bw, 34)) then returnToPits() end
   ui.separator()
   if ui.button(L.returnToPits, vec2(0, 30)) then returnToPits() end
   local me = car()
@@ -785,6 +780,10 @@ local function drawHome()
   if ui.button(me.headlightsActive and 'LIGHTS ON' or 'LIGHTS OFF', vec2(lb, 30)) then toggleHeadlights() end
   ui.sameLine()
   if ui.button(me.highBeams and 'BEAMS ON' or 'BEAMS OFF', vec2(lb, 30)) then toggleHighBeams() end
+  ui.separator()
+  local tm = state.time
+  ui.textDisabled('TIME: ' .. (tm.helper == nil and 'NO HELPER' or tostring(tm.helper)) .. ' / ' .. tostring(tm.applied))
+  ui.textDisabled(string.format(L.footer, VERSION))
 end
 
 local function drawTeleport()
@@ -949,8 +948,8 @@ local function drawTime()
   local hookMissing = type(tm.helper) == 'string' and tm.helper:find('hook-missing', 1, true) ~= nil
   local visualSec = wrapDay(serverSec() + tm.curOffset)
   local p = ui.cursorScreenPos()
-  ui.dwriteDrawText(fmtSec(visualSec), 46, p, C.text)
-  local tsz = ui.measureDWriteText(fmtSec(visualSec), 46, -1)
+  ui.dwriteDrawText(fmtSec(visualSec), 42, p, C.text)
+  local tsz = ui.measureDWriteText(fmtSec(visualSec), 42, -1)
   local chipY = p.y + tsz.y + 6
   local cx = p.x
   cx = cx + drawChip(vec2(cx, chipY), L.localTime, C.accent, 96) + 6
@@ -981,7 +980,7 @@ local function drawTime()
   local bw = (PANEL_W - 40) / 2
   for i, pr in ipairs(TIME_PRESETS) do
     if (i - 1) % 2 > 0 then ui.sameLine() end
-    if ui.button(pr.label, vec2(bw, 40)) then
+    if ui.button(pr.label, vec2(bw, 32)) then
       tm.want = wrapOffset(pr.sec - serverSec())
       if pr.sec >= 21 * 3600 or pr.sec < 3600 then
         toast(L.nightMode)
@@ -1061,12 +1060,6 @@ local function handleOrb()
       end
     else
       if press.moved then
-        local snapX1, snapX2 = 16, scr.x - ORB_SIZE - 16
-        local snapY1, snapY2 = 64, scr.y - ORB_SIZE - 16
-        if math.abs(state.orbX - snapX1) < 56 then state.orbX = snapX1 end
-        if math.abs(state.orbX - snapX2) < 56 then state.orbX = snapX2 end
-        if math.abs(state.orbY - snapY1) < 40 then state.orbY = snapY1 end
-        if math.abs(state.orbY - snapY2) < 40 then state.orbY = snapY2 end
         state.orbX, state.orbY = clampPos(state.orbX, state.orbY, scr.x, scr.y)
         persist()
       else
@@ -1102,7 +1095,6 @@ local function handlePanelDrag()
       local ny = state.panelDragBase.y + (mp.y - state.panelDragMouse.y)
       state.panelTX = clamp(nx, 8, scr.x - PANEL_W - 8)
       state.panelTY = clamp(ny, 48, scr.y - 80)
-      state.panelDragBase = vec2(state.panelTX, state.panelTY)
       return false
     end
     state.panelDrag = false
@@ -1171,8 +1163,8 @@ local function drawPanel()
         if hov or active then
           ui.drawRectFilled(vec2(ix, navY), vec2(ix + itemW - 4, navY + 26), active and C.btnActive or C.btn, 8)
         end
-        local tsz = ui.measureDWriteText(item.label, 12, -1)
-        ui.dwriteDrawText(item.label, 12, vec2(ix + (itemW - 4 - tsz.x) * 0.5, navY + 6), active and C.text or (hov and C.accentSoft or C.dim))
+        local tsz = ui.measureDWriteText(item.label, 11, -1)
+        ui.dwriteDrawText(item.label, 11, vec2(ix + (itemW - 4 - tsz.x) * 0.5, navY + 7), active and C.text or (hov and C.accentSoft or C.dim))
         if active then navTarget = ix + (itemW - 4) * 0.5 end
         if state.openT >= 0.999 and ui.mouseClicked(0) and inRect(ir, mpn) and not state.dragging then
           setSection(item.key)
@@ -1328,9 +1320,8 @@ local function drawSpeedometer()
   end)
 end
 
-local function drawAll()
+local function drawMenu()
   drawToasts()
-  drawSpeedometer()
   handleOrb()
   if state.openT > 0.01 then
     drawPanel()
@@ -1416,8 +1407,14 @@ function script.drawUI()
       toast(L.ready)
     end
   end
+  local okSpd = pcall(drawSpeedometer)
+  if okSpd then
+    state.spdErrors = 0
+  else
+    state.spdErrors = (state.spdErrors or 0) + 1
+  end
   if state.emergency then return end
-  local ok = pcall(drawAll)
+  local ok = pcall(drawMenu)
   if ok then
     state.drawErrors = 0
   else
