@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.3.0'
+local VERSION = '3.4.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.3.0',
+  versionTag = 'v3.4.0',
   ready = 'VENOM X READY - tap the VENOM X launcher',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -309,13 +309,19 @@ local function toast(message, kind)
 end
 
 local function getScreenSize()
-  if state.screen == nil or (state.frames - state.screenAt) > 90 then
-    local ok, size = pcall(function() return render.getRenderTargetSize() end)
-    if ok and size and size.x and size.x > 0 then
-      state.screen = size
+  -- Transparent CSP UI windows use UI coordinates, not the off-screen render target.
+  -- A 1920x1080 guessed fallback on a smaller display hid the speedometer.
+  if state.screen == nil or (state.frames - state.screenAt) > 30 then
+    local ok, size = pcall(function() return ac.getUI().windowSize end)
+    if not ok or not size or size.x < 200 or size.y < 200 then
+      ok, size = pcall(function() return render.getRenderTargetSize() end)
+    end
+    if ok and size and size.x >= 200 and size.y >= 200 then
+      state.screen = vec2(size.x, size.y)
       state.screenAt = state.frames
     elseif state.screen == nil then
-      state.screen = vec2(1920, 1080)
+      state.screen = vec2(1280, 720)
+      state.screenAt = state.frames
     end
   end
   return state.screen
@@ -546,7 +552,7 @@ end
 
 local function isHumanCar(c, nm, mid, sid)
   if stateVal(c, 'isAIControlled') then return false end
-  if type(sid) == 'number' and not HUMAN_SESSION_IDS[sid] then return false end
+  if type(sid) ~= 'number' or not HUMAN_SESSION_IDS[sid] then return false end
   if type(nm) == 'string' then
     if nm:find('TRAFFIC', 1, true) then return false end
     if nm:lower():find('traffic', 1, true) then return false end
@@ -655,7 +661,8 @@ end
 
 local function initPicker()
   if state.pickerInit then return end
-  local cc = car().customCarColor
+  local ownCar = car()
+  local cc = ownCar and ownCar.customCarColor or nil
   if cc and cc.r == cc.r then
     state.picker.r = cc.r
     state.picker.g = cc.g
@@ -763,15 +770,19 @@ end
 
 local function withWindow(id, pos, size, content, noPad)
   pushGlass()
-  local okc = pcall(function()
+  local begun = false
+  local ok, err = pcall(function()
     ui.beginTransparentWindow(id, pos, size, noPad or false, true)
+    begun = true
     content()
-    ui.endTransparentWindow()
   end)
-  if not okc then
-    pcall(ui.endTransparentWindow)
+  if begun then
+    local ended, endErr = pcall(ui.endTransparentWindow)
+    if not ended and ok then ok, err = false, endErr end
   end
   popGlass()
+  -- Errors must reach the protected renderer; otherwise a broken HUD reports ACTIVE.
+  if not ok then error('VENOM X [' .. tostring(id) .. '] ' .. tostring(err), 0) end
 end
 
 local function withAlpha(a, fn)
@@ -832,7 +843,7 @@ local function drawTeleport()
   sectionLabel(state.destSource == 'chat' and 'SERVER DESTINATIONS' or 'CONFIG DESTINATIONS')
   local changed, entered
   state.search, changed, entered = ui.inputText(L.destSearch, state.search)
-  ui.setTooltip('Filter destinations by name or group')
+  if ui.itemHovered() then ui.setTooltip('Filter destinations by name or group') end
   if #state.destList == 0 then
     ui.textDisabled(L.noDestinations)
     return
@@ -872,7 +883,7 @@ local function drawTeleport()
         if ui.button(d.name, vec2(0, 23)) then
           teleportDest(d)
         end
-        ui.setTooltip(string.format('%s\n%s', d.name, d.group))
+        if ui.itemHovered() then ui.setTooltip(string.format('%s\n%s', d.name, d.group)) end
       end
     end
   end
@@ -954,9 +965,9 @@ local function drawColor()
       state.picker.b = pr.b
       applyColor(c)
     end
-    ui.setTooltip(pr.label)
+    if ui.itemHovered() then ui.setTooltip(pr.label) end
   end
-  ui.dummy(vec2(0, 66))
+  ui.dummy(vec2(0, 8))
   if ui.button(L.colorApply, vec2((PANEL_W - 44) / 2, 30)) then
     applyColor(state.picker)
   end
@@ -1010,11 +1021,8 @@ local function drawTime()
     return
   end
   if not installed then
-    ui.textColored(L.timeNoModule, C.warn)
-    ui.textWrapped(L.timeInstallMsg)
-    if ui.button(L.timeInstall, vec2(0, 30)) then
-      toast(L.timeInstallMsg, 'warn')
-    end
+    sectionLabel('SERVER TIME')
+    ui.textWrapped('Core VENOM X features work from the server script alone. Local sky-time override needs client-side weather access and is not available with a single CSP online script. The server clock remains available above.')
     return
   end
   local tv = wrapDay(serverSec() + tm.curOffset)
@@ -1079,6 +1087,7 @@ local function drawHud()
   sectionLabel('DEBUG')
   local spdErr = state.spdErrors or 0
   ui.textDisabled('Speedometer renderer: ' .. (spdErr == 0 and 'ACTIVE' or ('ERROR x' .. tostring(spdErr))))
+  if state.spdErrorMsg then ui.textWrapped('Last error: ' .. tostring(state.spdErrorMsg):sub(1, 180)) end
   local dx0, dy0 = speedoRect()
   ui.textDisabled(string.format('X: %d  Y: %d', math.floor(dx0 + 0.5), math.floor(dy0 + 0.5)))
   ui.textDisabled(string.format('Scale: %d%%  Opacity: %d%%', clamp(state.hudScale or 100, 80, 130), clamp(state.hudOp or 90, 40, 100)))
@@ -1108,7 +1117,7 @@ local function drawVenomLauncher()
   end
   local mp = ui.mousePos()
   withWindow('vx_launcher', vec2(state.orbX - 2, state.orbY - 2), vec2(ORB_SIZE + 4, ORB_SIZE + 4), function()
-    local hit = ui.invisibleButton('##vxlaunch', vec2(ORB_SIZE, ORB_SIZE))
+    ui.invisibleButton('##vxlaunch', vec2(ORB_SIZE, ORB_SIZE))
     local mn = ui.itemRectMin()
     local mx = ui.itemRectMax()
     local bx, by = mn.x, mn.y
@@ -1145,7 +1154,7 @@ local function drawVenomLauncher()
         if press.moved then
           state.orbX, state.orbY = clampPos(state.orbX, state.orbY, scr.x, scr.y)
           persist()
-        elseif hit then
+        elseif inRect(r, mp) then
           if state.panelOpen then closePanel() else openPanel(nil) end
         end
         state.orbPress = nil
@@ -1324,7 +1333,7 @@ local function speedoRect()
     x0 = scr.x - w - 26
     y0 = scr.y - h - 90
   end
-  if type(y0) ~= 'number' then
+  if type(y0) ~= 'number' or y0 < 0 then
     y0 = scr.y - h - 90
   end
   if x0 > scr.x - 40 or y0 > scr.y - 40 or x0 + w < 40 or y0 + h < 40 then
@@ -1333,6 +1342,8 @@ local function speedoRect()
     state.spdX, state.spdY = -1, -1
     persist()
   end
+  x0 = clamp(x0, 8, math.max(8, scr.x - w - 8))
+  y0 = clamp(y0, 48, math.max(48, scr.y - h - 8))
   return x0, y0, w, h, k
 end
 
@@ -1513,15 +1524,35 @@ function script.drawUI()
       toast(L.ready)
     end
   end
-  if pcall(drawVenomLauncher) then
+  local launchOk, launchErr = pcall(drawVenomLauncher)
+  if launchOk then
     state.launcherErrors = 0
   else
     state.launcherErrors = (state.launcherErrors or 0) + 1
+    if state.launcherErrors == 1 then pcall(ac.log, 'VENOM X launcher: ' .. tostring(launchErr)) end
   end
-  if pcall(drawSpeedometer) then
-    state.spdErrors = 0
+  local speedOk, speedErr = pcall(drawSpeedometer)
+  if speedOk then
+    state.spdErrors, state.spdErrorMsg = 0, nil
   else
     state.spdErrors = (state.spdErrors or 0) + 1
+    state.spdErrorMsg = tostring(speedErr)
+    if state.spdErrors == 1 then pcall(ac.log, 'VENOM X speedometer: ' .. state.spdErrorMsg) end
+    -- Graceful fallback without dependencies if the styled CSP window fails.
+    if state.hudVisible then
+      local scr = getScreenSize()
+      local began = false
+      pcall(function()
+        ui.beginTransparentWindow('vx_speed_recovery', vec2(math.max(8, scr.x - 220), math.max(48, scr.y - 170)), vec2(205, 110), true, false)
+        began = true
+        ui.text('VENOM X')
+        local cc = car()
+        ui.text(string.format('%d KM/H', math.floor(tonumber(cc and cc.speedKmh) or 0)))
+        ui.endTransparentWindow()
+        began = false
+      end)
+      if began then pcall(ui.endTransparentWindow) end
+    end
   end
   if pcall(drawToasts) then
     state.toastErrors = 0
@@ -1529,11 +1560,12 @@ function script.drawUI()
     state.toastErrors = (state.toastErrors or 0) + 1
   end
   if state.emergency then return end
-  local ok = pcall(drawVenomPanelSafe)
+  local ok, panelErr = pcall(drawVenomPanelSafe)
   if ok then
     state.drawErrors = 0
   else
     state.drawErrors = state.drawErrors + 1
+    if state.drawErrors == 1 then pcall(ac.log, 'VENOM X panel: ' .. tostring(panelErr)) end
     if state.drawErrors >= 3 then
       state.emergency = true
       pcall(function() ui.toast(ui.Icons.Bulb, L.emergencyMode) end)
@@ -1549,18 +1581,18 @@ loadChat()
 refreshDestinations(true)
 setSection(state.section)
 
+-- The native lightbulb entry is a click action, never a second 430x600 tool window.
+-- Matches CSP's documented registerOnlineExtra(icon, title, enabled, nil, action, flags).
 ui.registerOnlineExtra(ui.Icons.Bulb, L.title,
   function() return true end,
-  function()
-    if state.emergency then drawEmergency(); return false end
-    if not state.bulbFired then
-      state.bulbFired = true
-      if state.panelOpen then closePanel() else openPanel(nil) end
+  nil,
+  function(clicked)
+    if clicked == false then return end
+    if state.emergency then
+      state.emergency = false
+      state.drawErrors = 0
     end
-    return false
+    if state.panelOpen then closePanel() else openPanel(nil) end
   end,
-  function(ok) state.bulbFired = false end,
-  ui.OnlineExtraFlags.Tool,
-  bit.bor(ui.WindowFlags.NoCollapse, ui.WindowFlags.NoFocusOnAppearing),
-  vec2(430, 600)
+  ui.OnlineExtraFlags.None
 )
