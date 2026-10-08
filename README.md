@@ -114,6 +114,18 @@ automatically (served as `text/plain`).
   sun-shift effect (helper loads clean; the shift is only observable after an in-game
   TIME interaction)
 
+## Status (2026-10-08, v3.1.1)
+
+- **DEPLOY-VERIFIED** — v3.1.1 pushed, raw URL 200 `text/plain`, serves `VERSION = '3.1.1'`
+- **RUNTIME-PARTIAL** — one real online session (session 4, /ADAn): script fetched,
+  "Loading is finished", **zero Lua errors**; `shared/sim/chat` init fired; storage
+  saved mid-session (launcher persist path executed); helper present at the
+  guarded Pure hook with no weather errors
+- **NOT VISUALLY CONFIRMED** — launcher icon on screen, click-to-open, drag
+  smoothness, panel open/close. Reason: the machine was in continuous active use
+  (Chrome/Discord/Gmail foreground, live cursor), so no in-game clicks or game-UI
+  screenshots were possible without hijacking the session.
+
 ## Status (2026-10-08, v3.1.0)
 
 - **DEPLOY-VERIFIED** — v3.1.0 pushed, raw URL 200 `text/plain`, serves `VERSION = '3.1.0'`
