@@ -77,11 +77,11 @@ local L = {
   presetNight = 'NIGHT 00:00',
   hudSettings = 'HUD SETTINGS',
   speedometer = 'Speedometer',
-  rpmBar = 'RPM bar',
+  rpmBar = 'RPM ring',
   opacity = 'HUD opacity',
   scale = 'HUD scale',
   resetPositions = 'Reset positions',
-  hudNote = 'Drag the X or panel header with your mouse. CTRL+SHIFT+X toggles the menu.',
+  hudNote = 'Drag the floating X or panel header. CTRL+SHIFT+X opens the menu.',
   nightMode = 'NIGHT MODE',
   resetDone = 'Reset to server time',
   spdOn = 'SPEEDOMETER ON',
@@ -818,7 +818,7 @@ end
 local function drawHome()
   refreshPlayers(false)
   sectionLabel('LA CANYONS  /  ONLINE')
-  local p = ui.cursorScreenPos()
+  local p = ui.getCursor()
   local w = PANEL_W - 37
   ui.drawRectFilled(p, vec2(p.x + w, p.y + 91), C.cardSolid, 13)
   ui.drawRect(p, vec2(p.x + w, p.y + 91), C.accentFaint, 13, ui.CornerFlags.All, 1)
