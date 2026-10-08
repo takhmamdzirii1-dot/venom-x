@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.4.0'
+local VERSION = '3.5.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.4.0',
+  versionTag = 'v3.5.0',
   ready = 'VENOM X READY - tap the VENOM X launcher',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -959,7 +959,7 @@ local function drawColor()
   for i, pr in ipairs(PRESETS) do
     if i > 1 and (i - 1) % 6 ~= 0 then ui.sameLine() end
     local c = rgbm(pr.r, pr.g, pr.b, 1)
-    if ui.colorButton('##pw' .. i, c, ui.ColorPickerFlags.NoAlpha, vec2(swW, 28)) then
+    if ui.colorButton('##pw' .. i, c, bit.bor(ui.ColorPickerFlags.NoAlpha, ui.ColorPickerFlags.NoTooltip), vec2(swW, 28)) then
       state.picker.r = pr.r
       state.picker.g = pr.g
       state.picker.b = pr.b
@@ -1117,7 +1117,7 @@ local function drawVenomLauncher()
   end
   local mp = ui.mousePos()
   withWindow('vx_launcher', vec2(state.orbX - 2, state.orbY - 2), vec2(ORB_SIZE + 4, ORB_SIZE + 4), function()
-    ui.invisibleButton('##vxlaunch', vec2(ORB_SIZE, ORB_SIZE))
+    local widgetClicked = ui.invisibleButton('##vxlaunch', vec2(ORB_SIZE, ORB_SIZE))
     local mn = ui.itemRectMin()
     local mx = ui.itemRectMax()
     local bx, by = mn.x, mn.y
@@ -1154,7 +1154,7 @@ local function drawVenomLauncher()
         if press.moved then
           state.orbX, state.orbY = clampPos(state.orbX, state.orbY, scr.x, scr.y)
           persist()
-        elseif inRect(r, mp) then
+        elseif widgetClicked or inRect(r, mp) then
           if state.panelOpen then closePanel() else openPanel(nil) end
         end
         state.orbPress = nil
@@ -1168,126 +1168,106 @@ local function drawVenomPanel()
   local t = easeOutCubic(clamp(state.openT, 0, 1))
   if t <= 0.01 then return end
   local px, py, pw, ph
-  if state.openT >= 0.9 then
+  if state.openT >= 0.95 then
     px, py, pw, ph = state.panelTX, state.panelTY, PANEL_W, PANEL_H
   else
     px = lerp(state.orbX, state.panelTX, t)
     py = lerp(state.orbY, state.panelTY, t)
-    pw = lerp(64, PANEL_W, t)
-    ph = lerp(64, PANEL_H, t)
+    pw = lerp(ORB_SIZE, PANEL_W, t)
+    ph = lerp(ORB_SIZE, PANEL_H, t)
   end
+
   withWindow('vx_panel', vec2(px, py), vec2(pw, ph), function()
-    if state.openT < 0.9 then
-      local cx0 = px + pw * 0.5
-      local cy0 = py + ph * 0.5
-      local lc = col(C.accent, 0.4 + t * 0.6)
-      ui.drawLine(vec2(cx0 - 9, cy0 - 9), vec2(cx0 + 9, cy0 + 9), lc, 3)
-      ui.drawLine(vec2(cx0 + 9, cy0 - 9), vec2(cx0 - 9, cy0 + 9), lc, 3)
+    -- Avoid rendering interactive children before the animated panel is fully open.
+    if state.openT < 0.95 then
+      ui.dwriteDrawText('VENOM X', 14, vec2(px + 12, py + 12), C.accent)
       return
     end
-    local alpha = clamp((state.openT - 0.9) / 0.1, 0, 1)
-    withAlpha(alpha, function()
-      local headW = PANEL_W - 28
-      ui.invisibleButton('##vxhead', vec2(headW - 32, 28))
-      local hmn = ui.itemRectMin()
-      local hmx = ui.itemRectMax()
-      local mp = ui.mousePos()
-      local hr = { x = hmn.x, y = hmn.y, w = hmx.x - hmn.x, h = hmx.y - hmn.y }
-      if not state.panelDrag and not state.dragging and not state.orbPress and ui.mouseClicked(0) and inRect(hr, mp) then
-        state.panelDrag = true
-        state.dragging = 'panel'
-        state.panelDragMouse = mp
-        state.panelDragBase = vec2(state.panelTX, state.panelTY)
+
+    -- All hitboxes are normal ImGui widgets in one consistent UI coordinate system.
+    -- Only this header starts a panel drag, never a nav button or another child.
+    ui.invisibleButton('##vxheader', vec2(math.max(80, PANEL_W - 100), 30))
+    local hmin, hmax = ui.itemRectMin(), ui.itemRectMax()
+    ui.dwriteDrawText('VENOM X', 17, vec2(hmin.x + 4, hmin.y + 3), C.accent)
+    local mp = ui.mousePos()
+    local head = { x = hmin.x, y = hmin.y, w = hmax.x - hmin.x, h = hmax.y - hmin.y }
+    if not state.panelDrag and not state.dragging and not state.orbPress
+       and ui.mouseClicked(0) and inRect(head, mp) then
+      state.panelDrag = true
+      state.dragging = 'panel'
+      state.panelDragMouse = vec2(mp.x, mp.y)
+      state.panelDragBase = vec2(state.panelTX, state.panelTY)
+    end
+    if state.panelDrag then
+      if ui.mouseDown(0) then
+        local scr = getScreenSize()
+        state.panelTX = clamp(state.panelDragBase.x + mp.x - state.panelDragMouse.x,
+          8, math.max(8, scr.x - PANEL_W - 8))
+        state.panelTY = clamp(state.panelDragBase.y + mp.y - state.panelDragMouse.y,
+          40, math.max(40, scr.y - PANEL_H - 8))
+      else
+        state.panelDrag = false
+        state.dragging = nil
       end
-      if state.panelDrag then
-        if ui.mouseDown(0) then
-          local scr = getScreenSize()
-          state.panelTX = clamp(state.panelDragBase.x + (mp.x - state.panelDragMouse.x), 8, scr.x - PANEL_W - 8)
-          state.panelTY = clamp(state.panelDragBase.y + (mp.y - state.panelDragMouse.y), 48, scr.y - 80)
-        else
-          state.panelDrag = false
-          state.dragging = nil
-        end
+    end
+    ui.sameLine()
+    if ui.button('X##vxclose', vec2(36, 30)) then closePanel() end
+
+    ui.separator()
+    -- Consistent two-row navigation prevents clipping across S/M/L.
+    local navW = math.max(60, (PANEL_W - 44) / 3)
+    for i, item in ipairs(NAV) do
+      if (i - 1) % 3 ~= 0 then ui.sameLine() end
+      local selected = state.section == item.key
+      if selected then
+        ui.pushStyleColor(ui.StyleColor.Button, C.btnActive)
+        ui.pushStyleColor(ui.StyleColor.Text, C.text)
       end
-      ui.dwriteDrawText(L.title, 15, vec2(hmn.x + 6, hmn.y + 4), C.accent)
-      local tw = ui.measureDWriteText(L.title, 15, -1)
-      ui.dwriteDrawText(state.section, 12, vec2(hmn.x + 6 + tw.x + 8, hmn.y + 6), C.text)
-      ui.sameLine()
-      if ui.button('X', vec2(26, 26)) then closePanel() end
-      ui.separator()
-      local twoRow = PANEL_W < 320
-      local perRow = twoRow and 3 or 6
-      local itemW = (PANEL_W - 28 - (perRow - 1) * 6) / perRow
-      local navTargetX, navTargetY = nil, nil
-      for i, item in ipairs(NAV) do
-        if i > 1 and ((i - 1) % perRow ~= 0) then ui.sameLine() end
-        local active = state.section == item.key
-        if active then
-          ui.pushStyleColor(ui.StyleColor.Button, C.btnActive)
-          ui.pushStyleColor(ui.StyleColor.Text, C.text)
-        else
-          ui.pushStyleColor(ui.StyleColor.Button, C.btnFlat)
-          ui.pushStyleColor(ui.StyleColor.Text, C.dim)
-        end
-        local navHit = ui.button(item.label, vec2(itemW, 26))
-        ui.popStyleColor(2)
-        if navHit and state.openT >= 0.999 and not state.dragging then
-          setSection(item.key)
-        end
-        if active then
-          local amn = ui.itemRectMin()
-          local amx = ui.itemRectMax()
-          navTargetX = (amn.x + amx.x) * 0.5
-          navTargetY = amx.y + 1
-        end
+      if ui.button(item.label .. '##vxnav' .. i, vec2(navW, 29)) then
+        setSection(item.key)
       end
-      if navTargetX then
-        if state.navX < 0 then state.navX = navTargetX end
-        state.navX = anim(state.navX, navTargetX, 14, state.dt)
-        ui.drawRectFilled(vec2(state.navX - 14, navTargetY), vec2(state.navX + 14, navTargetY + 2), C.accent, 1)
-      end
-      local cy = ui.cursorScreenPos()
-      local childH = (py + PANEL_H - 8) - cy.y - 30
-      if childH < 60 then childH = 60 end
-      withAlpha(alpha * clamp(state.sectT * 1.4, 0, 1), function()
-        local opened = ui.beginChild('vx_section', vec2(PANEL_W - 24, childH), false, ui.WindowFlags.None)
-        local okd, errd = pcall(function()
-          if opened then drawSection(state.section) end
-        end)
-        ui.endChild()
-        if not okd then error(errd, 0) end
-      end)
-      ui.textDisabled(string.format('v%s', VERSION))
-      ui.sameLine()
-      local ax = ui.availableSpaceX()
-      ui.dummy(vec2(ax - 30, 4))
-      ui.sameLine()
-      ui.invisibleButton('##vxgrip', vec2(28, 20))
-      local gmn = ui.itemRectMin()
-      local gmx = ui.itemRectMax()
-      ui.drawLine(vec2(gmx.x - 5, gmx.y - 15), vec2(gmx.x - 15, gmx.y - 5), C.dim, 2)
-      ui.drawLine(vec2(gmx.x - 5, gmx.y - 10), vec2(gmx.x - 10, gmx.y - 5), C.dim, 2)
-      local gr = { x = gmn.x, y = gmn.y, w = gmx.x - gmn.x, h = gmx.y - gmn.y }
-      if not state.sizeDrag and not state.dragging and not state.orbPress and ui.mouseClicked(0) and inRect(gr, mp) then
-        state.sizeDrag = { w = PANEL_W, h = PANEL_H, mx = mp.x, my = mp.y }
-        state.dragging = 'size'
-      end
-      if state.sizeDrag then
-        if ui.mouseDown(0) then
-          local scr2 = getScreenSize()
-          state.panelW = clamp(state.sizeDrag.w + (mp.x - state.sizeDrag.mx), 260, math.min(560, scr2.x - 16))
-          state.panelH = clamp(state.sizeDrag.h + (mp.y - state.sizeDrag.my), 330, math.min(640, scr2.y - 16))
-          state.panelSize = -1
-          applyPanelSize()
-          state.panelTX = math.min(state.panelTX, scr2.x - PANEL_W - 8)
-          state.panelTY = math.min(state.panelTY, scr2.y - 80)
-        else
-          state.sizeDrag = nil
-          state.dragging = nil
-          persist()
-        end
-      end
+      if selected then ui.popStyleColor(2) end
+    end
+    ui.separator()
+    local contentHeight = math.max(120, PANEL_H - 166)
+    local begun = false
+    local childOpen, childErr = pcall(function()
+      begun = true
+      return ui.beginChild('vx_content', vec2(0, contentHeight), false, ui.WindowFlags.None)
     end)
+    if not childOpen then
+      if begun then pcall(ui.endChild) end
+      error('Content container: ' .. tostring(childErr), 0)
+    end
+    local sectionOk, sectionErr = pcall(function()
+      if childErr then drawSection(state.section) end
+    end)
+    local endOk, endErr = pcall(ui.endChild)
+    if not endOk then error('Content end: ' .. tostring(endErr), 0) end
+    if not sectionOk then
+      -- Keep launcher and navigation alive if a feature tab is unsupported.
+      state.panelErrorMsg = tostring(sectionErr)
+      ui.textColored('Section error (see CSP log)', C.warn)
+      if not state.reportedSectionError then
+        state.reportedSectionError = true
+        pcall(ac.log, 'VENOM X section ' .. state.section .. ': ' .. state.panelErrorMsg)
+      end
+    else
+      state.reportedSectionError = false
+    end
+
+    ui.separator()
+    ui.textDisabled('VENOM X ' .. VERSION)
+    ui.sameLine()
+    if ui.button('-##vxsmaller', vec2(24, 23)) then
+      setPanelSize(math.max(0, state.panelSize == -1 and 1 or state.panelSize - 1))
+    end
+    ui.sameLine()
+    if ui.button('+##vxlarger', vec2(24, 23)) then
+      setPanelSize(math.min(2, state.panelSize + 1))
+    end
+    ui.sameLine()
+    if ui.button('CLOSE##vxbottomclose', vec2(68, 23)) then closePanel() end
   end)
 end
 
@@ -1559,16 +1539,17 @@ function script.drawUI()
   else
     state.toastErrors = (state.toastErrors or 0) + 1
   end
-  if state.emergency then return end
   local ok, panelErr = pcall(drawVenomPanelSafe)
   if ok then
     state.drawErrors = 0
   else
     state.drawErrors = state.drawErrors + 1
     if state.drawErrors == 1 then pcall(ac.log, 'VENOM X panel: ' .. tostring(panelErr)) end
-    if state.drawErrors >= 3 then
-      state.emergency = true
-      pcall(function() ui.toast(ui.Icons.Bulb, L.emergencyMode) end)
+    if state.drawErrors == 3 then
+      state.panelErrorMsg = tostring(panelErr)
+      pcall(function() ui.toast(ui.Icons.Warning, 'VENOM X panel: ' .. tostring(panelErr):sub(1, 160)) end)
+      -- Keep the X visible so the user can close it and access the lightbulb tool.
+      closePanel()
     end
   end
 end
@@ -1581,18 +1562,27 @@ loadChat()
 refreshDestinations(true)
 setSection(state.section)
 
--- The native lightbulb entry is a click action, never a second 430x600 tool window.
--- Matches CSP's documented registerOnlineExtra(icon, title, enabled, nil, action, flags).
+-- CSP's lightbulb is the supported interactive entry point for server scripts.
+-- This is a minimal actionable fallback if gameplay mouse is captured by the game.
 ui.registerOnlineExtra(ui.Icons.Bulb, L.title,
   function() return true end,
-  nil,
-  function(clicked)
-    if clicked == false then return end
-    if state.emergency then
-      state.emergency = false
-      state.drawErrors = 0
+  function()
+    ui.text('VENOM X ' .. VERSION)
+    ui.textWrapped('Click OPEN to show the floating VENOM X control panel.')
+    if ui.button(state.panelOpen and 'CLOSE VENOM X' or 'OPEN VENOM X', vec2(250, 36)) then
+      if state.panelOpen then closePanel() else openPanel(nil) end
     end
-    if state.panelOpen then closePanel() else openPanel(nil) end
+    if ui.button('RESET POSITIONS', vec2(250, 32)) then
+      state.orbX, state.orbY = 16, -1
+      state.spdX, state.spdY = -1, -1
+      state.hudVisible = true
+      persist()
+    end
+    if state.panelErrorMsg then ui.textWrapped('Last panel error: ' .. tostring(state.panelErrorMsg):sub(1, 250)) end
+    return false
   end,
-  ui.OnlineExtraFlags.None
+  nil,
+  ui.OnlineExtraFlags.Tool,
+  bit.bor(ui.WindowFlags.NoCollapse, ui.WindowFlags.NoFocusOnAppearing),
+  vec2(285, 205)
 )
