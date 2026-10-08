@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.9.0'
+local VERSION = '3.9.1'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.9.0',
+  versionTag = 'v3.9.1',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -1085,15 +1085,18 @@ local function drawTime()
   -- Only label an applied client override as verified when the Pure bridge
   -- explicitly acknowledges it. Direct native API success is not sky validation.
   if hasBridge then
-    ui.textColored(tm.applied == 'yes' and 'AUTO / PURE BRIDGE ACTIVE'
-      or 'AUTO / PURE BRIDGE WAITING', tm.applied == 'yes' and C.ok or C.warn)
+    ui.textColored(tm.applied == 'yes' and 'PURE BRIDGE / REPORTED APPLIED'
+      or 'PURE BRIDGE / WAITING FOR APPLICATION', tm.applied == 'yes' and C.ok or C.warn)
+    ui.textDisabled('Bridge state: ' .. tostring(tm.helper or 'UNKNOWN'))
   elseif tm.mode == 'CSP NATIVE' then
     ui.textColored('AUTO / CSP WEATHERFX API', C.ok)
     ui.textDisabled('Time API accepted; visual controller dependent.')
   else
     ui.textColored('AUTO / SERVER SKY',C.warn)
-    ui.textWrapped('No client time-control interface is available. Presets are disabled rather than fake the lighting.')
-    if tm.gingysSeen then ui.textDisabled('Gingys hook seen, but VENOM X control is not verified.') end
+    ui.textWrapped('Individual sky time requires a compatible client weather bridge. CSP online scripts cannot install that bridge automatically.')
+    ui.textDisabled('VENOM Pure hook: ' .. tostring(tm.helper or 'NOT DETECTED'))
+    ui.textDisabled('Gingys controller: ' .. (tm.gingysSeen and 'DETECTED (SEPARATE KEYS)' or 'NOT DETECTED'))
+    ui.textDisabled('CSP native online: NOT A RELIABLE SKY CONTROLLER')
   end
   ui.separator()
   if capable then
@@ -1580,7 +1583,12 @@ local function probeTimeController()
   -- by its own app; never overwrite its storage and fight its user settings.
   local gok,gstatus=pcall(ac.load,'GingysClientTime.PureBridge.Status')
   tm.gingysSeen=gok and type(gstatus)=='string' and gstatus~=''
-  local native=type(ac.setWeatherTimeOffset)=='function' and not tm.nativeRejected
+  -- An online script may expose the API symbol without permission to affect
+  -- the rendered sky. Never equate its presence with a functional controller.
+  local racing=sim()
+  local inOnlineRace=not racing or racing.isOnlineRace~=false
+  local native=not inOnlineRace and
+    type(ac.setWeatherTimeOffset)=='function' and not tm.nativeRejected
   tm.nativeAvailable=native
   if tm.helperSeen then
     tm.mode='PURE BRIDGE'
