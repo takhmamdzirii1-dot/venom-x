@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.2.0'
+local VERSION = '3.3.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.2.0',
+  versionTag = 'v3.3.0',
   ready = 'VENOM X READY - tap the VENOM X launcher',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -168,6 +168,8 @@ local state = {
   spdX = -1,
   spdY = -1,
   panelSize = 1,
+  panelW = 340,
+  panelH = 430,
   section = 'HOME',
   sectT = 1,
   navX = -1,
@@ -320,8 +322,8 @@ local function getScreenSize()
 end
 
 local function applyPanelSize()
-  local s = PANEL_SIZES[(state.panelSize or 1) + 1] or PANEL_SIZES[2]
-  PANEL_W, PANEL_H = s[1], s[2]
+  PANEL_W = clamp(math.floor(state.panelW or 340), 260, 560)
+  PANEL_H = clamp(math.floor(state.panelH or 430), 330, 640)
 end
 
 local function panelTargetPos()
@@ -355,6 +357,8 @@ local function loadStored()
       vx_sx = -1,
       vx_sy = -1,
       vx_psz = 1,
+      vx_pw = 340,
+      vx_ph = 430,
       vx_sec = 'HOME',
     })
   end)
@@ -362,13 +366,15 @@ local function loadStored()
     stored = res
     if res.vx_hud ~= nil then state.hudVisible = res.vx_hud end
     if res.vx_rpm ~= nil then state.rpmBar = res.vx_rpm end
-    if type(res.vx_op) == 'number' then state.hudOp = res.vx_op end
-    if type(res.vx_sc) == 'number' then state.hudScale = res.vx_sc end
-    if type(res.vx_ox) == 'number' then state.orbX = res.vx_ox end
-    if type(res.vx_oy) == 'number' then state.orbY = res.vx_oy end
-    if type(res.vx_sx) == 'number' then state.spdX = res.vx_sx end
-    if type(res.vx_sy) == 'number' then state.spdY = res.vx_sy end
-    if type(res.vx_psz) == 'number' then state.panelSize = clamp(math.floor(res.vx_psz + 0.5), 0, 2) end
+    if type(res.vx_op) == 'number' then state.hudOp = clamp(res.vx_op, 40, 100) end
+    if type(res.vx_sc) == 'number' then state.hudScale = clamp(res.vx_sc, 80, 130) end
+    if type(res.vx_ox) == 'number' and res.vx_ox >= -100 and res.vx_ox <= 4000 then state.orbX = res.vx_ox end
+    if type(res.vx_oy) == 'number' and res.vx_oy >= -100 and res.vx_oy <= 4000 then state.orbY = res.vx_oy end
+    if type(res.vx_sx) == 'number' and (res.vx_sx == -1 or (res.vx_sx >= -50 and res.vx_sx <= 4000)) then state.spdX = res.vx_sx end
+    if type(res.vx_sy) == 'number' and (res.vx_sy == -1 or (res.vx_sy >= -50 and res.vx_sy <= 4000)) then state.spdY = res.vx_sy end
+    if type(res.vx_psz) == 'number' then state.panelSize = clamp(math.floor(res.vx_psz + 0.5), -1, 2) end
+    if type(res.vx_pw) == 'number' then state.panelW = clamp(res.vx_pw, 260, 560) end
+    if type(res.vx_ph) == 'number' then state.panelH = clamp(res.vx_ph, 330, 640) end
     if type(res.vx_sec) == 'string' then state.section = res.vx_sec end
   end
 end
@@ -384,6 +390,8 @@ local function persist()
   stored.vx_sx = state.spdX
   stored.vx_sy = state.spdY
   stored.vx_psz = state.panelSize
+  stored.vx_pw = state.panelW
+  stored.vx_ph = state.panelH
   stored.vx_sec = state.section
 end
 
@@ -686,7 +694,10 @@ local function serverSec()
 end
 
 local function setPanelSize(idx)
-  state.panelSize = clamp(idx, 0, 2)
+  idx = clamp(idx, 0, 2)
+  state.panelSize = idx
+  state.panelW = PANEL_SIZES[idx + 1][1]
+  state.panelH = PANEL_SIZES[idx + 1][2]
   applyPanelSize()
   persist()
 end
@@ -1044,8 +1055,12 @@ local function drawHud()
   state.hudScale = v2
   if m1 or m2 then persist() end
   if ui.button(L.resetPositions, vec2(0, 28)) then
+    state.hudVisible = true
+    state.hudOp = 90
+    state.hudScale = 100
     state.orbX, state.orbY = 16, -1
     state.spdX, state.spdY = -1, -1
+    setPanelSize(1)
     persist()
     toast(L.resetPositions)
   end
@@ -1060,6 +1075,13 @@ local function drawHud()
   end
   ui.separator()
   ui.textDisabled(L.hudNote)
+  ui.separator()
+  sectionLabel('DEBUG')
+  local spdErr = state.spdErrors or 0
+  ui.textDisabled('Speedometer renderer: ' .. (spdErr == 0 and 'ACTIVE' or ('ERROR x' .. tostring(spdErr))))
+  local dx0, dy0 = speedoRect()
+  ui.textDisabled(string.format('X: %d  Y: %d', math.floor(dx0 + 0.5), math.floor(dy0 + 0.5)))
+  ui.textDisabled(string.format('Scale: %d%%  Opacity: %d%%', clamp(state.hudScale or 100, 80, 130), clamp(state.hudOp or 90, 40, 100)))
 end
 
 local function drawSection(key)
@@ -1092,7 +1114,7 @@ local function drawVenomLauncher()
     local bx, by = mn.x, mn.y
     local bw, bh = mx.x - mn.x, mx.y - mn.y
     ui.drawRectFilled(vec2(bx, by), vec2(bx + bw, by + bh), C.glassDeep, 16)
-    ui.drawRect(vec2(bx, by), vec2(bx + bw, by + bh), col(C.accent, 0.55 + state.orbHover * 0.45), 16, ui.CornerFlags.All, 2)
+    ui.drawRect(vec2(bx, by), vec2(bx + bw, by + bh), col(C.accent, 0.5 + state.orbHover * 0.3 + (state.orbPress and 0.2 or 0)), 16, ui.CornerFlags.All, 2)
     local cx = bx + bw * 0.5
     local xt = ui.measureDWriteText('X', 30, -1)
     ui.dwriteDrawText('X', 30, vec2(cx - xt.x * 0.5, by + 1), col(C.accent, 0.9))
@@ -1216,7 +1238,7 @@ local function drawVenomPanel()
         ui.drawRectFilled(vec2(state.navX - 14, navTargetY), vec2(state.navX + 14, navTargetY + 2), C.accent, 1)
       end
       local cy = ui.cursorScreenPos()
-      local childH = (py + PANEL_H - 8) - cy.y
+      local childH = (py + PANEL_H - 8) - cy.y - 30
       if childH < 60 then childH = 60 end
       withAlpha(alpha * clamp(state.sectT * 1.4, 0, 1), function()
         local opened = ui.beginChild('vx_section', vec2(PANEL_W - 24, childH), false, ui.WindowFlags.None)
@@ -1226,6 +1248,36 @@ local function drawVenomPanel()
         ui.endChild()
         if not okd then error(errd, 0) end
       end)
+      ui.textDisabled(string.format('v%s', VERSION))
+      ui.sameLine()
+      local ax = ui.availableSpaceX()
+      ui.dummy(vec2(ax - 30, 4))
+      ui.sameLine()
+      ui.invisibleButton('##vxgrip', vec2(28, 20))
+      local gmn = ui.itemRectMin()
+      local gmx = ui.itemRectMax()
+      ui.drawLine(vec2(gmx.x - 5, gmx.y - 15), vec2(gmx.x - 15, gmx.y - 5), C.dim, 2)
+      ui.drawLine(vec2(gmx.x - 5, gmx.y - 10), vec2(gmx.x - 10, gmx.y - 5), C.dim, 2)
+      local gr = { x = gmn.x, y = gmn.y, w = gmx.x - gmn.x, h = gmx.y - gmn.y }
+      if not state.sizeDrag and not state.dragging and not state.orbPress and ui.mouseClicked(0) and inRect(gr, mp) then
+        state.sizeDrag = { w = PANEL_W, h = PANEL_H, mx = mp.x, my = mp.y }
+        state.dragging = 'size'
+      end
+      if state.sizeDrag then
+        if ui.mouseDown(0) then
+          local scr2 = getScreenSize()
+          state.panelW = clamp(state.sizeDrag.w + (mp.x - state.sizeDrag.mx), 260, math.min(560, scr2.x - 16))
+          state.panelH = clamp(state.sizeDrag.h + (mp.y - state.sizeDrag.my), 330, math.min(640, scr2.y - 16))
+          state.panelSize = -1
+          applyPanelSize()
+          state.panelTX = math.min(state.panelTX, scr2.x - PANEL_W - 8)
+          state.panelTY = math.min(state.panelTY, scr2.y - 80)
+        else
+          state.sizeDrag = nil
+          state.dragging = nil
+          persist()
+        end
+      end
     end)
   end)
 end
@@ -1264,14 +1316,22 @@ end
 
 local function speedoRect()
   local scr = getScreenSize()
-  local k = state.hudScale / 100
+  local k = clamp(state.hudScale or 100, 80, 130) / 100
   local w = math.floor(220 * k)
   local h = math.floor(150 * k)
-  local x0 = state.spdX
-  local y0 = state.spdY
-  if x0 < 0 then
+  local x0, y0 = state.spdX, state.spdY
+  if type(x0) ~= 'number' or x0 < 0 then
     x0 = scr.x - w - 26
     y0 = scr.y - h - 90
+  end
+  if type(y0) ~= 'number' then
+    y0 = scr.y - h - 90
+  end
+  if x0 > scr.x - 40 or y0 > scr.y - 40 or x0 + w < 40 or y0 + h < 40 then
+    x0 = scr.x - w - 26
+    y0 = scr.y - h - 90
+    state.spdX, state.spdY = -1, -1
+    persist()
   end
   return x0, y0, w, h, k
 end
@@ -1315,17 +1375,22 @@ local function drawSpeedometer()
   if not state.hudVisible then return end
   local c = car()
   if not c then return end
+  local spd = tonumber(c.speedKmh) or 0
+  if spd < 0 then spd = 0 end
+  local rpm = tonumber(c.rpm) or 0
+  if rpm < 0 then rpm = 0 end
+  local gearNum = tonumber(c.gear) or 0
   local x0, y0, w, h, k = speedoRect()
   x0, y0 = handleSpeedoDrag(x0, y0, w, h)
   if state.spdX < 0 then
     state.spdX = x0
     state.spdY = y0
   end
-  local op = state.hudOp / 100
+  local op = clamp(state.hudOp or 90, 40, 100) / 100
   withWindow('vx_speedo', vec2(x0, y0), vec2(w, h), function()
     ui.drawRectFilled(vec2(x0, y0), vec2(x0 + w, y0 + h), col(C.cardSolid, op), 14)
     ui.drawRect(vec2(x0, y0), vec2(x0 + w, y0 + h), col(C.accentFaint, op), 14, ui.CornerFlags.All, 1.5)
-    local targetSpeed = math.max(0, c.speedKmh)
+    local targetSpeed = math.max(0, spd)
     state.smoothSpeed = anim(state.smoothSpeed, targetSpeed, 9, state.dt)
     local speedStr = tostring(math.floor(state.smoothSpeed + 0.5))
     local fs = math.floor(46 * k)
@@ -1333,14 +1398,14 @@ local function drawSpeedometer()
     ui.dwriteDrawText(speedStr, fs, vec2(x0 + (w - sz.x) * 0.5, y0 + 8 * k), col(C.text, op))
     local ks = ui.measureDWriteText(L.kmh, 13, -1)
     ui.dwriteDrawText(L.kmh, 13, vec2(x0 + (w - ks.x) * 0.5, y0 + 64 * k), col(C.accentSoft, op))
-    ui.dwriteDrawText(string.format(L.gear, gearString(c.gear)), 15, vec2(x0 + 14, y0 + 88 * k), col(C.text, op))
-    state.smoothRpm = anim(state.smoothRpm, c.rpm, 12, state.dt)
+    ui.dwriteDrawText(string.format(L.gear, gearString(gearNum)), 15, vec2(x0 + 14, y0 + 88 * k), col(C.text, op))
+    state.smoothRpm = anim(state.smoothRpm, rpm, 12, state.dt)
     local rpmStr = tostring(math.floor(state.smoothRpm / 10) * 10)
     local rs = ui.measureDWriteText(rpmStr, 15, -1)
     ui.dwriteDrawText(string.format(L.rpmLabel, rpmStr), 15, vec2(x0 + w - 14 - rs.x - 38, y0 + 88 * k), col(C.dim, op))
     if state.rpmBar then
-      local maxRpm = c.rpmLimiter
-      if not maxRpm or maxRpm <= 0 then maxRpm = 8000 end
+      local maxRpm = tonumber(c.rpmLimiter) or 8000
+      if maxRpm <= 0 then maxRpm = 8000 end
       local frac = clamp(state.smoothRpm / maxRpm, 0, 1)
       local bx0, by0 = x0 + 14, y0 + 112 * k
       local bx1, by1 = x0 + w - 14, y0 + 122 * k
