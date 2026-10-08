@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.7.0'
+local VERSION = '3.8.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.7.0',
+  versionTag = 'v3.8.0',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -90,15 +90,15 @@ local L = {
 }
 
 local C = {
-  accent = rgbm(0.42, 0.70, 1.00, 1.00),
-  accentSoft = rgbm(0.42, 0.70, 1.00, 0.62),
-  accentFaint = rgbm(0.42, 0.70, 1.00, 0.20),
+  accent = rgbm(0.30, 0.78, 0.94, 1.00),
+  accentSoft = rgbm(0.48, 0.85, 0.97, 0.72),
+  accentFaint = rgbm(0.30, 0.78, 0.94, 0.19),
   text = rgbm(0.94, 0.96, 1.00, 1.00),
   dim = rgbm(0.56, 0.61, 0.71, 1.00),
   glass = rgbm(0.035, 0.045, 0.070, 0.90),
-  glassDeep = rgbm(0.025, 0.032, 0.052, 0.94),
+  glassDeep = rgbm(0.016, 0.024, 0.036, 0.94),
   card = rgbm(0.075, 0.095, 0.140, 0.50),
-  cardSolid = rgbm(0.055, 0.070, 0.105, 0.66),
+  cardSolid = rgbm(0.049, 0.067, 0.087, 0.77),
   btn = rgbm(0.085, 0.105, 0.155, 0.90),
   btnHover = rgbm(0.130, 0.180, 0.290, 0.96),
   btnActive = rgbm(0.160, 0.260, 0.450, 0.98),
@@ -817,27 +817,32 @@ end
 
 local function drawHome()
   refreshPlayers(false)
-  local realHumans = #state.players + 1
-  ui.textColored('LA CANYONS  /  FREEROAM', C.accentSoft)
-  ui.separator()
-  ui.textColored('WELCOME TO VENOM X', C.text)
-  ui.textDisabled('Connected drivers: ' .. tostring(realHumans))
-  ui.textDisabled('Quick access to your favorite features.')
-  ui.dummy(vec2(0, 8))
-
-  if ui.button('TELEPORT LOCATIONS   >##vxhomeTP', vec2(0, 39)) then setSection('TELEPORT') end
-  if ui.button('ONLINE PLAYERS   >##vxhomePL', vec2(0, 39)) then setSection('PLAYERS') end
-  if ui.button('CUSTOM CAR COLOR   >##vxhomeCL', vec2(0, 39)) then setSection('COLOR') end
-  if ui.button('TIME & SKY   >##vxhomeTM', vec2(0, 39)) then setSection('TIME') end
+  sectionLabel('LA CANYONS  /  ONLINE')
+  local p = ui.cursorScreenPos()
+  local w = PANEL_W - 37
+  ui.drawRectFilled(p, vec2(p.x + w, p.y + 91), C.cardSolid, 13)
+  ui.drawRect(p, vec2(p.x + w, p.y + 91), C.accentFaint, 13, ui.CornerFlags.All, 1)
+  ui.dwriteDrawText('FREEROAM', 22, vec2(p.x + 15,p.y + 10), C.text)
+  ui.dwriteDrawText('Explore / Drive / Connect', 12, vec2(p.x + 15,p.y + 41),C.dim)
+  ui.drawCircleFilled(vec2(p.x + 19,p.y + 76),4,C.ok)
+  ui.dwriteDrawText(tostring(#state.players + 1)..' HUMAN DRIVERS',12,
+    vec2(p.x + 30,p.y + 68),C.accentSoft)
+  ui.dummy(vec2(0,106))
+  sectionLabel('QUICK CONTROL')
+  ui.dummy(vec2(0,7))
+  if ui.button('TELEPORT   /   DESTINATIONS   >##vxhomeTP', vec2(0,40)) then setSection('TELEPORT') end
+  if ui.button('PLAYERS   /   GO TO FRIEND   >##vxhomePL', vec2(0,40)) then setSection('PLAYERS') end
+  if ui.button('CAR COLOR   /   CUSTOM PAINT   >##vxhomeCL', vec2(0,40)) then setSection('COLOR') end
+  if ui.button('TIME & SKY   /   ENVIRONMENT   >##vxhomeTM', vec2(0,40)) then setSection('TIME') end
   ui.separator()
   local me = car()
   if me then
-    local halfW = math.max(90,(PANEL_W - 43) * 0.5)
-    if ui.button(me.headlightsActive and 'LIGHTS ON##vxlts' or 'LIGHTS OFF##vxlts', vec2(halfW, 31)) then toggleHeadlights() end
+    local bw = math.max(80,(PANEL_W-52)/2)
+    if ui.button(me.headlightsActive and 'LIGHTS ON##vxhl' or 'LIGHTS OFF##vxhl',vec2(bw,30)) then toggleHeadlights() end
     ui.sameLine()
-    if ui.button(me.highBeams and 'BEAMS ON##vxhb' or 'BEAMS OFF##vxhb', vec2(halfW, 31)) then toggleHighBeams() end
+    if ui.button(me.highBeams and 'BEAMS ON##vxhb' or 'BEAMS OFF##vxhb',vec2(bw,30)) then toggleHighBeams() end
   end
-  if ui.button('RETURN TO PITS##vxpit', vec2(0, 34)) then returnToPits() end
+  if ui.button('RETURN TO PITS##vxhomePit',vec2(0,30)) then returnToPits() end
 end
 
 local function drawTeleport()
@@ -1176,8 +1181,8 @@ local function drawVenomPanel()
 
   withWindow('vx_main_overlay', vec2(px, py), vec2(pw, ph), function()
     -- A tiny expanding preview stays non-interactive during the morph animation.
-    ui.drawRectFilled(vec2(0, 0), vec2(pw, ph), C.glassDeep, 12)
-    ui.drawRect(vec2(0, 0), vec2(pw, ph), col(C.accent, .23), 12, ui.CornerFlags.All, 1)
+    ui.drawRectFilled(vec2(0, 0), vec2(pw, ph), C.glassDeep, 15)
+    ui.drawRect(vec2(0, 0), vec2(pw, ph), col(C.accent, .19), 15, ui.CornerFlags.All, 1)
     ui.drawRectFilled(vec2(12, 0), vec2(math.max(12, pw - 12), 2), C.accent, 1)
 
     if state.openT < .90 then
@@ -1214,7 +1219,7 @@ local function drawVenomPanel()
     end
     ui.dwriteDrawText('VENOM', 18, vec2(18, 12), C.text)
     ui.dwriteDrawText('X', 18, vec2(93, 12), C.accent)
-    ui.dwriteDrawText('LA CANYONS   /   ONLINE', 11, vec2(18, 38), C.dim)
+    ui.dwriteDrawText('STUDIO CONTROL   /   LA CANYONS', 11, vec2(18, 38), C.dim)
 
     ui.setCursor(vec2(PANEL_W - 46, 17))
     if ui.button('X##vx_panel_close', vec2(30, 28)) then closePanel() end
@@ -1326,25 +1331,18 @@ end
 speedoRect = function()
   local scr = getScreenSize()
   local k = clamp(state.hudScale or 100, 80, 130) / 100
-  local w = math.floor(220 * k)
-  local h = math.floor(150 * k)
-  local x0, y0 = state.spdX, state.spdY
-  if type(x0) ~= 'number' or x0 < 0 then
-    x0 = scr.x - w - 26
-    y0 = scr.y - h - 90
-  end
-  if type(y0) ~= 'number' or y0 < 0 then
-    y0 = scr.y - h - 90
-  end
-  if x0 > scr.x - 40 or y0 > scr.y - 40 or x0 + w < 40 or y0 + h < 40 then
-    x0 = scr.x - w - 26
-    y0 = scr.y - h - 90
-    state.spdX, state.spdY = -1, -1
+  local w, h = math.floor(332*k), math.floor(174*k)
+  local x, y = state.spdX, state.spdY
+  if type(x) ~= 'number' or x < 0 then x,y = scr.x-w-26,scr.y-h-70 end
+  if type(y) ~= 'number' or y < 0 then y = scr.y-h-70 end
+  if x > scr.x-40 or y > scr.y-40 or x+w < 40 or y+h < 40 then
+    x,y = scr.x-w-26,scr.y-h-70
+    state.spdX,state.spdY = -1,-1
     persist()
   end
-  x0 = clamp(x0, 8, math.max(8, scr.x - w - 8))
-  y0 = clamp(y0, 48, math.max(48, scr.y - h - 8))
-  return x0, y0, w, h, k
+  x = clamp(x,8,math.max(8,scr.x-w-8))
+  y = clamp(y,40,math.max(40,scr.y-h-8))
+  return x,y,w,h,k
 end
 
 local function handleSpeedoDrag(x0, y0, w, h)
@@ -1382,69 +1380,63 @@ local function handleSpeedoDrag(x0, y0, w, h)
   return x0, y0
 end
 
+-- Original CMRT-inspired circular tachometer: pure CSP vector drawing,
+-- no fonts, textures or CMRT modules must be installed by players.
 local function drawSpeedometer()
   if not state.hudVisible then return end
   local c = car()
   if not c then return end
   local speed = math.max(0, tonumber(c.speedKmh) or 0)
   local rpm = math.max(0, tonumber(c.rpm) or 0)
-  local gearNum = tonumber(c.gear) or 0
-  local x0, y0, w, h, k = speedoRect()
-  x0, y0 = handleSpeedoDrag(x0, y0, w, h)
-  if state.spdX < 0 then
-    state.spdX, state.spdY = x0, y0
-  end
-  local opacity = clamp(state.hudOp or 90, 40, 100) / 100
-
-  -- CSP's transparent window drawing space starts at (0,0) relative to its
-  -- own position. NEVER add window screen offsets a second time: that caused
-  -- the speedometer to be fully clipped even while its renderer said ACTIVE.
-  withWindow('vx_speedo', vec2(x0, y0), vec2(w, h), function()
-    ui.drawRectFilled(vec2(0, 0), vec2(w, h), col(C.cardSolid, opacity), 14)
-    ui.drawRect(vec2(0, 0), vec2(w, h), col(C.accentFaint, opacity), 14, ui.CornerFlags.All, 1.5)
-
-    state.smoothSpeed = anim(state.smoothSpeed, speed, 9, state.dt)
-    local speedStr = tostring(math.floor(state.smoothSpeed + 0.5))
-    local fs = math.floor(46 * k)
-    local speedTextSize = ui.measureDWriteText(speedStr, fs, -1)
-    ui.dwriteDrawText(speedStr, fs,
-      vec2((w - speedTextSize.x) * 0.5, 8 * k), col(C.text, opacity))
-
-    local kmTextSize = ui.measureDWriteText(L.kmh, 13, -1)
-    ui.dwriteDrawText(L.kmh, 13,
-      vec2((w - kmTextSize.x) * 0.5, 64 * k), col(C.accentSoft, opacity))
-
-    ui.dwriteDrawText(string.format(L.gear, gearString(gearNum)), 15,
-      vec2(14 * k, 88 * k), col(C.text, opacity))
-
-    state.smoothRpm = anim(state.smoothRpm, rpm, 12, state.dt)
-    local rpmStr = tostring(math.floor(state.smoothRpm / 10) * 10)
-    local rpmLabel = string.format(L.rpmLabel, rpmStr)
-    local rpmTextSize = ui.measureDWriteText(rpmLabel, 15, -1)
-    ui.dwriteDrawText(rpmLabel, 15,
-      vec2(w - 14 * k - rpmTextSize.x, 88 * k), col(C.dim, opacity))
-
+  local gear = gearString(tonumber(c.gear) or 0)
+  local limiter = tonumber(c.rpmLimiter) or 8000
+  if limiter < 100 then limiter = 8000 end
+  local x,y,w,h,k = speedoRect()
+  x,y = handleSpeedoDrag(x,y,w,h)
+  if state.spdX < 0 then state.spdX,state.spdY = x,y end
+  local opacity = clamp(state.hudOp or 90,40,100)/100
+  withWindow('vx_speedo',vec2(x,y),vec2(w,h),function()
+    local function v(a,b) return vec2(a*k,b*k) end
+    ui.drawRectFilled(v(0,0),vec2(w,h),col(C.glassDeep,opacity),15)
+    ui.drawRect(v(1,1),v(331,173),col(C.accentFaint,opacity),15,ui.CornerFlags.All,1.2)
+    ui.drawRectFilled(v(16,14),v(53,16),col(C.accent,opacity),1)
+    state.smoothSpeed=anim(state.smoothSpeed,speed,10,state.dt)
+    state.smoothRpm=anim(state.smoothRpm,rpm,12,state.dt)
+    local f=clamp(state.smoothRpm/limiter,0,1)
+    local center=v(84,85)
+    local radius=59*k
+    local from=math.pi*.75
+    local sweep=math.pi*1.5
     if state.rpmBar then
-      local maxRpm = tonumber(c.rpmLimiter) or 8000
-      if maxRpm <= 0 then maxRpm = 8000 end
-      local frac = clamp(state.smoothRpm / maxRpm, 0, 1)
-      local x1, y1, x2, y2 = 14 * k, 112 * k, w - 14 * k, 122 * k
-      ui.drawRectFilled(vec2(x1, y1), vec2(x2, y2), col(C.bar, opacity), 5)
-      if frac > 0.005 then
-        local band = C.accent
-        if frac > 0.85 and frac < 0.95 then
-          band = mixCol(C.accent, C.warn, (frac - 0.85) / 0.10)
-        elseif frac >= 0.95 and frac < 0.98 then
-          band = mixCol(C.warn, C.danger, (frac - 0.95) / 0.03)
-        elseif frac >= 0.98 then
-          band = C.danger
-        end
-        ui.drawRectFilled(vec2(x1, y1), vec2(x1 + (x2 - x1) * frac, y2),
-          col(band, opacity), 5)
+      ui.pathClear()
+      ui.pathArcTo(center,radius,from,from+sweep,55)
+      ui.pathStroke(col(C.bar,opacity),false,9*k)
+      if f > .001 then
+        local tint=f>.96 and C.danger or (f>.85 and C.warn or C.accent)
+        ui.pathClear()
+        ui.pathArcTo(center,radius,from,from+sweep*f,55)
+        ui.pathStroke(col(tint,opacity),false,9*k)
       end
     end
-    ui.dwriteDrawText(L.title, 11, vec2(14 * k, 132 * k),
-      col(C.accentSoft, opacity * 0.6))
+    ui.drawCircleFilled(center,43*k,col(C.cardSolid,opacity),48)
+    ui.drawCircle(center,43*k,col(C.accentFaint,opacity),48,1*k)
+    local gearSize=41*k
+    local gs=ui.measureDWriteText(gear,gearSize,-1)
+    ui.dwriteDrawText(gear,gearSize,vec2(center.x-gs.x*.5,center.y-gs.y*.63),col(C.text,opacity))
+    local lbl=ui.measureDWriteText('GEAR',11*k,-1)
+    ui.dwriteDrawText('GEAR',11*k,vec2(center.x-lbl.x*.5,center.y+25*k),col(C.accentSoft,opacity))
+    ui.drawLine(v(160,19),v(160,147),col(C.accentFaint,opacity),1*k)
+    local speedText=tostring(math.floor(state.smoothSpeed+.5))
+    local st=ui.measureDWriteText(speedText,52*k,-1)
+    ui.dwriteDrawText(speedText,52*k,v(237,36)-vec2(st.x*.5,0),col(C.text,opacity))
+    local unit=ui.measureDWriteText('KM/H',13*k,-1)
+    ui.dwriteDrawText('KM/H',13*k,v(237,100)-vec2(unit.x*.5,0),col(C.accentSoft,opacity))
+    local rpmText=string.format('%d RPM',math.floor(state.smoothRpm/10)*10)
+    local rp=ui.measureDWriteText(rpmText,14*k,-1)
+    ui.dwriteDrawText(rpmText,14*k,v(237,122)-vec2(rp.x*.5,0),col(C.dim,opacity))
+    ui.drawLine(v(14,153),v(316,153),col(C.accentFaint,opacity),1*k)
+    ui.dwriteDrawText('VENOM X',10*k,v(17,158),col(C.accentSoft,opacity))
+    ui.dwriteDrawText('LIVE TELEMETRY',10*k,v(217,158),col(C.dim,opacity))
   end)
 end
 
