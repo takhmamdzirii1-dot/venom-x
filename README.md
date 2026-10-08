@@ -1,52 +1,68 @@
 # VENOM X — CSP Online Server UI
 
 Premium in-game HUD for the **VENOM LA Canyons** AssettoServer freeroam server, built as a
-[CSP](https://customshaderspatch.me) Online Script. Version 2.
+[CSP](https://customshaderspatch.me) Online Script. Version 3.
 
-## What's new in V2
+## What's new in V3
 
-- **Custom glass HUD** — always-on quick menu (top-left, draggable, collapsible), expanded
-  section panel (draggable, closeable), redesigned speedometer, custom auto-dismiss toast
-  queue (top-center), all animated with a dark glass / blue-accent theme
-- **Quick menu sections**: HOME / TELEPORT / PLAYERS / COLOR / TIME / HUD
-- **Real car color picker** — swatches + RGB sliders applied through `shared/sim/chat`
-  extras (`canChangeCarColor` / `changeCarColor`), synced to other players, with a
-  reset-to-livery button and honest fallback to the built-in CSP picker if the module is
-  unavailable
-- **AI-proof player list** — filters on `sessionID` (human slots 0–5 only), AI flag,
-  `TRAFFIC` name prefix, traffic model IDs; never lists AI traffic
+- **Floating orb + expanding glass panel** — a small draggable orb snaps to either screen
+  edge; a short click expands a 360×500 glass panel (never fullscreen) with animated
+  open/close, draggable header, close button, and animated nav underline
+- **Custom nav**: HOME / TP / PLAYERS / COLOR / TIME / HUD
+- **Custom toasts** — top-center queue, slide + fade, OK/WARN accent bar, pulse on the orb
+- **TIME section with a real local time mechanism** — the sky/lighting time-of-day can be
+  shifted locally (client-side visual only) with a free-running clock display, a scrub
+  slider, 7 presets (DAWN…MIDNIGHT), live offset readout and RESET TO SERVER
+- **HSV color control** — full `ui.colorPicker` (hue bar) plus 12 named swatches, applied
+  on release through `shared/sim/chat` (`canChangeCarColor` / `changeCarColor`), with
+  reset-to-livery and honest fallbacks when the module or server permission is missing
+- **Traffic-free player list** — filters on `sessionID` (human slots 0–5), AI flag,
+  `TRAFFIC` name prefix and traffic model IDs; never lists AI traffic
 - **Native teleports** — destination list prefers the server chat API
-  (`teleportDestinations` + `teleportTo`), falls back to config points + physics
-- **TIME section** — live server clock, local day/night presets (08:00 / 12:00 / 18:00 /
-  22:00), ±12 h shift slider and reset, driven through the companion app below and
-  **measured live** (the panel reports APPLIED / NO EFFECT / NO COMPANION — it never
-  assumes success)
-- **HUD settings** — speedometer + RPM bar toggles, opacity and scale sliders, position
-  reset; everything persists per client via `ac.storage`
-- **Emergency fallback** — if the custom HUD ever errors 3 times, a tabbed V1-style tool
-  window appears in the CSP lightbulb menu so controls are never lost
+  (`teleportDestinations`), falls back to config `POINT_n` points; grouped, searchable;
+  driver-to-driver teleport behind their car with cooldown and speed gate
+- **Speedometer** — smoothed speed/RPM, gear, RPM bar with accent→warn→danger gradient,
+  draggable, opacity/scale controls, all persisted per client via `ac.storage`
+- **Emergency fallback** — if the HUD ever errors 3 times, a tabbed V1-style tool window
+  appears in the CSP lightbulb menu so controls are never lost
 
-## Companion app (local day/night)
+## How local TIME works (and why it needs a helper)
 
-CSP exposes `ac.setWeatherTimeOffset` only to app scripts (documented **offline-only**),
-never to online scripts, so VENOM X ships a tiny silent companion:
+Online scripts are sandboxed: CSP documents `ac.setWeatherTimeOffset` /
+`setLightDirection` etc. as offline-only or app-only, so the online script cannot move
+the sky itself. VENOM X therefore uses a **client-render bridge**:
 
 ```
-VENOM_X_Client/
-  manifest.ini           (LAZY = NONE — loads with AC, runs silently)
-  VENOM_X_Client.lua     (applies time shifts from the online script via ac.connect shared struct)
+VENOM X online script                Pure weather script (client side)
+  ac.store('venomx.time.enabled')  ──►  reads the bridge every frame
+  ac.store('venomx.time.offsetHours')
+  ac.store('venomx.time.heartbeat')
+                                       ac.getSkyFeatureDirection(feature, nil,
+                                         sim.timestamp + offset) → sun/moon/light
+                                         direction override inside Pure's pipeline
+  ◄── ac.store('venomx.time.status')    restores Pure state when idle or stale
+      ac.store('venomx.time.applied')
 ```
+
+Only **your own screen** changes; the server, the sim state and other players are never
+touched. Status is measured, not assumed: the TIME section displays the helper's actual
+status (`offset-ready` / `offset-idle` / `offset-applied` / `hook-missing`) and offers
+INSTALL when the helper is absent.
+
+The helper drops into Pure's official test hook (`extension/weather/pure/test_ground/
+test_ground.lua`, dofile'd by Pure's `weather.lua` — zero Pure file modifications) and is
+adapted from the local **Gingys Time Controller** project
+(`pure-helper/GingysTimeControllerPure.lua`), which proved this override mechanism.
 
 ### Install (each client, optional)
 
-1. Download the repo (or `VENOM_X_Client.zip` if present)
-2. Copy the `VENOM_X_Client` folder into `Assetto Corsa/content/lua/apps/`
-3. Restart Assetto Corsa — the app appears in the CSP apps list with a status window
+1. Download `VENOM_X_Client.zip` from the repo
+2. Drag it into Content Manager's main window (CM extracts into the AC root folder),
+   or manually place the file at
+   `<Assetto Corsa>\extension\weather\pure\test_ground\test_ground.lua`
+3. Restart Assetto Corsa — requires the **Pure** weather script (pureCtrl controller)
 
-Without the companion the TIME section still shows the server clock and reports
-`Companion: NOT INSTALLED` — everything else works. Because CSP documents the time API as
-offline-only, the online script measures the real result after every shift and displays
-the truth (APPLIED with measured seconds, or NO EFFECT).
+Without the helper, TIME still shows the server clock and every other feature works.
 
 ## Server install
 
@@ -55,6 +71,7 @@ Already configured on the live server. Reference only:
 - `cfg/csp_extra_options.ini` keeps its existing section header **`[SCRIPT_...]`** (do not
   rename it) with `SCRIPT = 'https://raw.githubusercontent.com/takhmamdzirii1-dot/venom-x/main/VENOM_X.lua'`,
   plus the mirrored `POINT_n` keys, `[TELEPORT_DESTINATIONS]` and `[CUSTOM_COLOR] ALLOW_EVERYWHERE = 1`
+- `REFRESH_PERIOD = 30` (ms) — V3 writes the time bridge every update tick
 - `cfg/entry_list.ini`: human slots CAR_0–CAR_5 have `/ADAn` appended to `SKIN`;
   CAR_6+ (AI traffic) must never get `/ADAn`
 - `cfg/extra_cfg.yml`: `NamePrefix: TRAFFIC` — used by the player filter
@@ -71,14 +88,15 @@ automatically (served as `text/plain`).
 ## Requirements
 
 - Custom Shaders Patch (CSP) on the client (built against the current CSP Lua SDK
-  definitions: online-script HUD, `ac.connect` shared structs, `shared/sim/chat`)
+  definitions: online-script HUD, `ac.storage`/`ac.store`, `shared/sim/chat`)
 - Server: AssettoServer with CSP extras enabled
+- TIME helper: Pure weather script (pureCtrl / Pure classic; not Pure LCS)
 
 ## Notes
 
 - Online scripts run sandboxed (no file writes, no admin access); only the local player's
   own car (index 0) is ever modified
 - Server time, weather and `/settime` are never touched — local time is client-visual only
-  and reports its own measured effect
+  and reports its own measured status
 - If the GitHub account or default branch ever changes, update `SCRIPT` in `[SCRIPT_...]`
   accordingly

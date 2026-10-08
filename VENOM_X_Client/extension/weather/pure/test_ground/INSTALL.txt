@@ -1,0 +1,50 @@
+VENOM X - local time helper (Pure weather script side)
+======================================================
+
+WHAT IT DOES
+------------
+This file lets the VENOM X online script shift YOUR OWN sky and lighting
+time-of-day locally (client-side rendering only). It does not touch the
+server, the sim state, or other players.
+
+It works by reading the shared ac.store bridge keys written by the online
+script (venomx.time.enabled / offsetHours / heartbeat) and overriding the
+sun, moon and light directions inside Pure's weather pipeline each frame,
+using ac.getSkyFeatureDirection with the server timestamp + your chosen
+offset. It restores Pure's original state the moment the bridge goes idle
+or the heartbeat goes stale.
+
+HOW IT WAS DISCOVERED
+---------------------
+It drops into Pure's official test hook: weather.lua dofiles
+extension\weather\pure\test_ground\test_ground.lua if present (no Pure
+files are modified), and calls __PURE__update__test_ground() every frame.
+The approach is adapted from the local "Gingys Time Controller" project
+(pure-helper/GingysTimeControllerPure.lua), which proved this mechanism.
+
+REQUIREMENTS
+------------
+- Custom Shaders Patch with the Pure weather script active
+  (weather controller: pureCtrl / Pure classic - pure-controller.lua).
+- The VENOM X online script running (installed by the server on join).
+
+INSTALL
+-------
+Easiest: drag VENOM_X_Client.zip into Content Manager's main window.
+CM extracts it into the Assetto Corsa root folder. Restart AC.
+
+Manual: place this file at
+  <Assetto Corsa>\extension\weather\pure\test_ground\test_ground.lua
+
+UNINSTALL
+---------
+Delete extension\weather\pure\test_ground\test_ground.lua.
+Everything else in Pure stays untouched.
+
+NOTES
+-----
+- Pure LCS is not supported (its weather.lua has no test hook).
+- Status keys written back for diagnostics:
+  venomx.time.status   = offset-ready | offset-idle | offset-applied
+                         | offset-error | hook-missing
+  venomx.time.applied  = yes | no

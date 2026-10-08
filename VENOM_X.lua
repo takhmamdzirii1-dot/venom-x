@@ -1,179 +1,210 @@
 script = script or {}
 
-local VERSION = '2.0.0'
+local VERSION = '3.0.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v2.0.0',
-  ready = 'VENOM X READY - quick menu is in the top-left corner',
+  versionTag = 'v3.0.0',
+  ready = 'VENOM X READY - tap the orb on the left edge',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
-  tabHome = 'HOME',
-  tabTeleport = 'TELEPORT',
-  tabPlayers = 'PLAYERS',
-  tabColor = 'COLOR',
-  tabTime = 'TIME',
-  tabHud = 'HUD',
-  server = 'SERVER',
-  connected = 'Connected: %d',
-  timeNow = 'Server time: %s',
-  speedNow = 'Your speed: %d km/h',
+  navHome = 'HOME',
+  navTp = 'TP',
+  navPlayers = 'PLAYERS',
+  navColor = 'COLOR',
+  navTime = 'TIME',
+  navHud = 'HUD',
+  online = 'ONLINE',
+  playersChip = '%d PLAYERS',
+  quickTeleport = 'TELEPORT',
+  quickColor = 'COLOR',
+  quickTime = 'TIME',
+  quickPit = 'PIT',
   returnToPits = 'Return to Pits',
-  hideHud = 'Hide Speedometer',
-  showHud = 'Show Speedometer',
   noDestinations = 'No teleport destinations configured',
-  destinations = 'DESTINATIONS',
-  destSourceChat = 'source: server chat API',
-  destSourceConfig = 'source: server config',
+  destSearch = '##vx_search',
   refresh = 'Refresh',
   kmh = 'KM/H',
   gear = 'GEAR %s',
-  rpm = 'RPM',
-  playersTitle = 'PLAYERS',
-  connectedPlayers = 'Connected players: %d',
-  teleportHint = 'Click a driver to teleport 10 m behind them',
+  rpmLabel = 'RPM %s',
+  teleportHint = 'Tap a driver to teleport 10 m behind them',
   cooldown = 'Teleport cooldown: %.1f s',
   pleaseWait = 'Please wait %d s',
   playerUnavailable = 'Player is no longer available',
-  stopCarFirst = 'Stop your car before teleporting',
-  teleportedTo = 'Teleported to %s',
-  teleportedToPlayer = 'Teleported behind %s',
+  stopCarFirst = 'STOP VEHICLE FIRST',
+  teleportedToPlayer = 'TELEPORTED TO %s',
   teleportFailed = 'Teleport failed',
   noPlayers = 'No other players connected',
-  trafficHidden = 'AI traffic is never listed here.',
+  trafficHidden = 'AI traffic is never listed here',
+  unknownDriver = '(no name)',
+  other = 'Other',
   carColor = 'CAR COLOR',
-  currentColor = 'Current color',
-  defaultColor = 'Default livery color',
-  colorApply = 'Apply color',
-  colorApplied = 'Color applied and synced',
+  colorApply = 'APPLY',
+  colorReset = 'RESET',
+  colorUpdated = 'COLOR UPDATED',
+  colorResetMsg = 'Color reset to livery',
   colorNotAllowed = 'Server does not allow color changes here',
   colorFail = 'Color change failed',
   colorNoModule = 'Color API unavailable in this session',
-  colorPickerHint = 'Fallback: use the built-in CSP color changer in the CSP lightbulb menu. It is enabled server-side for your slot.',
-  colorReset = 'Reset to livery',
-  colorResetMsg = 'Color reset to livery',
-  liveryNote = 'Textured liveries may not recolor.',
-  red = 'RED',
-  green = 'GREEN',
-  blue = 'BLUE',
-  lights = 'LIGHTS',
-  headlightsOn = 'Headlights: ON',
-  headlightsOff = 'Headlights: OFF',
-  highBeamsOn = 'High Beams: ON',
-  highBeamsOff = 'High Beams: OFF',
-  serverTime = 'SERVER TIME',
-  timeMorning = 'MORNING 08:00',
-  timeNoon = 'NOON 12:00',
-  timeEvening = 'EVENING 18:00',
-  timeNight = 'NIGHT 22:00',
-  timeShiftLabel = 'SHIFT HOURS',
-  timeApply = 'Apply shift',
-  timeReset = 'Reset to server time',
-  timeNoCompanion = 'Local time: VENOM X Client app is not installed',
-  timeInstall = 'Install info',
-  timeInstallMsg = 'Install: copy the VENOM_X_Client folder into Assetto Corsa/content/lua/apps/ and restart the game. See the VENOM X repo README.',
-  timeCompanionReady = 'Companion: READY',
-  timeCompanionMissing = 'Companion: NOT INSTALLED',
-  timeCompanionStale = 'Companion: NOT RUNNING',
-  timeSent = 'Shift sent, measuring...',
-  timeApplied = 'Measured shift: %+.0f s',
-  timeNoEffect = 'CSP accepted the call but time did not change (documented offline-only)',
-  timeUnverified = 'Sent - effect not measurable while server time advances',
-  timeNoResponse = 'Companion did not answer',
-  timeError = 'Companion error: %s',
-  timeResetDone = 'Shift reset requested',
-  timeNothingToReset = 'No local shift to reset',
-  timeCspNote = 'Local day/night uses ac.setWeatherTimeOffset through the VENOM X Client app. CSP documents this API as offline-only, so online it may do nothing - the result above is measured live, not assumed.',
+  liveryNote = 'Textured liveries may not recolor',
+  presetWhite = 'WHITE',
+  presetBlack = 'BLACK',
+  presetGraphite = 'GRAPHITE',
+  presetSilver = 'SILVER',
+  presetRed = 'RED',
+  presetOrange = 'ORANGE',
+  presetYellow = 'YELLOW',
+  presetGreen = 'GREEN',
+  presetCyan = 'CYAN',
+  presetBlue = 'BLUE',
+  presetPurple = 'PURPLE',
+  presetPink = 'PINK',
+  localTime = 'LOCAL TIME',
+  controllerPure = 'PURE',
+  controllerWfx = 'WEATHER FX',
+  timeReady = 'READY',
+  timeNoModule = 'TIME MODULE NOT INSTALLED',
+  timeInstall = 'INSTALL',
+  timeInstallMsg = 'Copy VENOM_X_Client.zip into the Assetto Corsa root folder (drag it into Content Manager) and restart the game. Requires the Pure weather script.',
+  timeUnavailable = 'Local time unavailable with current weather controller.',
+  timeActive = 'SHIFT %+.1f h',
+  timeReset = 'RESET TO SERVER',
+  timeWaiting = 'WAITING FOR WEATHER SCRIPT',
+  presetDawn = 'DAWN 06:00',
+  presetMorning = 'MORNING 08:00',
+  presetDay = 'DAY 12:00',
+  presetGolden = 'GOLDEN HOUR 17:30',
+  presetSunset = 'SUNSET 19:00',
+  presetNight = 'NIGHT 22:00',
+  presetMidnight = 'MIDNIGHT 00:00',
   hudSettings = 'HUD SETTINGS',
   speedometer = 'Speedometer',
   rpmBar = 'RPM bar',
   opacity = 'HUD opacity',
   scale = 'HUD scale',
-  resetPositions = 'Reset menu positions',
-  hudNote = 'Drag windows by their header. The quick menu can be collapsed with >.',
-  unknownDriver = '(no name)',
-  other = 'Other',
+  resetPositions = 'Reset positions',
+  hudNote = 'Drag the orb or the speedometer. Short click on the orb opens the panel.',
+  nightMode = 'NIGHT MODE',
+  resetDone = 'Reset to server time',
+  spdOn = 'SPEEDOMETER ON',
+  spdOff = 'SPEEDOMETER OFF',
   footer = 'VENOM X %s - CSP Online Script',
 }
 
 local C = {
-  accent = rgbm(0.36, 0.62, 1.00, 1.00),
-  accentSoft = rgbm(0.36, 0.62, 1.00, 0.60),
-  accentFaint = rgbm(0.36, 0.62, 1.00, 0.22),
-  text = rgbm(0.93, 0.95, 0.99, 1.00),
-  dim = rgbm(0.58, 0.63, 0.73, 1.00),
-  glass = rgbm(0.045, 0.055, 0.085, 0.93),
-  card = rgbm(0.07, 0.09, 0.13, 0.55),
-  cardSolid = rgbm(0.05, 0.06, 0.09, 0.62),
-  btn = rgbm(0.09, 0.11, 0.16, 0.88),
-  btnHover = rgbm(0.14, 0.19, 0.30, 0.95),
-  btnActive = rgbm(0.17, 0.27, 0.46, 0.98),
-  btnFlat = rgbm(0.10, 0.13, 0.19, 0.90),
-  bar = rgbm(1.00, 1.00, 1.00, 0.12),
-  ok = rgbm(0.35, 0.90, 0.55, 1.00),
+  accent = rgbm(0.42, 0.70, 1.00, 1.00),
+  accentSoft = rgbm(0.42, 0.70, 1.00, 0.62),
+  accentFaint = rgbm(0.42, 0.70, 1.00, 0.20),
+  text = rgbm(0.94, 0.96, 1.00, 1.00),
+  dim = rgbm(0.56, 0.61, 0.71, 1.00),
+  glass = rgbm(0.035, 0.045, 0.070, 0.90),
+  glassDeep = rgbm(0.025, 0.032, 0.052, 0.94),
+  card = rgbm(0.075, 0.095, 0.140, 0.50),
+  cardSolid = rgbm(0.055, 0.070, 0.105, 0.66),
+  btn = rgbm(0.085, 0.105, 0.155, 0.90),
+  btnHover = rgbm(0.130, 0.180, 0.290, 0.96),
+  btnActive = rgbm(0.160, 0.260, 0.450, 0.98),
+  btnFlat = rgbm(0.095, 0.120, 0.175, 0.90),
+  bar = rgbm(1.00, 1.00, 1.00, 0.11),
+  ok = rgbm(0.36, 0.88, 0.55, 1.00),
   warn = rgbm(1.00, 0.72, 0.30, 1.00),
-  danger = rgbm(1.00, 0.38, 0.38, 1.00),
+  danger = rgbm(1.00, 0.42, 0.42, 1.00),
 }
 
 local NAV = {
-  { key = 'HOME', label = L.tabHome },
-  { key = 'TELEPORT', label = L.tabTeleport },
-  { key = 'PLAYERS', label = L.tabPlayers },
-  { key = 'COLOR', label = L.tabColor },
-  { key = 'TIME', label = L.tabTime },
-  { key = 'HUD', label = L.tabHud },
+  { key = 'HOME', label = L.navHome },
+  { key = 'TELEPORT', label = L.navTp },
+  { key = 'PLAYERS', label = L.navPlayers },
+  { key = 'COLOR', label = L.navColor },
+  { key = 'TIME', label = L.navTime },
+  { key = 'HUD', label = L.navHud },
 }
 
-local MENU_W, MENU_H = 250, 300
-local PANEL_W, PANEL_H = 440, 540
-local HEADER_H = 40
-local SWATCHES = {
-  { name = 'White', c = rgbm(1.00, 1.00, 1.00, 1) },
-  { name = 'Black', c = rgbm(0.03, 0.03, 0.03, 1) },
-  { name = 'Red', c = rgbm(0.85, 0.08, 0.08, 1) },
-  { name = 'Blue', c = rgbm(0.10, 0.30, 0.95, 1) },
-  { name = 'Green', c = rgbm(0.08, 0.70, 0.25, 1) },
-  { name = 'Yellow', c = rgbm(0.95, 0.85, 0.10, 1) },
-  { name = 'Cyan', c = rgbm(0.10, 0.80, 0.85, 1) },
-  { name = 'Orange', c = rgbm(0.95, 0.45, 0.08, 1) },
+local PRESETS = {
+  { label = L.presetWhite, r = 1.00, g = 1.00, b = 1.00 },
+  { label = L.presetBlack, r = 0.03, g = 0.03, b = 0.03 },
+  { label = L.presetGraphite, r = 0.22, g = 0.23, b = 0.25 },
+  { label = L.presetSilver, r = 0.72, g = 0.74, b = 0.78 },
+  { label = L.presetRed, r = 0.82, g = 0.07, b = 0.07 },
+  { label = L.presetOrange, r = 0.95, g = 0.45, b = 0.08 },
+  { label = L.presetYellow, r = 0.95, g = 0.85, b = 0.10 },
+  { label = L.presetGreen, r = 0.08, g = 0.68, b = 0.26 },
+  { label = L.presetCyan, r = 0.10, g = 0.78, b = 0.84 },
+  { label = L.presetBlue, r = 0.10, g = 0.32, b = 0.95 },
+  { label = L.presetPurple, r = 0.52, g = 0.22, b = 0.90 },
+  { label = L.presetPink, r = 0.95, g = 0.40, b = 0.68 },
 }
+
+local TIME_PRESETS = {
+  { label = L.presetDawn, sec = 6 * 3600 },
+  { label = L.presetMorning, sec = 8 * 3600 },
+  { label = L.presetDay, sec = 12 * 3600 },
+  { label = L.presetGolden, sec = 1050 * 60 },
+  { label = L.presetSunset, sec = 19 * 3600 },
+  { label = L.presetNight, sec = 22 * 3600 },
+  { label = L.presetMidnight, sec = 0 },
+}
+
 local HUMAN_SESSION_IDS = { [0] = true, [1] = true, [2] = true, [3] = true, [4] = true, [5] = true }
+
+local ORB_SIZE = 52
+local PANEL_W = 360
+local PANEL_H = 500
+local OPEN_DUR = 0.24
+local DRAG_THRESHOLD = 6
+local STORE_ENABLED = 'venomx.time.enabled'
+local STORE_OFFSET = 'venomx.time.offsetHours'
+local STORE_BEAT = 'venomx.time.heartbeat'
+local STORE_STATUS = 'venomx.time.status'
+local STORE_APPLIED = 'venomx.time.applied'
 
 local state = {
   frames = 0,
   dt = 0.016,
+  clock = 0,
   hudVisible = true,
   rpmBar = true,
   hudOp = 90,
   hudScale = 100,
-  menuX = 24,
-  menuY = 96,
-  panelX = -1,
-  panelY = 140,
-  menuCollapsed = false,
+  orbX = 20,
+  orbY = 150,
+  spdX = -1,
+  spdY = -1,
+  section = 'HOME',
+  sectT = 1,
+  navX = -1,
+  openT = 0,
   panelOpen = false,
-  panelSection = 'HOME',
-  lastSection = 'HOME',
+  panelTX = 0,
+  panelTY = 0,
+  panelDrag = false,
+  panelDragMouse = nil,
+  panelDragBase = nil,
+  orbPress = nil,
+  spdPress = nil,
+  orbHover = 0,
   dragging = nil,
-  dragMouse = nil,
-  dragBase = nil,
   toasts = {},
   players = {},
   playersAt = -999,
   destList = {},
   destById = {},
+  configList = {},
+  configById = {},
   destSource = 'config',
   destAt = -999,
+  groupOpen = {},
+  search = '',
   chatEx = nil,
   chatState = 'UNTRIED',
   colorAllowed = nil,
   colorProbeAt = -999,
-  colR = 80,
-  colG = 80,
-  colB = 80,
-  shiftHours = 0,
+  picker = rgbm(0.80, 0.80, 0.80, 1),
+  pickerDirty = false,
+  pickerInit = false,
   teleportCooldown = 0,
   smoothSpeed = 0,
+  smoothRpm = 0,
   screen = nil,
   screenAt = -999,
   readyDone = false,
@@ -181,37 +212,51 @@ local state = {
   drawErrors = 0,
   emergency = false,
   time = {
-    companion = 'UNKNOWN',
-    status = 'NONE',
-    lastCmd = 0,
-    sentFrame = -999,
-    t0 = 0,
-    pending = 0,
-    measured = 0,
-    lastApplied = 0,
-    err = '',
+    helper = nil,
+    helperSeen = false,
+    applied = 'no',
+    want = 0,
+    curOffset = 0,
+    probeAt = -999,
   },
 }
 
 local config = {}
-local configDests = {}
-local configById = {}
 local stored = nil
-local shared = nil
-
-local SH_LAYOUT = {
-  beat = ac.StructItem.int32(),
-  cmdSeq = ac.StructItem.int32(),
-  cmdOffset = ac.StructItem.float(),
-  cmdInstant = ac.StructItem.int32(),
-  ackSeq = ac.StructItem.int32(),
-  ackResult = ac.StructItem.int32(),
-  ackAt = ac.StructItem.int32(),
-  ackErr = ac.StructItem.string(96),
-}
 
 local function car() return ac.getCar(0) end
 local function sim() return ac.getSim() end
+
+local function clamp(v, a, b)
+  if v < a then return a end
+  if v > b then return b end
+  return v
+end
+
+local function lerp(a, b, t)
+  return a + (b - a) * t
+end
+
+local function easeOutCubic(t)
+  local inv = 1 - t
+  return 1 - inv * inv * inv
+end
+
+local function anim(cur, target, speed, dt)
+  return cur + (target - cur) * (1 - math.exp(-speed * dt))
+end
+
+local function wrapDay(sec)
+  sec = sec % 86400
+  if sec < 0 then sec = sec + 86400 end
+  return sec
+end
+
+local function wrapOffset(sec)
+  while sec > 43200 do sec = sec - 86400 end
+  while sec <= -43200 do sec = sec + 86400 end
+  return sec
+end
 
 local function stateVal(o, k)
   if not o then return nil end
@@ -225,56 +270,74 @@ local function stateVal(o, k)
   return v
 end
 
-local function toast(message)
-  if state.emergency then
-    pcall(function() ui.toast(ui.Icons.Bulb, tostring(message)) end)
-    return
-  end
-  local t = { text = tostring(message), t = 0, dur = 4.5 }
-  local list = state.toasts
-  if #list >= 4 then table.remove(list, 1) end
-  list[#list + 1] = t
-end
-
 local function trim(s)
   return (tostring(s):gsub('^%s*(.-)%s*$', '%1'))
 end
 
-local function fmtClock(h, m, s)
-  return string.format('%02d:%02d:%02d', h, m, s)
+local function fmtClock(h, m)
+  return string.format('%02d:%02d', h, m)
+end
+
+local function fmtSec(sec)
+  sec = wrapDay(sec)
+  local h = math.floor(sec / 3600)
+  local m = math.floor((sec - h * 3600) / 60)
+  return fmtClock(h, m)
 end
 
 local function col(c, k)
   return rgbm(c.r, c.g, c.b, c.mult * k)
 end
 
+local function mixCol(a, b, t)
+  return rgbm(lerp(a.r, b.r, t), lerp(a.g, b.g, t), lerp(a.b, b.b, t), lerp(a.mult, b.mult, t))
+end
+
 local function inRect(r, p)
   return p.x >= r.x and p.y >= r.y and p.x <= r.x + r.w and p.y <= r.y + r.h
 end
 
-local function clampPos(x, y, sw, sh)
-  local nx = math.max(8, math.min(sw - 60, x))
-  local ny = math.max(56, math.min(sh - 40, y))
-  return nx, ny
+local function toast(message, kind)
+  if state.emergency then
+    pcall(function() ui.toast(ui.Icons.Bulb, tostring(message)) end)
+    return
+  end
+  local t = { text = tostring(message), t = 0, dur = 2.7, kind = kind or 'ok' }
+  local list = state.toasts
+  if #list >= 3 then table.remove(list, 1) end
+  list[#list + 1] = t
 end
 
-local function handleDrag(key, hr, x, y, sw, sh)
-  if state.dragging and state.dragging ~= key then return x, y end
-  local mp = ui.mousePos()
-  if state.dragging == key then
-    if ui.mouseDown(0) then
-      local nx = state.dragBase.x + (mp.x - state.dragMouse.x)
-      local ny = state.dragBase.y + (mp.y - state.dragMouse.y)
-      nx, ny = clampPos(nx, ny, sw, sh)
-      return nx, ny
+local function getScreenSize()
+  if state.screen == nil or (state.frames - state.screenAt) > 90 then
+    local ok, size = pcall(function() return render.getRenderTargetSize() end)
+    if ok and size and size.x and size.x > 0 then
+      state.screen = size
+      state.screenAt = state.frames
+    elseif state.screen == nil then
+      state.screen = vec2(1920, 1080)
     end
-    state.dragging = nil
-  elseif ui.mouseClicked(0) and inRect(hr, mp) then
-    state.dragging = key
-    state.dragMouse = mp
-    state.dragBase = vec2(x, y)
   end
-  return x, y
+  return state.screen
+end
+
+local function panelTargetPos()
+  local scr = getScreenSize()
+  local px = state.orbX + ORB_SIZE + 12
+  if px + PANEL_W > scr.x - 12 then
+    px = state.orbX - PANEL_W - 12
+  end
+  if px < 8 then px = 8 end
+  local py = clamp(state.orbY - 20, 56, scr.y - PANEL_H - 12)
+  return px, py
+end
+
+local function panelRect()
+  return { x = state.panelTX, y = state.panelTY, w = PANEL_W, h = PANEL_H }
+end
+
+local function panelBlocks()
+  return state.panelOpen and state.openT >= 0.9 and inRect(panelRect(), ui.mousePos())
 end
 
 local function loadStored()
@@ -284,10 +347,11 @@ local function loadStored()
       vx_rpm = true,
       vx_op = 90,
       vx_sc = 100,
-      vx_mx = 24,
-      vx_my = 96,
-      vx_px = -1,
-      vx_py = 140,
+      vx_ox = 20,
+      vx_oy = 150,
+      vx_sx = -1,
+      vx_sy = -1,
+      vx_sec = 'HOME',
     })
   end)
   if ok and type(res) == 'table' then
@@ -296,10 +360,11 @@ local function loadStored()
     if res.vx_rpm ~= nil then state.rpmBar = res.vx_rpm end
     if type(res.vx_op) == 'number' then state.hudOp = res.vx_op end
     if type(res.vx_sc) == 'number' then state.hudScale = res.vx_sc end
-    if type(res.vx_mx) == 'number' then state.menuX = res.vx_mx end
-    if type(res.vx_my) == 'number' then state.menuY = res.vx_my end
-    if type(res.vx_px) == 'number' then state.panelX = res.vx_px end
-    if type(res.vx_py) == 'number' then state.panelY = res.vx_py end
+    if type(res.vx_ox) == 'number' then state.orbX = res.vx_ox end
+    if type(res.vx_oy) == 'number' then state.orbY = res.vx_oy end
+    if type(res.vx_sx) == 'number' then state.spdX = res.vx_sx end
+    if type(res.vx_sy) == 'number' then state.spdY = res.vx_sy end
+    if type(res.vx_sec) == 'string' then state.section = res.vx_sec end
   end
 end
 
@@ -309,10 +374,11 @@ local function persist()
   stored.vx_rpm = state.rpmBar
   stored.vx_op = state.hudOp
   stored.vx_sc = state.hudScale
-  stored.vx_mx = state.menuX
-  stored.vx_my = state.menuY
-  stored.vx_px = state.panelX
-  stored.vx_py = state.panelY
+  stored.vx_ox = state.orbX
+  stored.vx_oy = state.orbY
+  stored.vx_sx = state.spdX
+  stored.vx_sy = state.spdY
+  stored.vx_sec = state.section
 end
 
 local function loadConfig()
@@ -328,6 +394,7 @@ local function loadConfig()
 end
 
 local function buildConfigDests()
+  local list, byId = {}, {}
   for i = 0, 63 do
     local name = config['POINT_' .. i]
     if name and name ~= '' then
@@ -343,13 +410,15 @@ local function buildConfigDests()
           pos = vec3(tonumber(x), tonumber(y), tonumber(z)),
           heading = tonumber(config['POINT_' .. i .. '_HEADING']) or 0,
         }
-        configDests[#configDests + 1] = d
-        configById[i] = d
+        list[#list + 1] = d
+        byId[i] = d
       end
     end
   end
-  state.destList = configDests
-  state.destById = configById
+  state.configList = list
+  state.configById = byId
+  state.destList = list
+  state.destById = byId
   state.destSource = 'config'
 end
 
@@ -364,9 +433,9 @@ local function loadChat()
   end
 end
 
-local function connectBridge()
-  local ok, s = pcall(ac.connect, SH_LAYOUT, true, ac.SharedNamespace.Shared)
-  if ok and s then shared = s end
+local function headingDir(heading)
+  local rad = math.rad(heading)
+  return vec3(math.sin(rad), 0, -math.cos(rad))
 end
 
 local function teleportSelf(pos, dir, message)
@@ -377,18 +446,13 @@ local function teleportSelf(pos, dir, message)
     if message then toast(message) end
     return true
   end
-  toast(L.teleportFailed)
+  toast(L.teleportFailed, 'warn')
   return false
-end
-
-local function headingDir(heading)
-  local rad = math.rad(heading)
-  return vec3(math.sin(rad), 0, -math.cos(rad))
 end
 
 local function teleportConfigDest(d)
   if not d or not d.pos then return false end
-  return teleportSelf(d.pos, headingDir(d.heading), string.format(L.teleportedTo, d.name))
+  return teleportSelf(d.pos, headingDir(d.heading), string.format('TELEPORTED TO %s', d.name))
 end
 
 local function teleportDest(d)
@@ -396,44 +460,44 @@ local function teleportDest(d)
   if state.destSource == 'chat' and state.chatEx then
     local ok, res = pcall(function() return state.chatEx.teleportTo(d.id) end)
     if ok and res then
-      toast(string.format(L.teleportedTo, d.name))
+      toast(string.format('TELEPORTED TO %s', d.name))
       return
     end
   end
   if d.pos then
     teleportConfigDest(d)
   else
-    toast(L.teleportFailed)
+    toast(L.teleportFailed, 'warn')
   end
 end
 
 local function returnToPits()
-  local d = configById[0] or configDests[1]
+  local d = state.configById[0] or state.configList[1]
   if d then
     teleportConfigDest(d)
   else
-    toast(L.noDestinations)
+    toast(L.noDestinations, 'warn')
   end
 end
 
 local function teleportToPlayer(p)
   if state.teleportCooldown > 0.05 then
-    toast(string.format(L.pleaseWait, math.ceil(state.teleportCooldown)))
+    toast(string.format(L.pleaseWait, math.ceil(state.teleportCooldown)), 'warn')
     return
   end
   if not p then return end
   local target = ac.getCar(p.index)
   if not target or not target.isActive or not target.isConnected then
-    toast(L.playerUnavailable)
+    toast(L.playerUnavailable, 'warn')
     return
   end
   if stateVal(target, 'isAIControlled') then
-    toast(L.playerUnavailable)
+    toast(L.playerUnavailable, 'warn')
     return
   end
   local me = car()
   if me.speedKmh > 5 then
-    toast(L.stopCarFirst)
+    toast(L.stopCarFirst, 'warn')
     return
   end
   local lx, lz = target.look.x, target.look.z
@@ -442,7 +506,7 @@ local function teleportToPlayer(p)
     lx, lz, len = 0, -1, 1
   end
   lx, lz = lx / len, lz / len
-  local behind = vec3(target.position.x - lx * 10, target.position.y, target.position.z - lz * 10)
+  local behind = vec3(target.position.x - lx * 11, target.position.y, target.position.z - lz * 11)
   local ok = pcall(function()
     physics.setCarPosition(0, behind, vec3(lx, 0, lz))
     physics.setCarVelocity(0, vec3(0, 0, 0))
@@ -452,22 +516,26 @@ local function teleportToPlayer(p)
     state.teleportCooldown = 2.5
     toast(string.format(L.teleportedToPlayer, p.name))
   else
-    toast(L.teleportFailed)
+    toast(L.teleportFailed, 'warn')
   end
 end
 
 local function isHumanCar(c, nm, mid, sid)
   if stateVal(c, 'isAIControlled') then return false end
   if type(sid) == 'number' and not HUMAN_SESSION_IDS[sid] then return false end
-  if type(nm) == 'string' and nm:find('TRAFFIC', 1, true) then return false end
+  if type(nm) == 'string' then
+    if nm:find('TRAFFIC', 1, true) then return false end
+    if nm:lower():find('traffic', 1, true) then return false end
+  end
   if type(mid) == 'string' then
-    if mid:find('traffic', 1, true) or mid:find('authentic_ai', 1, true) then return false end
+    local ml = mid:lower()
+    if ml:find('traffic', 1, true) or ml:find('authentic_ai', 1, true) then return false end
   end
   return true
 end
 
 local function refreshPlayers(force)
-  if not force and (state.frames - state.playersAt) < 24 then return end
+  if not force and (state.frames - state.playersAt) < 90 then return end
   state.playersAt = state.frames
   local myPos = car().position
   local list = {}
@@ -522,8 +590,8 @@ local function refreshDestinations(force)
       end
     end
   end
-  state.destList = configDests
-  state.destById = configById
+  state.destList = state.configList
+  state.destById = state.configById
   state.destSource = 'config'
 end
 
@@ -542,21 +610,32 @@ end
 
 local function applyColor(c)
   if not state.chatEx then
-    toast(L.colorNoModule)
+    toast(L.colorNoModule, 'warn')
     return
   end
   local arg = nil
   if c then arg = rgb(c.r, c.g, c.b) end
   local ok, res = pcall(function() return state.chatEx.changeCarColor(arg) end)
   if not ok then
-    toast(L.colorFail)
+    toast(L.colorFail, 'warn')
     return
   end
   if res then
-    toast(c and L.colorApplied or L.colorResetMsg)
+    toast(c and L.colorUpdated or L.colorResetMsg)
   else
-    toast(L.colorNotAllowed)
+    toast(L.colorNotAllowed, 'warn')
   end
+end
+
+local function initPicker()
+  if state.pickerInit then return end
+  local cc = car().customCarColor
+  if cc and cc.r == cc.r then
+    state.picker.r = cc.r
+    state.picker.g = cc.g
+    state.picker.b = cc.b
+  end
+  state.pickerInit = true
 end
 
 local function toggleHeadlights()
@@ -569,32 +648,64 @@ local function toggleHighBeams()
   pcall(function() ac.setHighBeams(not c.highBeams) end)
 end
 
-local function getScreenSize()
-  if state.screen == nil or (state.frames - state.screenAt) > 90 then
-    local ok, size = pcall(function() return render.getRenderTargetSize() end)
-    if ok and size and size.x and size.x > 0 then
-      state.screen = size
-      state.screenAt = state.frames
-    elseif state.screen == nil then
-      state.screen = vec2(1920, 1080)
-    end
-  end
-  return state.screen
-end
-
 local function gearString(g)
   if g == -1 then return 'R' end
   if g == 0 then return 'N' end
   return tostring(g)
 end
 
+local function prettyModel(id)
+  if type(id) ~= 'string' or id == '' then return '' end
+  local s = id:gsub('[%_%-]+', ' ')
+  if #s > 26 then s = s:sub(1, 26) end
+  return s
+end
+
+local function serverSec()
+  local s = sim()
+  if not s then return 0 end
+  return s.timeTotalSeconds or 0
+end
+
+local function setSection(key)
+  if state.section ~= key then
+    state.section = key
+    state.sectT = 0
+  end
+  if key == 'TELEPORT' then
+    refreshDestinations(true)
+  elseif key == 'COLOR' then
+    probeColor(true)
+    state.pickerInit = false
+    initPicker()
+  elseif key == 'TIME' then
+    state.time.probeAt = -999
+  elseif key == 'PLAYERS' then
+    refreshPlayers(true)
+  end
+  persist()
+end
+
+local function openPanel(key)
+  if not state.panelOpen then
+    state.panelTX, state.panelTY = panelTargetPos()
+    state.navX = -1
+  end
+  if key then setSection(key) end
+  state.panelOpen = true
+end
+
+local function closePanel()
+  state.panelOpen = false
+end
+
 local function pushGlass()
   ui.pushStyleVar(ui.StyleVar.WindowRounding, 12)
-  ui.pushStyleVar(ui.StyleVar.WindowPadding, vec2(12, 10))
+  ui.pushStyleVar(ui.StyleVar.WindowPadding, vec2(10, 8))
   ui.pushStyleVar(ui.StyleVar.ItemSpacing, vec2(6, 6))
   ui.pushStyleVar(ui.StyleVar.FrameRounding, 7)
   ui.pushStyleVar(ui.StyleVar.FramePadding, vec2(9, 5))
-  ui.pushStyleColor(ui.StyleColor.WindowBg, C.glass)
+  ui.pushStyleColor(ui.StyleColor.WindowBg, C.glassDeep)
   ui.pushStyleColor(ui.StyleColor.Border, C.accentFaint)
   ui.pushStyleColor(ui.StyleColor.ChildBg, C.cardSolid)
   ui.pushStyleColor(ui.StyleColor.Button, C.btnFlat)
@@ -628,66 +739,105 @@ local function withWindow(id, pos, size, content)
   popGlass()
 end
 
-local function card(id, height, contentFn)
-  ui.pushStyleVar(ui.StyleVar.ChildRounding, 10)
-  if ui.beginChild(id, vec2(0, height), false, ui.WindowFlags.None) then
-    contentFn()
-  end
-  ui.endChild()
+local function withAlpha(a, fn)
+  ui.pushStyleVarAlpha(a)
+  local ok, err = pcall(fn)
   ui.popStyleVar()
+  if not ok then error(err, 0) end
 end
 
-local function sectionTitle(text)
+local function sectionLabel(text)
   ui.textColored(text, C.accentSoft)
 end
 
+local function drawChip(p, text, color, minWidth)
+  local tsz = ui.measureDWriteText(text, 12, -1)
+  local w = math.max(minWidth or 0, tsz.x + 22)
+  ui.drawRectFilled(p, vec2(p.x + w, p.y + 22), C.card, 11)
+  ui.drawRect(p, vec2(p.x + w, p.y + 22), col(color, 0.5), 11, ui.CornerFlags.All, 1)
+  ui.dwriteDrawText(text, 12, vec2(p.x + (w - tsz.x) * 0.5, p.y + 4), color)
+  return w
+end
+
 local function drawHome()
-  local me = car()
   local s = sim()
-  ui.textColored(config.DISPLAY_NAME or L.title, C.text)
-  ui.textColored(config.DISPLAY_SUB or L.subtitle, C.dim)
+  local p = ui.cursorScreenPos()
+  local w1 = drawChip(p, L.online, C.ok, 86)
+  drawChip(vec2(p.x + w1 + 8, p.y), string.format(L.playersChip, s.connectedCars), C.accent, 100)
+  ui.setCursorScreenPos(vec2(p.x, p.y + 32))
+  ui.dwriteDrawText(config.DISPLAY_NAME or L.title, 20, ui.cursorScreenPos(), C.text)
+  ui.setCursorScreenPos(vec2(p.x, p.y + 58))
+  ui.dwriteDrawText(config.DISPLAY_SUB or L.subtitle, 13, ui.cursorScreenPos(), C.dim)
+  ui.setCursorScreenPos(vec2(p.x, p.y + 84))
   ui.separator()
-  card('vx_home_stats', 132, function()
-    sectionTitle(L.server)
-    ui.text(string.format(L.connected, s.connectedCars))
-    ui.text(string.format(L.timeNow, fmtClock(s.timeHours, s.timeMinutes, s.timeSeconds)))
-    ui.text(string.format(L.speedNow, math.floor(math.max(0, me.speedKmh) + 0.5)))
-  end)
+  ui.setCursorScreenPos(vec2(p.x, p.y + 94))
+  local bw = (PANEL_W - 34) / 2
+  if ui.button(L.quickTeleport, vec2(bw, 36)) then openPanel('TELEPORT') end
+  ui.sameLine()
+  if ui.button(L.quickColor, vec2(bw, 36)) then openPanel('COLOR') end
+  if ui.button(L.quickTime, vec2(bw, 36)) then openPanel('TIME') end
+  ui.sameLine()
+  if ui.button(L.quickPit, vec2(bw, 36)) then returnToPits() end
   ui.separator()
-  sectionTitle(L.lights)
-  if ui.button(me.headlightsActive and L.headlightsOn or L.headlightsOff, vec2(0, 28)) then
-    toggleHeadlights()
-  end
-  if ui.button(me.highBeams and L.highBeamsOn or L.highBeamsOff, vec2(0, 28)) then
-    toggleHighBeams()
-  end
-  ui.separator()
-  if ui.button(L.returnToPits, vec2(0, 30)) then
-    returnToPits()
-  end
+  if ui.button(L.returnToPits, vec2(0, 30)) then returnToPits() end
+  local me = car()
+  local lb = (PANEL_W - 34) / 2
+  if ui.button(me.headlightsActive and 'LIGHTS ON' or 'LIGHTS OFF', vec2(lb, 30)) then toggleHeadlights() end
+  ui.sameLine()
+  if ui.button(me.highBeams and 'BEAMS ON' or 'BEAMS OFF', vec2(lb, 30)) then toggleHighBeams() end
 end
 
 local function drawTeleport()
-  refreshDestinations(false)
-  ui.textColored(L.destinations, C.accentSoft)
-  ui.textDisabled(state.destSource == 'chat' and L.destSourceChat or L.destSourceConfig)
+  sectionLabel(state.destSource == 'chat' and 'SERVER DESTINATIONS' or 'CONFIG DESTINATIONS')
+  local changed, entered
+  state.search, changed, entered = ui.inputText(L.destSearch, state.search)
+  ui.setTooltip('Filter destinations by name or group')
   if #state.destList == 0 then
     ui.textDisabled(L.noDestinations)
     return
   end
-  card('vx_dest_list', 330, function()
-    local lastGroup = nil
-    for _, d in ipairs(state.destList) do
-      if d.group ~= lastGroup then
-        lastGroup = d.group
-        ui.textColored(d.group, C.accent)
+  local q = state.search:lower()
+  local groups, order = {}, {}
+  for _, d in ipairs(state.destList) do
+    local okMatch = q == '' or d.name:lower():find(q, 1, true) ~= nil or d.group:lower():find(q, 1, true) ~= nil
+    if okMatch then
+      if not groups[d.group] then
+        groups[d.group] = {}
+        order[#order + 1] = d.group
       end
-      if ui.button(d.name, vec2(0, 23)) then
-        teleportDest(d)
-      end
-      ui.setTooltip(string.format('%s\n%s', d.name, d.group))
+      local g = groups[d.group]
+      g[#g + 1] = d
     end
-  end)
+  end
+  if #order == 0 then
+    ui.textDisabled(L.noDestinations)
+    return
+  end
+  for _, gname in ipairs(order) do
+    local g = groups[gname]
+    local open = state.groupOpen[gname]
+    if open == nil then open = true end
+    local label = (open and '-  ' or '+  ') .. gname .. '  (' .. #g .. ')'
+    ui.pushStyleColor(ui.StyleColor.Button, open and C.btnActive or C.btnFlat)
+    ui.pushStyleColor(ui.StyleColor.Text, C.accent)
+    local clicked = ui.button(label, vec2(0, 26))
+    ui.popStyleColor(2)
+    if clicked then
+      state.groupOpen[gname] = not open
+      open = not open
+    end
+    if open then
+      for _, d in ipairs(g) do
+        local cp = ui.cursorScreenPos()
+        ui.setCursorScreenPos(vec2(cp.x + 14, cp.y))
+        if ui.button(d.name, vec2(0, 23)) then
+          teleportDest(d)
+        end
+        ui.setTooltip(string.format('%s\n%s', d.name, d.group))
+      end
+    end
+  end
+  ui.separator()
   if ui.button(L.refresh, vec2(0, 26)) then
     refreshDestinations(true)
   end
@@ -699,21 +849,30 @@ end
 
 local function drawPlayers()
   refreshPlayers(false)
-  ui.textColored(string.format(L.connectedPlayers, #state.players), C.accentSoft)
+  ui.textColored(string.format('%d CONNECTED', #state.players), C.accentSoft)
   ui.textDisabled(L.teleportHint)
-  ui.separator()
-  card('vx_player_list', 340, function()
-    if #state.players == 0 then
-      ui.textDisabled(L.noPlayers)
-    else
-      for _, p in ipairs(state.players) do
-        if ui.button(string.format('%s   %d m', p.name, math.floor(p.dist + 0.5)), vec2(0, 24)) then
-          teleportToPlayer(p)
+  if #state.players == 0 then
+    ui.textDisabled(L.noPlayers)
+  end
+  for _, pl in ipairs(state.players) do
+    ui.pushStyleVar(ui.StyleVar.ChildRounding, 10)
+    local opened = ui.beginChild('vx_pl' .. pl.index, vec2(0, 58), false, ui.WindowFlags.None)
+    local okp, errp = pcall(function()
+      if opened then
+        local p = ui.cursorScreenPos()
+        ui.dwriteDrawText(pl.name, 15, vec2(p.x + 10, p.y + 7), C.text)
+        local sub = string.format('%s   %d m', prettyModel(pl.model), math.floor(pl.dist + 0.5))
+        ui.dwriteDrawText(sub, 12, vec2(p.x + 10, p.y + 32), C.dim)
+        ui.setCursorScreenPos(vec2(p.x + PANEL_W - 142, p.y + 14))
+        if ui.button('TELEPORT##pl' .. pl.index, vec2(104, 30)) then
+          teleportToPlayer(pl)
         end
-        ui.setTooltip(string.format('%s\n%s - %d m', p.name, p.model or '', math.floor(p.dist + 0.5)))
       end
-    end
-  end)
+    end)
+    ui.endChild()
+    ui.popStyleVar()
+    if not okp then error(errp, 0) end
+  end
   ui.textDisabled(L.trafficHidden)
   if state.teleportCooldown > 0.05 then
     ui.textColored(string.format(L.cooldown, state.teleportCooldown), C.warn)
@@ -722,204 +881,122 @@ end
 
 local function drawColor()
   probeColor(false)
+  initPicker()
+  sectionLabel(L.carColor)
   local me = car()
-  ui.textColored(L.carColor, C.accentSoft)
-  card('vx_color_head', 112, function()
-    local cc = me.customCarColor
-    local p = ui.cursorScreenPos()
-    if cc and cc.r == cc.r then
-      ui.drawRectFilled(p, vec2(p.x + 30, p.y + 30), rgbm(cc.r, cc.g, cc.b, 1), 7)
-      ui.drawRect(p, vec2(p.x + 30, p.y + 30), rgbm(1, 1, 1, 0.40), 7, ui.CornerFlags.All, 1)
-      ui.setCursorScreenPos(vec2(p.x + 38, p.y + 2))
-      ui.textColored(L.currentColor, C.text)
-      ui.setCursorScreenPos(vec2(p.x + 38, p.y + 16))
-      ui.textColored(string.format('%d, %d, %d', math.floor(cc.r * 255 + 0.5), math.floor(cc.g * 255 + 0.5), math.floor(cc.b * 255 + 0.5)), C.dim)
-    else
-      ui.setCursorScreenPos(vec2(p.x + 38, p.y + 8))
-      ui.textColored(L.defaultColor, C.dim)
-    end
-    ui.setCursorScreenPos(vec2(p.x, p.y + 42))
-    if ui.button(L.colorReset, vec2(0, 26)) then
-      applyColor(nil)
-    end
-  end)
+  local cc = me.customCarColor
+  local p = ui.cursorScreenPos()
+  local hasCustom = cc and cc.r == cc.r
+  local prev = hasCustom and cc or state.picker
+  ui.drawRectFilled(p, vec2(p.x + 34, p.y + 34), rgbm(prev.r, prev.g, prev.b, 1), 8)
+  ui.drawRect(p, vec2(p.x + 34, p.y + 34), rgbm(1, 1, 1, 0.4), 8, ui.CornerFlags.All, 1)
+  ui.setCursorScreenPos(vec2(p.x + 44, p.y + 2))
+  ui.dwriteDrawText(hasCustom and 'CURRENT' or 'LIVERY', 12, ui.cursorScreenPos(), C.dim)
+  ui.setCursorScreenPos(vec2(p.x + 44, p.y + 18))
+  ui.dwriteDrawText(string.format('%d %d %d', math.floor(prev.r * 255 + 0.5), math.floor(prev.g * 255 + 0.5), math.floor(prev.b * 255 + 0.5)), 12, ui.cursorScreenPos(), C.text)
   if not state.chatEx then
-    card('vx_color_fallback', 92, function()
-      sectionTitle(L.colorNoModule)
-      ui.textWrapped(L.colorPickerHint)
-    end)
+    ui.textColored(L.colorNoModule, C.warn)
     return
   end
   if state.colorAllowed == false then
     ui.textColored(L.colorNotAllowed, C.warn)
   end
-  local p = ui.cursorScreenPos()
-  for i, sw in ipairs(SWATCHES) do
-    ui.pushStyleColor(ui.StyleColor.Button, sw.c)
-    ui.pushStyleColor(ui.StyleColor.ButtonHovered, sw.c)
-    ui.pushStyleColor(ui.StyleColor.ButtonActive, sw.c)
-    if i > 1 and (i - 1) % 4 ~= 0 then ui.sameLine() end
-    if ui.button('##sw' .. i, vec2(42, 34)) then
-      applyColor(sw.c)
+  local pickerFlags = bit.bor(ui.ColorPickerFlags.NoAlpha, ui.ColorPickerFlags.PickerHueBar, ui.ColorPickerFlags.NoSidePreview)
+  local changed = ui.colorPicker('##vx_picker', state.picker, pickerFlags)
+  if changed then
+    state.pickerDirty = true
+  end
+  if state.pickerDirty and not ui.mouseDown(0) then
+    state.pickerDirty = false
+    applyColor(state.picker)
+  end
+  local rp = ui.cursorScreenPos()
+  for i, pr in ipairs(PRESETS) do
+    if i > 1 and (i - 1) % 6 ~= 0 then ui.sameLine() end
+    local c = rgbm(pr.r, pr.g, pr.b, 1)
+    if ui.colorButton('##pw' .. i, c, ui.ColorPickerFlags.NoAlpha, vec2(44, 30)) then
+      state.picker.r = pr.r
+      state.picker.g = pr.g
+      state.picker.b = pr.b
+      applyColor(c)
     end
-    ui.setTooltip(sw.name)
-    ui.popStyleColor(3)
+    ui.setTooltip(pr.label)
+  end
+  ui.setCursorScreenPos(vec2(rp.x, rp.y + 76))
+  if ui.button(L.colorApply, vec2((PANEL_W - 44) / 2, 30)) then
+    applyColor(state.picker)
   end
   ui.sameLine()
+  if ui.button(L.colorReset, vec2((PANEL_W - 44) / 2, 30)) then
+    applyColor(nil)
+  end
   ui.textDisabled(L.liveryNote)
-  ui.separator()
-  local v
-  v = ui.slider(L.red, state.colR, 0, 100, '%d', true)
-  state.colR = v
-  v = ui.slider(L.green, state.colG, 0, 100, '%d', true)
-  state.colG = v
-  v = ui.slider(L.blue, state.colB, 0, 100, '%d', true)
-  state.colB = v
-  local pv = rgbm(state.colR / 100, state.colG / 100, state.colB / 100, 1)
-  local pp = ui.cursorScreenPos()
-  ui.drawRectFilled(pp, vec2(pp.x + 44, pp.y + 28), pv, 6)
-  ui.drawRect(pp, vec2(pp.x + 44, pp.y + 28), rgbm(1, 1, 1, 0.35), 6, ui.CornerFlags.All, 1)
-  ui.setCursorScreenPos(vec2(pp.x + 52, pp.y + 4))
-  ui.textColored(L.currentColor, C.dim)
-  if ui.button(L.colorApply, vec2(0, 30)) then
-    applyColor(pv)
-  end
-end
-
-local function wrapOffset(o)
-  local h = 43200
-  while o > h do o = o - 86400 end
-  while o <= -h do o = o + 86400 end
-  return o
-end
-
-local function timeCmd(offset)
-  if not shared then
-    state.time.status = 'NOT_INSTALLED'
-    toast(L.timeNoCompanion)
-    return
-  end
-  local s = sim()
-  if not s then return end
-  offset = wrapOffset(offset)
-  state.time.pending = offset
-  state.time.t0 = s.timestamp
-  state.time.sentFrame = state.frames
-  state.time.lastCmd = shared.cmdSeq + 1
-  shared.cmdOffset = offset
-  shared.cmdInstant = 1
-  shared.cmdSeq = state.time.lastCmd
-  state.time.status = 'SENT'
-end
-
-local function timePreset(targetSec)
-  local s = sim()
-  if not s then return end
-  timeCmd(targetSec - s.timeTotalSeconds)
-end
-
-local function companionStatus()
-  if not shared then
-    state.time.companion = 'NOT_INSTALLED'
-    return
-  end
-  local s = sim()
-  local b = shared.beat
-  if not s then
-    state.time.companion = 'UNKNOWN'
-    return
-  end
-  if b > 0 and (s.frame - b) < 180 then
-    state.time.companion = 'READY'
-  elseif b > 0 then
-    state.time.companion = 'STALE'
-  else
-    state.time.companion = 'NOT_INSTALLED'
-  end
-end
-
-local function companionColor()
-  local c = state.time.companion
-  if c == 'READY' then return C.ok end
-  if c == 'STALE' then return C.warn end
-  return C.danger
-end
-
-local function statusColor()
-  local st = state.time.status
-  if st == 'APPLIED' then return C.ok end
-  if st == 'SENT' then return C.warn end
-  if st == 'NO_EFFECT' or st == 'ERROR' or st == 'NO_RESPONSE' or st == 'NOT_INSTALLED' then return C.danger end
-  return C.dim
-end
-
-local function statusText()
-  local tm = state.time
-  local st = tm.status
-  if st == 'SENT' then return L.timeSent end
-  if st == 'APPLIED' then return string.format(L.timeApplied, tm.measured) end
-  if st == 'NO_EFFECT' then return L.timeNoEffect end
-  if st == 'UNVERIFIED' then return L.timeUnverified end
-  if st == 'NO_RESPONSE' then return L.timeNoResponse end
-  if st == 'ERROR' then return string.format(L.timeError, tm.err) end
-  if st == 'NOT_INSTALLED' then return L.timeNoCompanion end
-  return ''
 end
 
 local function drawTime()
-  local s = sim()
-  companionStatus()
-  ui.textColored(L.serverTime, C.accentSoft)
+  local tm = state.time
+  if tm.probeAt < 0 or (state.frames - tm.probeAt) > 60 then
+    tm.probeAt = state.frames
+    local ok, st = pcall(ac.load, STORE_STATUS)
+    if ok then
+      tm.helper = st
+      if st ~= nil then tm.helperSeen = true end
+    end
+    local ok2, ap = pcall(ac.load, STORE_APPLIED)
+    if ok2 and ap ~= nil then tm.applied = ap end
+  end
+  local installed = tm.helperSeen
+  local hookMissing = type(tm.helper) == 'string' and tm.helper:find('hook-missing', 1, true) ~= nil
+  local visualSec = wrapDay(serverSec() + tm.curOffset)
   local p = ui.cursorScreenPos()
-  local tstr = fmtClock(s.timeHours, s.timeMinutes, s.timeSeconds)
-  local tsz = ui.measureDWriteText(tstr, 40, -1)
-  ui.dwriteDrawText(tstr, 40, p, C.text)
-  ui.setCursorScreenPos(vec2(p.x, p.y + tsz.y + 6))
-  ui.textColored(string.format(L.timeNow, tstr), C.dim)
+  ui.dwriteDrawText(fmtSec(visualSec), 46, p, C.text)
+  local tsz = ui.measureDWriteText(fmtSec(visualSec), 46, -1)
+  local chipY = p.y + tsz.y + 6
+  local cx = p.x
+  cx = cx + drawChip(vec2(cx, chipY), L.localTime, C.accent, 96) + 6
+  local ctrl = hookMissing and L.controllerWfx or L.controllerPure
+  cx = cx + drawChip(vec2(cx, chipY), ctrl, hookMissing and C.danger or C.ok, 84) + 6
+  if installed and not hookMissing then
+    drawChip(vec2(cx, chipY), tm.applied == 'yes' and L.timeReady or L.timeWaiting, tm.applied == 'yes' and C.ok or C.warn, 110)
+  end
+  ui.setCursorScreenPos(vec2(p.x, chipY + 30))
   ui.separator()
-  local comp = state.time.companion
-  local compText = L.timeCompanionMissing
-  if comp == 'READY' then compText = L.timeCompanionReady
-  elseif comp == 'STALE' then compText = L.timeCompanionStale end
-  ui.textColored(compText, companionColor())
-  if comp ~= 'READY' then
-    if ui.button(L.timeInstall, vec2(0, 26)) then
-      toast(L.timeInstallMsg)
+  if hookMissing then
+    ui.textColored(L.timeUnavailable, C.warn)
+    return
+  end
+  if not installed then
+    ui.textColored(L.timeNoModule, C.warn)
+    ui.textWrapped(L.timeInstallMsg)
+    if ui.button(L.timeInstall, vec2(0, 30)) then
+      toast(L.timeInstallMsg, 'warn')
     end
-    ui.separator()
+    return
   end
-  local bw = 200
-  if ui.button(L.timeMorning, vec2(bw, 30)) then timePreset(8 * 3600) end
-  ui.sameLine()
-  if ui.button(L.timeNoon, vec2(bw, 30)) then timePreset(12 * 3600) end
-  if ui.button(L.timeEvening, vec2(bw, 30)) then timePreset(18 * 3600) end
-  ui.sameLine()
-  if ui.button(L.timeNight, vec2(bw, 30)) then timePreset(22 * 3600) end
-  ui.separator()
-  local v = ui.slider(L.timeShiftLabel, state.shiftHours, -12, 12, '%+d h', true)
-  state.shiftHours = v
-  if ui.button(L.timeApply, vec2(0, 28)) then
-    timeCmd(state.shiftHours * 3600)
+  local tv = wrapDay(serverSec() + tm.curOffset)
+  local nv = ui.slider('##vx_tl', tv, 0, 86399, '', 1)
+  if math.abs(nv - tv) > 0.5 then
+    tm.want = wrapOffset(nv - serverSec())
   end
-  ui.sameLine()
-  if ui.button(L.timeReset, vec2(0, 28)) then
-    if state.time.lastApplied ~= 0 then
-      timeCmd(-state.time.lastApplied)
-      state.time.lastApplied = 0
-      toast(L.timeResetDone)
-    else
-      toast(L.timeNothingToReset)
+  local bw = (PANEL_W - 40) / 2
+  for i, pr in ipairs(TIME_PRESETS) do
+    if (i - 1) % 2 > 0 then ui.sameLine() end
+    if ui.button(pr.label, vec2(bw, 40)) then
+      tm.want = wrapOffset(pr.sec - serverSec())
+      if pr.sec >= 21 * 3600 or pr.sec < 3600 then
+        toast(L.nightMode)
+      end
     end
   end
-  local st = statusText()
-  if st ~= '' then
-    ui.textColored(st, statusColor())
+  if ui.button(L.timeReset, vec2(0, 30)) then
+    tm.want = 0
+    toast(L.resetDone)
   end
-  ui.textWrapped(L.timeCspNote)
+  ui.textColored(string.format(L.timeActive, tm.curOffset / 3600), C.dim)
 end
 
 local function drawHud()
-  ui.textColored(L.hudSettings, C.accentSoft)
+  sectionLabel(L.hudSettings)
   if ui.checkbox(L.speedometer, state.hudVisible) then
     state.hudVisible = not state.hudVisible
     persist()
@@ -934,8 +1011,8 @@ local function drawHud()
   state.hudScale = v2
   if m1 or m2 then persist() end
   if ui.button(L.resetPositions, vec2(0, 28)) then
-    state.menuX, state.menuY = 24, 96
-    state.panelX, state.panelY = -1, 140
+    state.orbX, state.orbY = 20, 150
+    state.spdX, state.spdY = -1, -1
     persist()
     toast(L.resetPositions)
   end
@@ -952,199 +1029,361 @@ local function drawSection(key)
   elseif key == 'HUD' then drawHud() end
 end
 
-local function checkSectionEnter()
-  if state.panelSection ~= state.lastSection then
-    state.lastSection = state.panelSection
-    if state.panelSection == 'TELEPORT' then
-      refreshDestinations(true)
-    elseif state.panelSection == 'COLOR' then
-      probeColor(true)
-    end
-  end
+local function clampPos(x, y, sw, sh)
+  x = clamp(x, 8, sw - ORB_SIZE - 8)
+  y = clamp(y, 56, sh - ORB_SIZE - 8)
+  return x, y
 end
 
-local function openSection(key)
-  state.panelSection = key
-  state.panelOpen = true
-  checkSectionEnter()
-end
-
-local function drawQuickMenu()
+local function handleOrb()
   local scr = getScreenSize()
-  local x, y = state.menuX, state.menuY
-  x, y = clampPos(x, y, scr.x, scr.y)
-  if state.menuCollapsed then
-    withWindow('vx_pill', vec2(x, y), vec2(150, 44), function()
-      if ui.button('VENOM X   >', vec2(138, 32)) then
-        state.menuCollapsed = false
-      end
-    end)
-    return
-  end
-  local hr = { x = x, y = y, w = MENU_W, h = 36 }
   local mp = ui.mousePos()
-  local cbr = { x = hr.x + MENU_W - 36, y = hr.y + 6, w = 28, h = 24 }
-  local collapseClick = ui.mouseClicked(0) and inRect(cbr, mp)
-  if not collapseClick then
-    local ox, oy = state.menuX, state.menuY
-    x, y = handleDrag('menu', hr, x, y, scr.x, scr.y)
-    state.menuX, state.menuY = x, y
-    if x ~= ox or y ~= oy then persist() end
+  local r = { x = state.orbX - 2, y = state.orbY - 2, w = ORB_SIZE + 4, h = ORB_SIZE + 4 }
+  local over = inRect(r, mp) and not state.dragging and not panelBlocks()
+  state.orbHover = anim(state.orbHover, over and 1 or 0, 12, state.dt)
+  local press = state.orbPress
+  if not press and not state.dragging and not panelBlocks() and ui.mouseClicked(0) and inRect(r, mp) then
+    press = { ox = state.orbX, oy = state.orbY, mx = mp.x, my = mp.y, moved = false }
+    state.orbPress = press
   end
-  withWindow('vx_menu', vec2(x, y), vec2(MENU_W, MENU_H), function()
-    ui.dwriteDrawText(L.title, 17, vec2(x + 12, y + 7), C.accent)
-    local tw = ui.measureDWriteText(L.title, 17, -1)
-    ui.dwriteDrawText(L.versionTag, 11, vec2(x + 12 + tw.x + 8, y + 13), C.dim)
-    ui.drawText('>', vec2(x + MENU_W - 27, y + 8), inRect(cbr, mp) and C.accent or C.dim)
-    if collapseClick then state.menuCollapsed = true end
-    ui.drawRectFilled(vec2(x + 10, y + 35), vec2(x + MENU_W - 10, y + 36), C.accentFaint, 0)
-    ui.setCursorScreenPos(vec2(x + 12, y + 44))
-    for _, item in ipairs(NAV) do
-      local active = state.panelOpen and state.panelSection == item.key
-      ui.pushStyleColor(ui.StyleColor.Button, active and C.btnActive or C.btnFlat)
-      if ui.button(item.label, vec2(MENU_W - 24, 30)) then
-        openSection(item.key)
+  if press then
+    if ui.mouseDown(0) then
+      if not press.moved then
+        local dx = mp.x - press.mx
+        local dy = mp.y - press.my
+        if dx * dx + dy * dy > DRAG_THRESHOLD * DRAG_THRESHOLD then
+          press.moved = true
+          state.dragging = 'orb'
+        end
       end
-      ui.popStyleColor()
+      if press.moved then
+        state.orbX, state.orbY = clampPos(press.ox + (mp.x - press.mx), press.oy + (mp.y - press.my), scr.x, scr.y)
+      end
+    else
+      if press.moved then
+        local snapX1, snapX2 = 16, scr.x - ORB_SIZE - 16
+        local snapY1, snapY2 = 64, scr.y - ORB_SIZE - 16
+        if math.abs(state.orbX - snapX1) < 56 then state.orbX = snapX1 end
+        if math.abs(state.orbX - snapX2) < 56 then state.orbX = snapX2 end
+        if math.abs(state.orbY - snapY1) < 40 then state.orbY = snapY1 end
+        if math.abs(state.orbY - snapY2) < 40 then state.orbY = snapY2 end
+        state.orbX, state.orbY = clampPos(state.orbX, state.orbY, scr.x, scr.y)
+        persist()
+      else
+        if state.panelOpen then closePanel() else openPanel(nil) end
+      end
+      state.orbPress = nil
+      state.dragging = nil
     end
-    local s = sim()
-    ui.setCursorScreenPos(vec2(x + 12, y + MENU_H - 32))
-    ui.textColored(string.format('%s   %s', fmtClock(s.timeHours, s.timeMinutes, s.timeSeconds), string.format(L.connected, s.connectedCars)), C.dim)
+  end
+  local pulse = 0
+  if #state.toasts > 0 then
+    pulse = 0.5 + 0.5 * math.sin(state.clock * 6)
+  end
+  local hover = state.orbHover
+  withWindow('vx_orb', vec2(state.orbX - 4, state.orbY - 4), vec2(ORB_SIZE + 8, ORB_SIZE + 8), function()
+    ui.glowRectFilled(vec2(state.orbX, state.orbY), vec2(state.orbX + ORB_SIZE, state.orbY + ORB_SIZE), rgbm(C.accent.r, C.accent.g, C.accent.b, 0.10 + hover * 0.16 + pulse * 0.10), true)
+    ui.drawRectFilled(vec2(state.orbX, state.orbY), vec2(state.orbX + ORB_SIZE, state.orbY + ORB_SIZE), C.glassDeep, 17)
+    ui.drawRect(vec2(state.orbX, state.orbY), vec2(state.orbX + ORB_SIZE, state.orbY + ORB_SIZE), rgbm(C.accent.r, C.accent.g, C.accent.b, 0.30 + hover * 0.50), 17, ui.CornerFlags.All, 1.5)
+    local c0x, c0y = state.orbX + ORB_SIZE / 2, state.orbY + ORB_SIZE / 2
+    local d = 8
+    local lc = col(C.accent, 0.75 + hover * 0.25)
+    ui.drawLine(vec2(c0x - d, c0y - d), vec2(c0x + d, c0y + d), lc, 3)
+    ui.drawLine(vec2(c0x + d, c0y - d), vec2(c0x - d, c0y + d), lc, 3)
   end)
 end
 
-local function drawPanel()
-  local scr = getScreenSize()
-  if state.panelX < 0 then
-    state.panelX = scr.x - PANEL_W - 24
-    persist()
-  end
-  local x, y = state.panelX, state.panelY
-  x, y = clampPos(x, y, scr.x, scr.y)
-  local hr = { x = x, y = y, w = PANEL_W, h = HEADER_H }
+local function handlePanelDrag()
   local mp = ui.mousePos()
-  local xbr = { x = hr.x + PANEL_W - 36, y = hr.y + 6, w = 28, h = 26 }
-  local closeClick = ui.mouseClicked(0) and inRect(xbr, mp)
-  if not closeClick then
-    local ox, oy = state.panelX, state.panelY
-    x, y = handleDrag('panel', hr, x, y, scr.x, scr.y)
-    state.panelX, state.panelY = x, y
-    if x ~= ox or y ~= oy then persist() end
-  end
-  withWindow('vx_panel', vec2(x, y), vec2(PANEL_W, PANEL_H), function()
-    if closeClick then state.panelOpen = false end
-    ui.dwriteDrawText(L.title, 16, vec2(x + 14, y + 8), C.accent)
-    local tw = ui.measureDWriteText(L.title, 16, -1)
-    ui.dwriteDrawText(state.panelSection, 14, vec2(x + 14 + tw.x + 10, y + 11), C.text)
-    ui.drawText('X', vec2(x + PANEL_W - 27, y + 8), inRect(xbr, mp) and C.danger or C.dim)
-    ui.drawRectFilled(vec2(x + 10, y + 38), vec2(x + PANEL_W - 10, y + 39), C.accentFaint, 0)
-    ui.setCursorScreenPos(vec2(x + 12, y + HEADER_H + 6))
-    if ui.beginChild('vx_section', vec2(PANEL_W - 24, PANEL_H - HEADER_H - 18), false, ui.WindowFlags.None) then
-      drawSection(state.panelSection)
+  if state.panelDrag then
+    if ui.mouseDown(0) then
+      local scr = getScreenSize()
+      local nx = state.panelDragBase.x + (mp.x - state.panelDragMouse.x)
+      local ny = state.panelDragBase.y + (mp.y - state.panelDragMouse.y)
+      state.panelTX = clamp(nx, 8, scr.x - PANEL_W - 8)
+      state.panelTY = clamp(ny, 48, scr.y - 80)
+      state.panelDragBase = vec2(state.panelTX, state.panelTY)
+      return false
     end
-    ui.endChild()
+    state.panelDrag = false
+    state.dragging = nil
+    return false
+  end
+  local hr = { x = state.panelTX, y = state.panelTY, w = PANEL_W, h = 34 }
+  local closeR = { x = state.panelTX + PANEL_W - 32, y = state.panelTY + 4, w = 26, h = 26 }
+  if ui.mouseClicked(0) and inRect(closeR, mp) then
+    return true
+  end
+  if ui.mouseClicked(0) and inRect(hr, mp) and not state.dragging and not state.orbPress then
+    state.panelDrag = true
+    state.dragging = 'panel'
+    state.panelDragMouse = mp
+    state.panelDragBase = vec2(state.panelTX, state.panelTY)
+  end
+  return false
+end
+
+local function drawPanel()
+  local t = easeOutCubic(clamp(state.openT, 0, 1))
+  if t <= 0.01 then return end
+  local px, py, pw, ph
+  if state.openT >= 0.9 then
+    if handlePanelDrag() then
+      closePanel()
+      return
+    end
+    px, py, pw, ph = state.panelTX, state.panelTY, PANEL_W, PANEL_H
+  else
+    px = lerp(state.orbX, state.panelTX, t)
+    py = lerp(state.orbY, state.panelTY, t)
+    pw = lerp(64, PANEL_W, t)
+    ph = lerp(64, PANEL_H, t)
+  end
+  withWindow('vx_panel', vec2(px, py), vec2(pw, ph), function()
+    if state.openT < 0.9 then
+      local cx0 = px + pw * 0.5
+      local cy0 = py + ph * 0.5
+      local lc = col(C.accent, 0.4 + t * 0.6)
+      ui.drawLine(vec2(cx0 - 9, cy0 - 9), vec2(cx0 + 9, cy0 + 9), lc, 3)
+      ui.drawLine(vec2(cx0 + 9, cy0 - 9), vec2(cx0 - 9, cy0 + 9), lc, 3)
+      return
+    end
+    local alpha = clamp((state.openT - 0.9) / 0.1, 0, 1)
+    withAlpha(alpha, function()
+      local x = px + 14
+      local y = py + 8
+      ui.dwriteDrawText(L.title, 16, vec2(x, y), C.accent)
+      local tw = ui.measureDWriteText(L.title, 16, -1)
+      ui.dwriteDrawText(state.section, 13, vec2(x + tw.x + 10, y + 3), C.text)
+      local closeR = { x = px + PANEL_W - 32, y = py + 4, w = 26, h = 26 }
+      local mp = ui.mousePos()
+      ui.dwriteDrawText('X', 15, vec2(px + PANEL_W - 24, y + 3), inRect(closeR, mp) and C.danger or C.dim)
+      ui.drawRectFilled(vec2(px + 10, y + 30), vec2(px + PANEL_W - 10, y + 31), C.accentFaint, 0)
+      local navY = y + 38
+      local itemW = (PANEL_W - 28) / #NAV
+      local navTarget = nil
+      for i, item in ipairs(NAV) do
+        local ix = px + 14 + (i - 1) * itemW
+        local active = state.section == item.key
+        local ir = { x = ix, y = navY, w = itemW, h = 26 }
+        local mpn = ui.mousePos()
+        local hov = inRect(ir, mpn)
+        if hov or active then
+          ui.drawRectFilled(vec2(ix, navY), vec2(ix + itemW - 4, navY + 26), active and C.btnActive or C.btn, 8)
+        end
+        local tsz = ui.measureDWriteText(item.label, 12, -1)
+        ui.dwriteDrawText(item.label, 12, vec2(ix + (itemW - 4 - tsz.x) * 0.5, navY + 6), active and C.text or (hov and C.accentSoft or C.dim))
+        if active then navTarget = ix + (itemW - 4) * 0.5 end
+        if state.openT >= 0.999 and ui.mouseClicked(0) and inRect(ir, mpn) and not state.dragging then
+          setSection(item.key)
+        end
+      end
+      if navTarget then
+        if state.navX < 0 then state.navX = navTarget end
+        state.navX = anim(state.navX, navTarget, 14, state.dt)
+        ui.drawRectFilled(vec2(state.navX - 14, navY + 27), vec2(state.navX + 14, navY + 29), C.accent, 1)
+      end
+      ui.setCursorScreenPos(vec2(px + 12, navY + 36))
+      withAlpha(alpha * clamp(state.sectT * 1.4, 0, 1), function()
+        local opened = ui.beginChild('vx_section', vec2(PANEL_W - 24, PANEL_H - 112), false, ui.WindowFlags.None)
+        local okd, errd = pcall(function()
+          if opened then drawSection(state.section) end
+        end)
+        ui.endChild()
+        if not okd then error(errd, 0) end
+      end)
+    end)
   end)
 end
 
 local function drawToasts()
+  if #state.toasts == 0 then return end
   local scr = getScreenSize()
-  for i, t in ipairs(state.toasts) do
-    local aIn = math.min(1, t.t / 0.18)
-    local aOut = math.min(1, (t.dur - t.t) / 0.25)
-    local a = math.max(0, math.min(aIn, aOut))
-    local tsz = ui.measureText(t.text, -1)
-    local w = math.max(260, tsz.x + 36)
-    local h = 36
-    local x = (scr.x - w) * 0.5
-    local y = 26 + (i - 1) * (h + 8)
-    ui.drawRectFilled(vec2(x, y), vec2(x + w, y + h), rgbm(0.05, 0.06, 0.10, 0.94 * a), 9)
-    ui.drawRect(vec2(x, y), vec2(x + w, y + h), col(C.accentFaint, a), 9, ui.CornerFlags.All, 1)
-    ui.drawRectFilled(vec2(x + 1, y + 7), vec2(x + 4, y + h - 7), col(C.accent, a), 2)
-    ui.drawText(t.text, vec2(x + 16, y + (h - tsz.y) * 0.5), col(C.text, a))
+  pushGlass()
+  local okc = pcall(function()
+    ui.beginTransparentWindow('vx_toasts', vec2(0, 0), vec2(scr.x, 176), true, false)
+    for i, t in ipairs(state.toasts) do
+      local aIn = clamp(t.t / 0.16, 0, 1)
+      local aOut = clamp((t.dur - t.t) / 0.3, 0, 1)
+      local a = easeOutCubic(aIn) * aOut
+      if a > 0.02 then
+        local tsz = ui.measureDWriteText(t.text, 14, -1)
+        local w = math.max(240, tsz.x + 44)
+        local h = 40
+        local slide = (1 - easeOutCubic(aIn)) * -18
+        local x = (scr.x - w) * 0.5
+        local y = 24 + (i - 1) * (h + 8) + slide
+        ui.drawRectFilled(vec2(x, y), vec2(x + w, y + h), rgbm(0.045, 0.055, 0.090, 0.95 * a), 10)
+        ui.drawRect(vec2(x, y), vec2(x + w, y + h), rgbm(C.accent.r, C.accent.g, C.accent.b, 0.35 * a), 10, ui.CornerFlags.All, 1)
+        local barC = t.kind == 'warn' and C.warn or C.ok
+        ui.drawRectFilled(vec2(x + 1, y + 8), vec2(x + 5, y + h - 8), rgbm(barC.r, barC.g, barC.b, a), 2)
+        ui.dwriteDrawText(t.text, 14, vec2(x + 18, y + (h - 18) * 0.5), rgbm(1, 1, 1, a))
+      end
+    end
+    ui.endTransparentWindow()
+  end)
+  if not okc then
+    pcall(ui.endTransparentWindow)
   end
+  popGlass()
+end
+
+local function speedoRect()
+  local scr = getScreenSize()
+  local k = state.hudScale / 100
+  local w = math.floor(220 * k)
+  local h = math.floor(150 * k)
+  local x0 = state.spdX
+  local y0 = state.spdY
+  if x0 < 0 then
+    x0 = scr.x - w - 26
+    y0 = scr.y - h - 90
+  end
+  return x0, y0, w, h, k
+end
+
+local function handleSpeedoDrag(x0, y0, w, h)
+  local mp = ui.mousePos()
+  local r = { x = x0, y = y0, w = w, h = h }
+  local press = state.spdPress
+  if not press and not state.dragging and not panelBlocks() and ui.mouseClicked(0) and inRect(r, mp) then
+    press = { ox = x0, oy = y0, mx = mp.x, my = mp.y, moved = false }
+    state.spdPress = press
+  end
+  if press then
+    if ui.mouseDown(0) then
+      if not press.moved then
+        local dx = mp.x - press.mx
+        local dy = mp.y - press.my
+        if dx * dx + dy * dy > DRAG_THRESHOLD * DRAG_THRESHOLD then
+          press.moved = true
+          state.dragging = 'spd'
+        end
+      end
+      if press.moved then
+        local scr = getScreenSize()
+        state.spdX = clamp(press.ox + (mp.x - press.mx), 8, scr.x - w - 8)
+        state.spdY = clamp(press.oy + (mp.y - press.my), 48, scr.y - h - 8)
+        return state.spdX, state.spdY
+      end
+      return x0, y0
+    end
+    if press.moved then
+      persist()
+    end
+    state.spdPress = nil
+    state.dragging = nil
+  end
+  return x0, y0
 end
 
 local function drawSpeedometer()
   if not state.hudVisible then return end
-  local scr = getScreenSize()
-  local k = state.hudScale / 100
-  local op = state.hudOp / 100
-  local w = math.floor(216 * k)
-  local h = math.floor(138 * k)
-  local x0 = scr.x - w - 26
-  local y0 = scr.y - h - 96
-  local c = car()
-
-  ui.drawRectFilled(vec2(x0, y0), vec2(x0 + w, y0 + h), col(C.cardSolid, op), 14)
-  ui.drawRect(vec2(x0, y0), vec2(x0 + w, y0 + h), col(C.accentFaint, op), 14, ui.CornerFlags.All, 1.5)
-
-  state.smoothSpeed = state.smoothSpeed + (math.max(0, c.speedKmh) - state.smoothSpeed) * 0.25
-  local speedStr = tostring(math.floor(state.smoothSpeed + 0.5))
-  local fs = math.floor(44 * k)
-  local sz = ui.measureDWriteText(speedStr, fs, -1)
-  ui.dwriteDrawText(speedStr, fs, vec2(x0 + (w - sz.x) * 0.5, y0 + 8 * k), col(C.text, op))
-
-  local ks = ui.measureText(L.kmh, -1)
-  ui.drawText(L.kmh, vec2(x0 + (w - ks.x) * 0.5, y0 + 62 * k), col(C.accentSoft, op))
-
-  ui.drawText(string.format(L.gear, gearString(c.gear)), vec2(x0 + 14, y0 + 84 * k), col(C.text, op))
-
-  local rp = ui.measureText(L.rpm, -1)
-  ui.drawText(L.rpm, vec2(x0 + w - 14 - rp.x, y0 + 84 * k), col(C.dim, op))
-
-  if state.rpmBar then
-    local maxRpm = c.rpmLimiter
-    if not maxRpm or maxRpm <= 0 then maxRpm = 8000 end
-    local frac = math.max(0, math.min(1, c.rpm / maxRpm))
-    local bx0, by0 = x0 + 14, y0 + 102 * k
-    local bx1, by1 = x0 + w - 14, y0 + 110 * k
-    ui.drawRectFilled(vec2(bx0, by0), vec2(bx1, by1), col(C.bar, op), 4)
-    if frac > 0.005 then
-      local band = C.accent
-      if frac > 0.95 then band = C.danger
-      elseif frac > 0.85 then band = C.warn end
-      ui.drawRectFilled(vec2(bx0, by0), vec2(bx0 + (bx1 - bx0) * frac, by1), col(band, op), 4)
-    end
+  local x0, y0, w, h, k = speedoRect()
+  x0, y0 = handleSpeedoDrag(x0, y0, w, h)
+  if state.spdX < 0 then
+    state.spdX = x0
+    state.spdY = y0
   end
-
-  ui.drawText(L.title, vec2(x0 + 14, y0 + 120 * k), col(C.accentSoft, op * 0.55))
+  local op = state.hudOp / 100
+  local c = car()
+  withWindow('vx_speedo', vec2(x0, y0), vec2(w, h), function()
+    ui.drawRectFilled(vec2(x0, y0), vec2(x0 + w, y0 + h), col(C.cardSolid, op), 14)
+    ui.drawRect(vec2(x0, y0), vec2(x0 + w, y0 + h), col(C.accentFaint, op), 14, ui.CornerFlags.All, 1.5)
+    local targetSpeed = math.max(0, c.speedKmh)
+    state.smoothSpeed = anim(state.smoothSpeed, targetSpeed, 9, state.dt)
+    local speedStr = tostring(math.floor(state.smoothSpeed + 0.5))
+    local fs = math.floor(46 * k)
+    local sz = ui.measureDWriteText(speedStr, fs, -1)
+    ui.dwriteDrawText(speedStr, fs, vec2(x0 + (w - sz.x) * 0.5, y0 + 8 * k), col(C.text, op))
+    local ks = ui.measureDWriteText(L.kmh, 13, -1)
+    ui.dwriteDrawText(L.kmh, 13, vec2(x0 + (w - ks.x) * 0.5, y0 + 64 * k), col(C.accentSoft, op))
+    ui.dwriteDrawText(string.format(L.gear, gearString(c.gear)), 15, vec2(x0 + 14, y0 + 88 * k), col(C.text, op))
+    state.smoothRpm = anim(state.smoothRpm, c.rpm, 12, state.dt)
+    local rpmStr = tostring(math.floor(state.smoothRpm / 10) * 10)
+    local rs = ui.measureDWriteText(rpmStr, 15, -1)
+    ui.dwriteDrawText(string.format(L.rpmLabel, rpmStr), 15, vec2(x0 + w - 14 - rs.x - 38, y0 + 88 * k), col(C.dim, op))
+    if state.rpmBar then
+      local maxRpm = c.rpmLimiter
+      if not maxRpm or maxRpm <= 0 then maxRpm = 8000 end
+      local frac = clamp(state.smoothRpm / maxRpm, 0, 1)
+      local bx0, by0 = x0 + 14, y0 + 112 * k
+      local bx1, by1 = x0 + w - 14, y0 + 122 * k
+      ui.drawRectFilled(vec2(bx0, by0), vec2(bx1, by1), col(C.bar, op), 5)
+      if frac > 0.005 then
+        local band
+        if frac <= 0.85 then
+          band = C.accent
+        elseif frac < 0.95 then
+          band = mixCol(C.accent, C.warn, (frac - 0.85) / 0.10)
+        elseif frac < 0.98 then
+          band = mixCol(C.warn, C.danger, (frac - 0.95) / 0.03)
+        else
+          band = C.danger
+        end
+        ui.drawRectFilled(vec2(bx0, by0), vec2(bx0 + (bx1 - bx0) * frac, by1), col(band, op), 5)
+      end
+    end
+    ui.dwriteDrawText(L.title, 11, vec2(x0 + 14, y0 + 132 * k), col(C.accentSoft, op * 0.5))
+  end)
 end
 
 local function drawAll()
   drawToasts()
   drawSpeedometer()
-  drawQuickMenu()
-  if state.panelOpen then
+  handleOrb()
+  if state.openT > 0.01 then
     drawPanel()
   end
 end
 
 local function drawEmergency()
   ui.pushStyleVar(ui.StyleVar.WindowPadding, vec2(12, 10))
-  ui.pushFont(ui.Font.Title)
-  ui.textColored(L.title, C.accent)
-  ui.popFont()
-  ui.sameLine()
-  ui.textColored(L.versionTag, C.dim)
-  ui.textColored(config.DISPLAY_NAME or L.subtitle, C.dim)
-  ui.separator()
-  if ui.beginTabBar('vx_emerg_tabs', ui.TabBarFlags.None) then
-    for _, item in ipairs(NAV) do
-      if ui.beginTabItem(item.label, ui.TabItemFlags.None) then
-        drawSection(item.key)
-        ui.endTabItem()
+  local okd, errd = pcall(function()
+    ui.pushFont(ui.Font.Title)
+    ui.textColored(L.title, C.accent)
+    ui.popFont()
+    ui.sameLine()
+    ui.textColored(L.versionTag, C.dim)
+    ui.textColored(config.DISPLAY_NAME or L.subtitle, C.dim)
+    ui.separator()
+    if ui.beginTabBar('vx_emerg_tabs', ui.TabBarFlags.None) then
+      for _, item in ipairs(NAV) do
+        if ui.beginTabItem(item.label, ui.TabItemFlags.None) then
+          local oke, erro = pcall(drawSection, item.key)
+          ui.endTabItem()
+          if not oke then errd = erro end
+        end
       end
+      ui.endTabBar()
     end
-    ui.endTabBar()
-  end
-  ui.separator()
-  ui.textDisabled(string.format(L.footer, VERSION))
+    ui.separator()
+    ui.textDisabled(string.format(L.footer, VERSION))
+  end)
   ui.popStyleVar()
+  if not okd then
+    pcall(function() ui.toast(ui.Icons.Warning, tostring(errd)) end)
+  end
+end
+
+local function timeBridgeUpdate(dt)
+  local tm = state.time
+  tm.curOffset = anim(tm.curOffset, tm.want, 2.2, dt)
+  if math.abs(tm.want - tm.curOffset) < 2 then
+    tm.curOffset = tm.want
+  end
+  pcall(function()
+    ac.store(STORE_ENABLED, true)
+    ac.store(STORE_OFFSET, tm.curOffset / 3600)
+    local s = sim()
+    ac.store(STORE_BEAT, s and s.frame or state.frames)
+  end)
 end
 
 function script.update(dt)
   state.frames = state.frames + 1
   state.dt = math.min(dt or 0.016, 0.1)
+  state.clock = state.clock + state.dt
   if state.teleportCooldown > 0 then
     state.teleportCooldown = math.max(0, state.teleportCooldown - state.dt)
   end
@@ -1154,38 +1393,18 @@ function script.update(dt)
     if t.t < t.dur then alive[#alive + 1] = t end
   end
   state.toasts = alive
-  local tm = state.time
-  if tm.status == 'SENT' and shared and state.frames - tm.sentFrame >= 45 then
-    if shared.ackSeq == tm.lastCmd then
-      local s = sim()
-      if not s or s.timestamp == 0 then
-        tm.status = 'UNVERIFIED'
-      else
-        local D = s.timestamp - tm.t0
-        tm.measured = D
-        if shared.ackResult == 2 then
-          tm.status = 'ERROR'
-          tm.err = tostring(shared.ackErr)
-        else
-          local m = s.timeMultiplier
-          if m and (m > 0.001 or m < -0.001) then
-            tm.status = 'UNVERIFIED'
-          else
-            local tol = math.max(90, math.abs(tm.pending) * 0.2)
-            if math.abs(D - tm.pending) <= tol then
-              tm.status = 'APPLIED'
-              tm.lastApplied = tm.pending
-            elseif math.abs(D) <= tol then
-              tm.status = 'NO_EFFECT'
-            else
-              tm.status = 'UNVERIFIED'
-            end
-          end
-        end
-      end
-    elseif state.frames - tm.sentFrame >= 300 then
-      tm.status = 'NO_RESPONSE'
-    end
+  local speed = (1 / OPEN_DUR)
+  if state.panelOpen then
+    state.openT = math.min(1, state.openT + state.dt * speed)
+  else
+    state.openT = math.max(0, state.openT - state.dt * speed * 1.15)
+  end
+  if state.sectT < 1 then
+    state.sectT = math.min(1, state.sectT + state.dt * 7)
+  end
+  timeBridgeUpdate(state.dt)
+  if state.panelOpen and state.section == 'PLAYERS' then
+    refreshPlayers(false)
   end
 end
 
@@ -1214,8 +1433,8 @@ loadStored()
 loadConfig()
 buildConfigDests()
 loadChat()
-connectBridge()
 refreshDestinations(true)
+setSection(state.section)
 
 ui.registerOnlineExtra(ui.Icons.Bulb, L.title,
   function() return state.emergency end,
