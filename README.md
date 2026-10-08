@@ -3,6 +3,36 @@
 Premium in-game HUD for the **VENOM LA Canyons** AssettoServer freeroam server, built as a
 [CSP](https://customshaderspatch.me) Online Script. Version 3.
 
+## VENOM X v3.9.1 — Real TIME status (2026-10-09)
+
+**Important:** Using the TIME slider in an Online Lua script cannot by
+itself move the visible sun on other people's PCs. Previous v3.9 tried
+the exposed CSP `ac.setWeatherTimeOffset` symbol in online mode; even
+when an API call did not throw, it did not prove a visible weather change.
+v3.9.1 no longer treats that stub as a working online sky controller.
+
+- Per-player time on Pure: requires a **locally installed VENOM-compatible
+  Pure Bridge**, which listens to `venomx.time.*` storage keys and updates
+  the actual sun, moon and light directions inside Pure.
+- The original Gingys Time Controller (app and script) uses
+  `GingysClientTime.PureBridge.*`, **not** `venomx.time.*`. It cannot
+  be assumed to obey VENOM controls without an adaptation.
+- Pure-less users: can keep the server's WeatherFX time/sky, but a separate
+  per-player sun-time override cannot be promised from a server-injected
+  online script alone. This is not a problem with clicking the button.
+- `/settime HH:mm` is a documented AssettoServer **admin server-wide**
+  time change, not per-player.
+- Optional Pure bridge installation files are distributed as a separate
+  client package; they are NOT embedded in or automatically installed by
+  the one-file Online Lua script. Don't rely on stale README paths
+  claiming `pure-helper/GingysTimeControllerPure.lua` is in this repo
+  unless the file is actually present.
+- Keep WeatherFX enabled in AssettoServer and verify Pure effects are
+  loaded locally. Do not run both Gingys and VENOM time overrides in Pure
+  simultaneously.
+- This release is statically verified and GitHub-deployed, **not
+  runtime-verified** across player Pure/CSP versions.
+
 ## VENOM X v3.9 — Automatic TIME / SKY routing
 
 VENOM X automatically chooses an available client-side time control path:
