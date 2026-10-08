@@ -1,12 +1,12 @@
 script = script or {}
 
-local VERSION = '3.1.0'
+local VERSION = '3.1.1'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.1.0',
-  ready = 'VENOM X READY - tap the orb on the left edge',
+  versionTag = 'v3.1.1',
+  ready = 'VENOM X READY - tap the VENOM X launcher',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
   navTp = 'TP',
@@ -143,7 +143,7 @@ local TIME_PRESETS = {
 
 local HUMAN_SESSION_IDS = { [0] = true, [1] = true, [2] = true, [3] = true, [4] = true, [5] = true }
 
-local ORB_SIZE = 52
+local ORB_SIZE = 56
 local PANEL_W = 340
 local PANEL_H = 430
 local OPEN_DUR = 0.24
@@ -162,8 +162,8 @@ local state = {
   rpmBar = true,
   hudOp = 90,
   hudScale = 100,
-  orbX = 20,
-  orbY = 150,
+  orbX = 16,
+  orbY = -1,
   spdX = -1,
   spdY = -1,
   section = 'HOME',
@@ -343,8 +343,8 @@ local function loadStored()
       vx_rpm = true,
       vx_op = 90,
       vx_sc = 100,
-      vx_ox = 20,
-      vx_oy = 150,
+      vx_ox = 16,
+      vx_oy = -1,
       vx_sx = -1,
       vx_sy = -1,
       vx_sec = 'HOME',
@@ -1010,7 +1010,7 @@ local function drawHud()
   state.hudScale = v2
   if m1 or m2 then persist() end
   if ui.button(L.resetPositions, vec2(0, 28)) then
-    state.orbX, state.orbY = 20, 150
+    state.orbX, state.orbY = 16, -1
     state.spdX, state.spdY = -1, -1
     persist()
     toast(L.resetPositions)
@@ -1034,8 +1034,13 @@ local function clampPos(x, y, sw, sh)
   return x, y
 end
 
-local function handleOrb()
+local function drawVenomLauncher()
   local scr = getScreenSize()
+  if state.orbY < 0 or state.orbX < -ORB_SIZE or state.orbY < -ORB_SIZE or state.orbX > scr.x or state.orbY > scr.y then
+    state.orbX = 16
+    state.orbY = math.floor(scr.y * 0.5 - ORB_SIZE / 2)
+    persist()
+  end
   local mp = ui.mousePos()
   local r = { x = state.orbX - 2, y = state.orbY - 2, w = ORB_SIZE + 4, h = ORB_SIZE + 4 }
   local over = inRect(r, mp) and not state.dragging and not panelBlocks()
@@ -1069,20 +1074,15 @@ local function handleOrb()
       state.dragging = nil
     end
   end
-  local pulse = 0
-  if #state.toasts > 0 then
-    pulse = 0.5 + 0.5 * math.sin(state.clock * 6)
-  end
   local hover = state.orbHover
-  withWindow('vx_orb', vec2(state.orbX - 4, state.orbY - 4), vec2(ORB_SIZE + 8, ORB_SIZE + 8), function()
-    ui.glowRectFilled(vec2(state.orbX, state.orbY), vec2(state.orbX + ORB_SIZE, state.orbY + ORB_SIZE), rgbm(C.accent.r, C.accent.g, C.accent.b, 0.10 + hover * 0.16 + pulse * 0.10), true)
-    ui.drawRectFilled(vec2(state.orbX, state.orbY), vec2(state.orbX + ORB_SIZE, state.orbY + ORB_SIZE), C.glassDeep, 17)
-    ui.drawRect(vec2(state.orbX, state.orbY), vec2(state.orbX + ORB_SIZE, state.orbY + ORB_SIZE), rgbm(C.accent.r, C.accent.g, C.accent.b, 0.30 + hover * 0.50), 17, ui.CornerFlags.All, 1.5)
-    local c0x, c0y = state.orbX + ORB_SIZE / 2, state.orbY + ORB_SIZE / 2
-    local d = 8
-    local lc = col(C.accent, 0.75 + hover * 0.25)
-    ui.drawLine(vec2(c0x - d, c0y - d), vec2(c0x + d, c0y + d), lc, 3)
-    ui.drawLine(vec2(c0x + d, c0y - d), vec2(c0x - d, c0y + d), lc, 3)
+  withWindow('vx_launcher', vec2(state.orbX - 2, state.orbY - 2), vec2(ORB_SIZE + 4, ORB_SIZE + 4), function()
+    ui.drawRectFilled(vec2(state.orbX, state.orbY), vec2(state.orbX + ORB_SIZE, state.orbY + ORB_SIZE), C.glassDeep, 16)
+    ui.drawRect(vec2(state.orbX, state.orbY), vec2(state.orbX + ORB_SIZE, state.orbY + ORB_SIZE), col(C.accent, 0.55 + hover * 0.45), 16, ui.CornerFlags.All, 2)
+    local cx = state.orbX + ORB_SIZE / 2
+    local xt = ui.measureDWriteText('X', 30, -1)
+    ui.dwriteDrawText('X', 30, vec2(cx - xt.x * 0.5, state.orbY + 1), col(C.accent, 0.85 + hover * 0.15))
+    local cap = ui.measureDWriteText('VENOM X', 9, -1)
+    ui.dwriteDrawText('VENOM X', 9, vec2(cx - cap.x * 0.5, state.orbY + ORB_SIZE - 13), C.dim)
   end)
 end
 
@@ -1115,7 +1115,7 @@ local function handlePanelDrag()
   return false
 end
 
-local function drawPanel()
+local function drawVenomPanel()
   local t = easeOutCubic(clamp(state.openT, 0, 1))
   if t <= 0.01 then return end
   local px, py, pw, ph
@@ -1320,11 +1320,9 @@ local function drawSpeedometer()
   end)
 end
 
-local function drawMenu()
-  drawToasts()
-  handleOrb()
+local function drawVenomPanelSafe()
   if state.openT > 0.01 then
-    drawPanel()
+    drawVenomPanel()
   end
 end
 
@@ -1407,14 +1405,23 @@ function script.drawUI()
       toast(L.ready)
     end
   end
-  local okSpd = pcall(drawSpeedometer)
-  if okSpd then
+  if pcall(drawVenomLauncher) then
+    state.launcherErrors = 0
+  else
+    state.launcherErrors = (state.launcherErrors or 0) + 1
+  end
+  if pcall(drawSpeedometer) then
     state.spdErrors = 0
   else
     state.spdErrors = (state.spdErrors or 0) + 1
   end
+  if pcall(drawToasts) then
+    state.toastErrors = 0
+  else
+    state.toastErrors = (state.toastErrors or 0) + 1
+  end
   if state.emergency then return end
-  local ok = pcall(drawMenu)
+  local ok = pcall(drawVenomPanelSafe)
   if ok then
     state.drawErrors = 0
   else
@@ -1434,9 +1441,16 @@ refreshDestinations(true)
 setSection(state.section)
 
 ui.registerOnlineExtra(ui.Icons.Bulb, L.title,
-  function() return state.emergency end,
-  function() drawEmergency(); return false end,
-  function(ok) end,
+  function() return true end,
+  function()
+    if state.emergency then drawEmergency(); return false end
+    if not state.bulbFired then
+      state.bulbFired = true
+      if state.panelOpen then closePanel() else openPanel(nil) end
+    end
+    return false
+  end,
+  function(ok) state.bulbFired = false end,
   ui.OnlineExtraFlags.Tool,
   bit.bor(ui.WindowFlags.NoCollapse, ui.WindowFlags.NoFocusOnAppearing),
   vec2(430, 600)
