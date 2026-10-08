@@ -1,13 +1,13 @@
 script = script or {}
 
-local VERSION = '3.4.0'
+local VERSION = '3.4.1'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.4.0',
+  versionTag = 'v3.4.1',
   ready = 'VENOM X READY - tap the VENOM X launcher',
-  emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
+  emergencyMode = 'VENOM X: HUD error - use lightbulb menu to reset the panel to HOME',
   navHome = 'HOME',
   navTp = 'TP',
   navPlayers = 'PLAYERS',
@@ -210,6 +210,7 @@ local state = {
   readyDone = false,
   readyFrames = 0,
   drawErrors = 0,
+  panelErrorMsg = nil,
   emergency = false,
   time = {
     helper = nil,
@@ -1047,6 +1048,9 @@ local function drawTime()
   ui.textColored(string.format(L.timeActive, tm.curOffset / 3600), C.dim)
 end
 
+-- HUD section calls this later-defined local: forward-declare to avoid a nil global.
+local speedoRect
+
 local function drawHud()
   sectionLabel(L.hudSettings)
   if ui.checkbox(L.speedometer, state.hudVisible) then
@@ -1057,11 +1061,10 @@ local function drawHud()
     state.rpmBar = not state.rpmBar
     persist()
   end
-  local v1, m1 = ui.slider(L.opacity, state.hudOp, 40, 100, '%d%%', true)
-  state.hudOp = v1
-  local v2, m2 = ui.slider(L.scale, state.hudScale, 80, 130, '%d%%', true)
-  state.hudScale = v2
-  if m1 or m2 then persist() end
+  local oldOp, oldScale = state.hudOp, state.hudScale
+  state.hudOp = ui.slider(L.opacity, state.hudOp, 40, 100, '%d%%', true)
+  state.hudScale = ui.slider(L.scale, state.hudScale, 80, 130, '%d%%', true)
+  if state.hudOp ~= oldOp or state.hudScale ~= oldScale then persist() end
   if ui.button(L.resetPositions, vec2(0, 28)) then
     state.hudVisible = true
     state.hudOp = 90
@@ -1087,7 +1090,8 @@ local function drawHud()
   sectionLabel('DEBUG')
   local spdErr = state.spdErrors or 0
   ui.textDisabled('Speedometer renderer: ' .. (spdErr == 0 and 'ACTIVE' or ('ERROR x' .. tostring(spdErr))))
-  if state.spdErrorMsg then ui.textWrapped('Last error: ' .. tostring(state.spdErrorMsg):sub(1, 180)) end
+  if state.spdErrorMsg then ui.textWrapped('Speedometer error: ' .. tostring(state.spdErrorMsg):sub(1, 180)) end
+  if state.panelErrorMsg then ui.textWrapped('Last panel error: ' .. tostring(state.panelErrorMsg):sub(1, 180)) end
   local dx0, dy0 = speedoRect()
   ui.textDisabled(string.format('X: %d  Y: %d', math.floor(dx0 + 0.5), math.floor(dy0 + 0.5)))
   ui.textDisabled(string.format('Scale: %d%%  Opacity: %d%%', clamp(state.hudScale or 100, 80, 130), clamp(state.hudOp or 90, 40, 100)))
@@ -1323,7 +1327,7 @@ local function drawToasts()
   popGlass()
 end
 
-local function speedoRect()
+speedoRect = function()
   local scr = getScreenSize()
   local k = clamp(state.hudScale or 100, 80, 130) / 100
   local w = math.floor(220 * k)
@@ -1565,10 +1569,21 @@ function script.drawUI()
     state.drawErrors = 0
   else
     state.drawErrors = state.drawErrors + 1
-    if state.drawErrors == 1 then pcall(ac.log, 'VENOM X panel: ' .. tostring(panelErr)) end
+    state.panelErrorMsg = tostring(panelErr)
+    if state.drawErrors == 1 then pcall(ac.log, 'VENOM X panel: ' .. state.panelErrorMsg) end
     if state.drawErrors >= 3 then
-      state.emergency = true
-      pcall(function() ui.toast(ui.Icons.Bulb, L.emergencyMode) end)
+      if state.section ~= 'HOME' then
+        -- A broken or persisted tab must never permanently disable the HUD.
+        local brokenTab = state.section
+        setSection('HOME')
+        state.panelOpen, state.openT = false, 0
+        state.panelDrag, state.sizeDrag, state.dragging = false, nil, nil
+        state.drawErrors = 0
+        pcall(function() ui.toast(ui.Icons.Warning, 'VENOM X: ' .. brokenTab .. ' failed, reset to HOME. See CSP log.') end)
+      else
+        state.emergency = true
+        pcall(function() ui.toast(ui.Icons.Bulb, L.emergencyMode .. ' (' .. state.panelErrorMsg:sub(1, 100) .. ')') end)
+      end
     end
   end
 end
@@ -1591,6 +1606,11 @@ ui.registerOnlineExtra(ui.Icons.Bulb, L.title,
     if state.emergency then
       state.emergency = false
       state.drawErrors = 0
+      state.panelDrag, state.sizeDrag, state.dragging = false, nil, nil
+      state.panelOpen, state.openT = false, 0
+      setSection('HOME')
+      openPanel(nil)
+      return
     end
     if state.panelOpen then closePanel() else openPanel(nil) end
   end,
