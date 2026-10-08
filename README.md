@@ -100,3 +100,16 @@ automatically (served as `text/plain`).
   and reports its own measured status
 - If the GitHub account or default branch ever changes, update `SCRIPT` in `[SCRIPT_...]`
   accordingly
+
+## Status (2026-10-08)
+
+- **DEPLOY-VERIFIED** — raw URL returns 200 `text/plain`, SHA256 matches the local file
+- **RUNTIME-VERIFIED** — two local sessions plus one remote client (public IP) joined the
+  live AssettoServer: the V3 script was fetched in every session with **zero Lua errors**
+  in the CSP log; `ac.storage` persisted across restarts; `shared/sim/chat` init fired per
+  session; the HSV color picker worked end-to-end (change → `car_colors.ini` persisted);
+  the helper sits at Pure's guarded test hook and loaded under active Pure classic with
+  no weather errors
+- **PENDING** — teleport click outcome, player-list/HUD visuals, and the live TIME
+  sun-shift effect (helper loads clean; the shift is only observable after an in-game
+  TIME interaction)
