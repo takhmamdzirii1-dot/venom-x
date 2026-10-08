@@ -3,6 +3,23 @@
 Premium in-game HUD for the **VENOM LA Canyons** AssettoServer freeroam server, built as a
 [CSP](https://customshaderspatch.me) Online Script. Version 3.
 
+## VENOM X v3.9.2 — TIME sunset/sunrise calibration (2026-10-09)
+
+Restores the v3.9.0 CSP-native per-client time-offset attempt during online
+sessions. The v3.9.1 online-race guard disabled this path for all online
+players. CSP can still reject the request on certain clients: UI indicates
+whether the API accepted it, **not** whether the sky visibly changed.
+
+Golden sunrise 07:15 (was 06:30), Golden sunset 18:00 (was 19:00),
+Blue hour 18:40 (was 20:00). Day 12:00 and Night 00:00 unchanged.
+Experimental solar-trajectory calculations removed from preset selection.
+Added per-player +/-5 and +/-15 minute tuning for the active map/date.
+
+These clock values are useful golden-hour starting points, not guaranteed
+astronomical sunrise or sunset moments. Time applies to the local player
+when the CSP controller permits it, never using server-wide /settime.
+No additional client file is required for the optional CSP-native attempt.
+
 ## VENOM X v3.9.1 — Real TIME status (2026-10-09)
 
 **Important:** Using the TIME slider in an Online Lua script cannot by
