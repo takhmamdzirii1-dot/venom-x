@@ -114,16 +114,17 @@ automatically (served as `text/plain`).
   sun-shift effect (helper loads clean; the shift is only observable after an in-game
   TIME interaction)
 
-## Status (2026-10-08, v3.2.0)
+## Status (2026-10-08, v3.3.0)
 
-- **DEPLOY-VERIFIED** — v3.2.0 pushed, raw URL 200 `text/plain`, serves `VERSION = '3.2.0'`
-- **RUNTIME-NONE** — v3.2.0 has never loaded in-game yet: the local server was shut
-  down and the client moved to a foreign server, so no session fetched it.
-  Load + all 14 visual checks are pending a fresh join on the VENOM server.
-- Prior version notes (v3.1.1 session: fetched clean, zero Lua errors, chat init
-  fired, storage saved) and the v3.0.0 end-to-end proofs (color change persisted,
-  panel used in-game) are unchanged. All color/teleport/filter/bridge/helper
-  code paths are byte-identical to those proven versions.
+- **DEPLOY-VERIFIED** — v3.3.0 pushed, raw URL 200 `text/plain`, serves `VERSION = '3.3.0'`
+- **USER-SESSION EVIDENCE (v3.2.0, 18:35-18:41, session 4, /ADAn, zero Lua/weather
+  errors)** — storage diffs prove real panel operation: section persisted as HUD
+  (HUD tab opened), new panel-size key persisted as 2 (size L set), two position
+  keys reset to -1 (RESET POSITIONS clicked), orb position values changed (drag),
+  extra chat-extras traffic (tab opens). Nav, S/M/L, reset and drag all worked.
+- **v3.3.0 DELTA (speedo self-heal, resize grip, HUD debug, press polish)** — shipped
+  on the proven v3.2.0 interaction core; serving, syntax-checked, never loaded
+  in-game yet. First fresh VENOM join fetches it.
 
 ## Status (2026-10-08, v3.1.0)
 
