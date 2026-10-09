@@ -1424,10 +1424,10 @@ local function drawQuickDock()
       if active then
         ui.drawRectFilled(vec2(xx+13,yy+tileH-3),vec2(xx+tileW-13,yy+tileH-1),color,1)
       end
-      quickGlyph(item.key,xx+tileW*.5,yy+19,active or hovered and color or C.dim)
+      quickGlyph(item.key,xx+tileW*.5,yy+19,(active or hovered) and color or C.dim)
       local ts=ui.measureDWriteText(item.label,10,-1)
       ui.dwriteDrawText(item.label,10,vec2(xx+(tileW-ts.x)*.5,yy+38),
-        active or hovered and C.text or C.dim)
+        (active or hovered) and C.text or C.dim)
       if hovered then ui.setTooltip(item.hint) end
       if click then performQuickAction(item.key) end
     end
