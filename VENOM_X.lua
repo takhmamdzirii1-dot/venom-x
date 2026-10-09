@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.19.1'
+local VERSION = '3.20.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.19.1',
+  versionTag = 'v3.20.0',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -286,6 +286,9 @@ local state = {
     visualEnabled=false,visualStrength=1.0,
     visualR=1,visualG=1,visualB=1,visualOpacity=0,
     ccChecked=false,ccHandle=nil,ccStatus='WAITING FOR TIME SELECT',
+    serverSkyEnabled=false,serverSkyPending=false,
+    serverSkyLastAt=-999,serverSkyStatus='NOT REQUESTED',
+    serverSkyEvent=nil,serverSkyEventChecked=false,
   },
 
 
@@ -444,6 +447,7 @@ local function loadStored()
       vx_visual_on = false,
       vx_visual_power = 1.0,
       vx_visual_offset = 0,
+      vx_server_sky = false,
       vx_extra_car = '',
       vx_extra_bits = '',
       vx_extra_frame = -1,
@@ -466,6 +470,11 @@ local function loadStored()
     if type(res.vx_sec) == 'string' then state.section = res.vx_sec end
     if type(res.vx_dock_v2) == 'boolean' then state.quickDockVisible = res.vx_dock_v2 end
     if type(res.vx_visual_on) == 'boolean' then state.time.visualEnabled = res.vx_visual_on end
+    if type(res.vx_server_sky) == 'boolean' then
+      state.time.serverSkyEnabled=res.vx_server_sky
+      state.time.serverSkyPending=res.vx_server_sky
+      if res.vx_server_sky then state.time.visualEnabled=false end
+    end
     if type(res.vx_visual_power) == 'number' then
       state.time.visualStrength=clamp(res.vx_visual_power,0.35,1)
     end
@@ -494,6 +503,7 @@ local function persist()
   stored.vx_visual_on = state.time.visualEnabled
   stored.vx_visual_power = state.time.visualStrength
   stored.vx_visual_offset = state.time.want
+  stored.vx_server_sky = state.time.serverSkyEnabled
 end
 
 local function loadConfig()
@@ -1233,14 +1243,71 @@ local function serverSec()
   return s.timeTotalSeconds or 0
 end
 
+-- Personal real sky bridge for AssettoServer 0.0.54 (server-side plugin).
+-- Must match VenomTimeEvent.cs in VenomPersonalTimePlugin exactly.
+-- The server plugin sends normal WeatherFX updates with a timestamp for
+-- only this player. No client installation or global server time commands.
+local function openServerSkyEvent()
+  local tm=state.time
+  if tm.serverSkyEventChecked then return end
+  tm.serverSkyEventChecked=true
+  if type(ac.OnlineEvent)~='function' or not ac.StructItem then
+    tm.serverSkyStatus='CSP ONLINE EVENT API UNAVAILABLE'
+    return
+  end
+  local ok,evt=pcall(function()
+    return ac.OnlineEvent({
+      ac.StructItem.key('VENOMX_SetTime'),
+      mode=ac.StructItem.string(4),
+      seconds=ac.StructItem.string(8),
+    },function() end)
+  end)
+  if ok and evt then
+    tm.serverSkyEvent=evt
+    tm.serverSkyStatus='EVENT READY / SERVER PLUGIN REQUIRED'
+  else
+    tm.serverSkyStatus='EVENT INIT FAILED: '..tostring(evt):sub(1,65)
+  end
+end
+
+local function queueServerSky(enabled)
+  local tm=state.time
+  tm.serverSkyEnabled=enabled
+  tm.serverSkyPending=true
+  -- Avoid double-darkening when the server has a real time override.
+  if enabled then tm.visualEnabled=false end
+  persist()
+end
+
+local function flushServerSky()
+  local tm=state.time
+  if not tm.serverSkyPending or state.clock-tm.serverSkyLastAt<.32 then return end
+  openServerSkyEvent()
+  tm.serverSkyLastAt=state.clock
+  if not tm.serverSkyEvent then return end
+  local action=tm.serverSkyEnabled and 'set' or 'sync'
+  local value=tostring(math.floor(wrapDay(serverSec()+tm.want)))
+  local ok,err=pcall(tm.serverSkyEvent,{
+    mode=action,seconds=action=='set' and value or '0'
+  })
+  if ok then
+    tm.serverSkyPending=false
+    tm.serverSkyStatus=action=='set'
+      and ('SENT '..fmtSec(tonumber(value) or 0)..' / CHECK SKY')
+      or 'SERVER CLOCK SYNC SENT'
+  else
+    tm.serverSkyStatus='SEND FAILED: '..tostring(err):sub(1,60)
+    pcall(ac.log,'VENOM X server sky event: '..tostring(err))
+  end
+end
+
 -- Gold-hour presets intentionally use deterministic in-game clock values.
 -- Sampling a dynamic sky feature timestamp from this CSP online sandbox did
 -- not produce reliable per-client sun positions. Keep the path that previously
 -- worked, and provide fine adjustment around the local weather conditions.
 local function setTimePreset(preset, index)
   state.time.want = wrapOffset(preset.sec - serverSec())
-  state.time.visualEnabled=true
-  persist()
+  queueServerSky(true)
 end
 
 local function setPanelSize(idx)
@@ -1543,8 +1610,8 @@ end
 local function drawTime()
   local tm=state.time
   sectionLabel('PERSONAL TIME / EACH PLAYER')
-  ui.textColored('SCENE FILTER: '..tostring(
-    tm.visualEnabled and tm.ccStatus or 'OFF'),C.accentSoft)
+  ui.textColored('REAL SKY / SERVER: '..tostring(tm.serverSkyStatus),C.accentSoft)
+  ui.textDisabled('WeatherFX plugin required. Sent does not confirm applied.')
   ui.dummy(vec2(0,5))
   local p=ui.getCursor()
   ui.drawRectFilled(p,vec2(p.x+PANEL_W-35,p.y+80),C.cardSolid,12)
@@ -1561,9 +1628,8 @@ local function drawTime()
   local nv=ui.slider('##vx_personal_time',tv,0,86399,'',1)
   if math.abs(nv-tv)>0.5 then
     tm.want=wrapOffset(nv-serverSec())
-    tm.visualEnabled=true
+    queueServerSky(true)
     tm.lastControl='SLIDER'
-    persist()
   end
   ui.dummy(vec2(0,5))
   local bw=math.max(95,(PANEL_W-56)/2)
@@ -1578,8 +1644,8 @@ local function drawTime()
   if ui.button('RESET TO SERVER TIME##vx_time_reset',vec2(0,30)) then
     tm.want=0
     tm.visualEnabled=false
+    queueServerSky(false)
     tm.lastControl='RESET'
-    persist()
     toast('TIME: SERVER CLOCK')
   end
 
@@ -1590,14 +1656,13 @@ local function drawTime()
     local label=string.format('%+d min',minutes)
     if ui.button(label..'##vx_fine_'..i,vec2(fineW,29)) then
       tm.want=wrapOffset(tm.want+minutes*60)
-      tm.visualEnabled=true
+      queueServerSky(true)
       tm.lastControl=label
-      persist()
     end
   end
 
   ui.separator()
-  sectionLabel('PERSONAL VISUAL DAY / NIGHT')
+  sectionLabel('OPTIONAL VISUAL FILTER / FALLBACK')
   if ui.button((tm.visualEnabled and 'VISUAL TIME: ON' or 'VISUAL TIME: OFF')..'##vx_visual_mode',vec2(0,30)) then
     tm.visualEnabled=not tm.visualEnabled
     persist()
@@ -1609,11 +1674,13 @@ local function drawTime()
     persist()
   end
   ui.textColored('LOCAL FILTER - NOT PHYSICAL WEATHER',C.accentSoft)
-  ui.textDisabled('Sun/moon and car lights remain server controlled.')
+  ui.textDisabled('Leave OFF if the real-sky server plugin is installed.')
   ui.separator()
   ui.textDisabled('Server: '..fmtSec(wrapDay(serverSec())))
   ui.textDisabled('Last selection: '..tostring(tm.lastControl))
-  if tm.mode=='LEGACY COMPANION' then
+  if tm.serverSkyEnabled then
+    ui.textColored('REAL SKY: WAIT FOR SERVER WEATHERFX UPDATE',C.accentSoft)
+  elseif tm.mode=='LEGACY COMPANION' then
     ui.textColored('V2 COMPANION: '..tostring(tm.legacyAck),C.accentSoft)
     ui.textDisabled('Actual sky must still be checked visually.')
   elseif tm.mode=='CSP NATIVE' and tm.nativeApplied then
@@ -2013,15 +2080,13 @@ local function drawQuickPopup()
       elseif mode=='TIME' then
         local tm=state.time
         ui.textColored(fmtSec(wrapDay(serverSec()+tm.want)),C.accentSoft)
-        ui.textColored('SCENE FILTER: '..tostring(
-          tm.visualEnabled and tm.ccStatus or 'OFF'),C.accentSoft)
+        ui.textColored('REAL SKY: '..tostring(tm.serverSkyStatus):sub(1,48),C.accentSoft)
         local now=wrapDay(serverSec()+tm.want)
         local selected=ui.slider('##vxq_clock',now,0,86399,'',1)
         if math.abs(selected-now)>.5 then
           tm.want=wrapOffset(selected-serverSec())
-          tm.visualEnabled=true
+          queueServerSky(true)
           tm.lastControl='QUICK SLIDER'
-          persist()
         end
         local bw=(w-55)/2
         for i,preset in ipairs(TIME_PRESETS) do
@@ -2034,15 +2099,18 @@ local function drawQuickPopup()
         if ui.button('RESET TIME##vxqreset',vec2(w-50,28)) then
           tm.want=0
           tm.visualEnabled=false
+          queueServerSky(false)
           tm.lastControl='RESET'
-          persist()
         end
         if ui.button((tm.visualEnabled and 'VISUAL SKY ON' or 'VISUAL SKY OFF')..'##vxq_filter',vec2(w-50,28)) then
           tm.visualEnabled=not tm.visualEnabled
           persist()
         end
         ui.textDisabled('Scene tint only / personal to this player.')
-        if tm.mode=='LEGACY COMPANION' then
+        if tm.serverSkyEnabled then
+          ui.textColored('REAL SKY / SERVER WEATHERFX REQUESTED',C.accentSoft)
+          ui.textDisabled('Requires VENOM Personal Time server plugin.')
+        elseif tm.mode=='LEGACY COMPANION' then
           ui.textColored('ORIGINAL v2 TIME CHANNEL',C.accentSoft)
           ui.textDisabled(tostring(tm.legacyAck))
         elseif tm.mode=='CSP NATIVE' then
@@ -2618,11 +2686,13 @@ end
 
 local function timeControlUpdate(dt)
   local tm=state.time
+  flushServerSky()
   tm.curOffset=anim(tm.curOffset,tm.want,2.8,dt)
   if math.abs(tm.want-tm.curOffset)<1 then tm.curOffset=tm.want end
   -- First try the original v2.0 local companion channel. Pure is NOT required.
-  updateLegacyTimeCompanion()
-  tm.mode=tm.legacyReady and 'LEGACY COMPANION' or
+  if not tm.serverSkyEnabled then updateLegacyTimeCompanion() end
+  tm.mode=tm.serverSkyEnabled and 'SERVER PERSONAL' or
+    tm.legacyReady and 'LEGACY COMPANION' or
     (type(ac.setWeatherTimeOffset)=='function' and
       not tm.nativeRejected and 'CSP NATIVE' or 'SERVER')
   if tm.mode=='LEGACY COMPANION' then
