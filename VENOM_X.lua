@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.19.0'
+local VERSION = '3.19.1'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.19.0',
+  versionTag = 'v3.19.1',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -164,6 +164,27 @@ local function visualTimeProfile(sec)
   return 0.008,0.015,0.050,0.88
 end
 
+-- Local client-side scene color multipliers (hour, red, green, blue).
+local SCENE_LIGHT_STOPS={
+ {0,.20,.27,.40},{5,.20,.27,.40},{5.8,.37,.31,.37},
+ {7.25,.89,.62,.49},{9,.95,.85,.75},{11,1,1,1},
+ {16.5,1,1,1},{18,.84,.51,.42},{18.67,.41,.43,.61},
+ {20,.21,.30,.44},{24,.20,.27,.40},
+}
+local function sceneLightProfile(sec)
+ local hours=(sec%86400)/3600
+ for i=1,#SCENE_LIGHT_STOPS-1 do
+  local a,b=SCENE_LIGHT_STOPS[i],SCENE_LIGHT_STOPS[i+1]
+  if hours<=b[1] then
+   local t=(hours-a[1])/(b[1]-a[1])
+   t=t*t*(3-2*t)
+   return a[2]+(b[2]-a[2])*t,a[3]+(b[3]-a[3])*t,
+     a[4]+(b[4]-a[4])*t
+  end
+ end
+ return .20,.27,.40
+end
+
 local HUMAN_SESSION_IDS = { [0] = true, [1] = true, [2] = true, [3] = true, [4] = true, [5] = true }
 
 local ORB_SIZE = 56
@@ -263,7 +284,8 @@ local state = {
     legacySeq=nil,legacyPendingAt=-999,legacyLastTarget=0,
     legacyAck='NOT CONNECTED',legacyProbeAt=-999,
     visualEnabled=false,visualStrength=1.0,
-    visualR=0,visualG=0,visualB=0,visualOpacity=0,
+    visualR=1,visualG=1,visualB=1,visualOpacity=0,
+    ccChecked=false,ccHandle=nil,ccStatus='WAITING FOR TIME SELECT',
   },
 
 
@@ -1521,6 +1543,8 @@ end
 local function drawTime()
   local tm=state.time
   sectionLabel('PERSONAL TIME / EACH PLAYER')
+  ui.textColored('SCENE FILTER: '..tostring(
+    tm.visualEnabled and tm.ccStatus or 'OFF'),C.accentSoft)
   ui.dummy(vec2(0,5))
   local p=ui.getCursor()
   ui.drawRectFilled(p,vec2(p.x+PANEL_W-35,p.y+80),C.cardSolid,12)
@@ -1989,6 +2013,8 @@ local function drawQuickPopup()
       elseif mode=='TIME' then
         local tm=state.time
         ui.textColored(fmtSec(wrapDay(serverSec()+tm.want)),C.accentSoft)
+        ui.textColored('SCENE FILTER: '..tostring(
+          tm.visualEnabled and tm.ccStatus or 'OFF'),C.accentSoft)
         local now=wrapDay(serverSec()+tm.want)
         local selected=ui.slider('##vxq_clock',now,0,86399,'',1)
         if math.abs(selected-now)>.5 then
@@ -2178,10 +2204,12 @@ local function drawVenomPanel()
 end
 
 local function toastSafeTop(scr)
-  local lw=clamp(scr.x*.16,155,252)
-  local logoBottom=2+lw*(665/2048)
-  local target=math.max(210,scr.y*.23,logoBottom+22)
-  return math.min(target,math.max(logoBottom+14,scr.y-156))
+  -- Reserve real space below the virtual mirror as well as the logo.
+  -- Previous clamp to scr.y-156 incorrectly pushed the first toast back up.
+  local logoW=clamp(scr.x*.16,155,252)
+  local logoBottom=2+logoW*(665/2048)
+  if scr.y<320 then return math.max(logoBottom+18,scr.y-52) end
+  return math.max(242,math.floor(scr.y*.31),logoBottom+26)
 end
 
 local function drawToasts()
@@ -2191,7 +2219,10 @@ local function drawToasts()
   local okc = pcall(function()
     local yStart=toastSafeTop(scr)
     ui.beginTransparentWindow('vx_toasts', vec2(0, 0), vec2(scr.x, scr.y), true, false)
-    for i, t in ipairs(state.toasts) do
+    local visible=math.max(1,math.floor((scr.y-yStart-8)/48))
+    local first=math.max(1,#state.toasts-visible+1)
+    for i=first,#state.toasts do
+      local t=state.toasts[i]
       local aIn = clamp(t.t / 0.16, 0, 1)
       local aOut = clamp((t.dur - t.t) / 0.3, 0, 1)
       local a = easeOutCubic(aIn) * aOut
@@ -2201,7 +2232,7 @@ local function drawToasts()
         local h = 40
         local slide = (1 - easeOutCubic(aIn)) * -18
         local x = (scr.x - w) * 0.5
-        local y = yStart + (i - 1) * (h + 8) + slide
+        local y = yStart + (i - first) * (h + 8) + slide
         ui.drawRectFilled(vec2(x, y), vec2(x + w, y + h), rgbm(0.045, 0.055, 0.090, 0.95 * a), 10)
         ui.drawRect(vec2(x, y), vec2(x + w, y + h), rgbm(C.accent.r, C.accent.g, C.accent.b, 0.35 * a), 10, ui.CornerFlags.All, 1)
         local barC = t.kind == 'warn' and C.warn or C.ok
@@ -2544,6 +2575,47 @@ local function updateLegacyTimeCompanion()
   end
 end
 
+-- The CSP Online Lua SDK includes color corrections for the game scene.
+local function ensureSceneColorCorrection(tm)
+ if tm.ccChecked or not tm.visualEnabled then return end
+ tm.ccChecked=true
+ if type(ac.ColorCorrectionModulationRgb)~='function'
+    or type(ac.addColorCorrection)~='function' then
+  tm.ccStatus='COLOR API NOT AVAILABLE - HUD FALLBACK'
+  return
+ end
+ local ok,result=pcall(function()
+  local cc=ac.ColorCorrectionModulationRgb({color=rgb(1,1,1)})
+  if ac.addColorCorrection(cc)==false then
+   error('CSP REFUSED COLOR CORRECTION')
+  end
+  return cc
+ end)
+ if ok and result then
+  tm.ccHandle=result
+  tm.ccStatus='SCENE FILTER REGISTERED - CHECK VISUALLY'
+ else
+  tm.ccStatus='SCENE FILTER ERROR: '..tostring(result):sub(1,65)
+  pcall(ac.log,'VENOM X scene correction: '..tostring(result))
+ end
+end
+
+local function updateSceneColorCorrection(tm)
+ if not tm.ccHandle then return false end
+ local ok,err=pcall(function()
+  tm.ccHandle.color=rgb(tm.visualR,tm.visualG,tm.visualB)
+ end)
+ if not ok then
+  tm.ccStatus='SCENE COLOR WRITE ERROR: '..tostring(err):sub(1,60)
+  if type(ac.removeColorCorrection)=='function' then
+   pcall(ac.removeColorCorrection,tm.ccHandle)
+  end
+  tm.ccHandle=nil
+  return false
+ end
+ return true
+end
+
 local function timeControlUpdate(dt)
   local tm=state.time
   tm.curOffset=anim(tm.curOffset,tm.want,2.8,dt)
@@ -2558,13 +2630,18 @@ local function timeControlUpdate(dt)
   elseif tm.mode~='CSP NATIVE' and not tm.nativeRejected then
     tm.nativeResult='UNAVAILABLE IN ONLINE SCRIPT'
   end
-  -- Simulate personal exposure even if neither Companion nor native API runs.
-  local vr,vg,vb,va=visualTimeProfile(serverSec()+tm.curOffset)
-  tm.visualR=anim(tm.visualR,vr,6,dt)
-  tm.visualG=anim(tm.visualG,vg,6,dt)
-  tm.visualB=anim(tm.visualB,vb,6,dt)
+  -- Change the actual rendered scene colors, no time or weather sync.
+  ensureSceneColorCorrection(tm)
+  local r,g,b=sceneLightProfile(serverSec()+tm.curOffset)
+  local power=tm.visualEnabled and tm.visualStrength or 0
+  tm.visualR=anim(tm.visualR,1+(r-1)*power,6,dt)
+  tm.visualG=anim(tm.visualG,1+(g-1)*power,6,dt)
+  tm.visualB=anim(tm.visualB,1+(b-1)*power,6,dt)
+  local registered=updateSceneColorCorrection(tm)
+  local _,_,_,alpha=visualTimeProfile(serverSec()+tm.curOffset)
   tm.visualOpacity=anim(tm.visualOpacity,
-    tm.visualEnabled and va*tm.visualStrength or 0,6,dt)
+    (tm.visualEnabled and not registered) and
+      alpha*tm.visualStrength or 0,6,dt)
   if state.clock-tm.skyProbeAt>1 then
     tm.skyProbeAt=state.clock
     local skyFn=type(ac.getSkyFeatureDirection)=='function' and ac.getSkyFeatureDirection
