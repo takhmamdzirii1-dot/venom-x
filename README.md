@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.23.0)
+# VENOM X — AssettoServer online HUD (v3.24.0)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -10,6 +10,53 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.24.0 — GHOST server relay hotfix (mandatory Plugin DLL update)
+
+**Important:** v3.21.0 client-only ghost synchronization was insufficient for
+AssettoServer 0.0.54: CSP Online Lua sends `$CSP0` chat-framed events, and
+the server does not decode and forward that payload automatically as native
+OnlineEvents. A client could display "GHOST ON" without the other driver
+receiving the opt-in state.
+
+**Fixed with a paired Lua + .NET server plugin update:**
+
+- `VENOM_X.lua` sends its `VENOMX_Ghost_v1` boolean OnlineEvent as before,
+  but now requires the **real server-generated ACK** (sender=nil on CSP).
+  Without it, shows WAITING/NOT ACTIVE and asks to update the server DLL
+  rather than falsely claiming that other players are collision-free.
+- The existing `VenomPersonalTimePlugin.dll` now handles a validated ghost
+  `$CSP0` packet AND the standard native-event path. It authenticates the
+  player's session from their TCP connection, broadcasts a *native*
+  OnlineEvent to connected clients, returns a server ACK to the requester,
+  sends snapshots to late joiners and clears GHOST when a player leaves.
+- TIME and GHOST emissions share the server's 1-second chat packet limit.
+  Missing ghost ACKs trigger bounded automatic retries.
+- GHOST disables only remote **human** car colliders (not local/AI indices).
+  Both cars still use the same VENOM X script delivered automatically.
+  Remote physics control requires CSP 0.2.8 or newer.
+- **Players install nothing.** The server owner must install the newly built
+  plugin DLL and restart AssettoServer; installing Lua only will not work.
+
+Installation: download **VENOM-Personal-Time-net8** from
+the successful workflow run at
+https://github.com/takhmamdzirii1-dot/venom-x/actions/runs/37955197006,
+extract and replace
+`plugins/VenomPersonalTimePlugin/VenomPersonalTimePlugin.dll`,
+retain the existing `EnablePlugins`, `EnableWeatherFx`,
+`EnableClientMessages` configuration, and restart the server.
+The server downloads the latest `VENOM_X.lua` from the existing URL.
+The plugin name/folder and TIME settings have not changed.
+
+Expected in startup logs:
+`[VENOM GHOST] Relay enabled; ghost event=0x9BC418C2`
+and when a user toggles ghost
+`[VENOM GHOST] N -> True, sent to connected peers`.
+VENOM UI should say `GHOST ON / SERVER CONFIRMED` after a real ACK.
+
+CI built the .NET 8 plugin against AssettoServer v0.0.54 and passed
+CSP0 ON/OFF decoding, TIME transport and the real Lua regression suite.
+**Two-player in-game collision behavior still requires a live test.**
 
 ### v3.23.0 — One-click real TIME with exact presets and automatic retry
 
@@ -88,16 +135,15 @@ be verified with a real client and AssettoServer.
 - Uses CSP `physics.disableCarCollisions(remoteHuman.index, disabled)`
   **only for connected real remote players**, never index 0 (own car)
   or AI traffic. Local car still has physical traffic, environment and walls.
-- Uses client-to-client `ac.OnlineEvent({ key='VENOMX_Ghost_v1',
-  enabled=boolean })`; each player advertises only their own state.
+- In v3.24.0, the `VENOMX_Ghost_v1` event is relayed by the updated
+  server-side VENOM plugin, rather than assuming client-only rebroadcast.
   On each client, a human remote collider is disabled whenever either
   the local player OR the remote driver has ghost enabled.
 - A state heartbeat every 5 seconds synchronizes late joiners; the remote
   state expires after 16 seconds if the peer stops advertising.
 - Requires CSP 0.2.8 (build 3424) or newer for remote-car collision API,
-  CSP client-message relay on server and all participating clients running
-  the current server-delivered VENOM X Online Lua. No added DLL or files
-  for players; TIME DLL continues to work unchanged.
+  an updated server-side VENOM Personal Time + Ghost DLL (v3.24.0), and
+  server-delivered VENOM X Lua. Players still need no client-side installation.
 - Does not promise an authoritative server-side no-collision system for
   older CSP clients or clients without the online script. Verify with
   two online drivers that they can pass through without collision; the
