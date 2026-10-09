@@ -818,7 +818,6 @@ end
 -- worked, and provide fine adjustment around the local weather conditions.
 local function setTimePreset(preset, index)
   state.time.want = wrapOffset(preset.sec - serverSec())
-  state.time.astronomical = false
 end
 
 local function setPanelSize(idx)
@@ -842,7 +841,7 @@ local function setSection(key)
     state.pickerInit = false
     initPicker()
   elseif key == 'TIME' then
-    state.time.probeAt = -999
+    -- Personal clock is always available; no bridge discovery/probe needed.
   elseif key == 'PLAYERS' then
     refreshPlayers(true)
   end
