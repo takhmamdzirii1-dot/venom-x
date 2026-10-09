@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.20.1)
+# VENOM X — AssettoServer online HUD (v3.20.2)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -10,6 +10,21 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.20.2 — Remove legacy visual sky filters
+
+After confirmed in-game physical sky changes using the server plugin,
+VENOM X removes the obsolete local VISUAL SKY screen tint and CSP color
+correction effects entirely, including UI controls in the TIME main panel
+and quick popup, per-frame color grading and full-screen overlay.
+Stored visual filter settings are ignored. The historical
+`vx_visual_offset` storage key is retained for **real-sky time offset**
+backwards compatibility; it is not a filter.
+
+Real personal day/night, TIME presets, sliders, fine tuning, sync/reset,
+server ACK diagnostics, teleport, automatic car option recovery, speedometer
+and official center logo remain unchanged. No new server plugin or
+`extra_cfg.yml` changes are required for this Lua-only upgrade.
 
 ### 2026-10-09 hotfix — CSP0 CHAT transport for AssettoServer 0.0.54.26
 
