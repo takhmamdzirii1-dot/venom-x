@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'VENOM_X.lua'
+      - 'tests/car-options-regression.js'
       - '.github/workflows/check-venom-lua.yml'
 jobs:
   lua-syntax:
@@ -12,7 +13,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Install Lua syntax parser
-        run: npm install --no-save --silent luaparse@0.3.1
+        run: npm install --no-save --silent luaparse@0.3.1 fengari@0.1.4
       - name: Parse CSP Lua source
         run: |
           node - <<'NODE'
@@ -41,3 +42,5 @@ jobs:
           if (missing.length) throw Error('Required VENOM functionality missing: '+missing.join(', '));
           console.log('VENOM X Lua syntax + real sky/no-filter regression checks passed ('+source.length+' bytes)');
           NODE
+      - name: Run live-Lua car options regression tests
+        run: node tests/car-options-regression.js
