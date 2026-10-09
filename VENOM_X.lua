@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.10.2'
+local VERSION = '3.10.3'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.10.2',
+  versionTag = 'v3.10.3',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -27,11 +27,10 @@ local L = {
   kmh = 'KM/H',
   gear = 'GEAR %s',
   rpmLabel = 'RPM %s',
-  teleportHint = 'Teleport 11 m behind a real player (stop first)',
+  teleportHint = 'Teleport 11 m behind a real player, even while driving',
   cooldown = 'Teleport cooldown: %.1f s',
   pleaseWait = 'Please wait %d s',
   playerUnavailable = 'Player is no longer available',
-  stopCarFirst = 'STOP VEHICLE FIRST',
   teleportedToPlayer = 'TELEPORTED TO %s',
   teleportFailed = 'Teleport failed',
   noPlayers = 'No other players connected',
@@ -513,7 +512,6 @@ local function teleportToPlayer(p)
   end
   local me=car()
   if not me or not me.position then toast(L.teleportFailed,'warn') return end
-  if (tonumber(me.speedKmh) or 0)>5 then toast(L.stopCarFirst,'warn') return end
   local look=target.look
   local x=look and tonumber(look.x)
   local z=look and tonumber(look.z)
@@ -538,7 +536,9 @@ local function teleportToPlayer(p)
     pcall(ac.log,'VENOM X teleport rejected: '..tostring(answer))
     return
   end
-  -- Optional helpers must not invalidate a successful position call.
+  -- A moving player can teleport directly. Clear momentum after placement
+  -- to avoid being thrown forward at the original driving speed. If this
+  -- optional CSP helper is restricted, position verification still runs.
   if type(physics.setCarVelocity)=='function' then
     pcall(physics.setCarVelocity,0,vec3(0,0,0))
   end
