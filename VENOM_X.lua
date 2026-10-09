@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.20.0'
+local VERSION = '3.20.1'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.20.0',
+  versionTag = 'v3.20.1',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -289,6 +289,8 @@ local state = {
     serverSkyEnabled=false,serverSkyPending=false,
     serverSkyLastAt=-999,serverSkyStatus='NOT REQUESTED',
     serverSkyEvent=nil,serverSkyEventChecked=false,
+    serverSkyAwaiting=false,serverSkyExpectedSeconds=nil,
+    serverSkyAckAt=-999,
   },
 
 
@@ -1260,7 +1262,25 @@ local function openServerSkyEvent()
       ac.StructItem.key('VENOMX_SetTime'),
       mode=ac.StructItem.string(4),
       seconds=ac.StructItem.string(8),
-    },function() end)
+    },function(sender,data)
+      -- AssettoServer replies with sender=nil and the same event layout.
+      -- The local send result is NOT a real server acknowledgement.
+      if sender~=nil or not data then return end
+      local kind=tostring(data.mode or '')
+      if kind~='ack' and kind~='err' then return end
+      if not tm.serverSkyAwaiting then return end
+      local details=tostring(data.seconds or '')
+      if kind=='ack' and details~=tostring(tm.serverSkyExpectedSeconds) then
+        -- Ignore late responses from older slider positions.
+        return
+      end
+      tm.serverSkyAwaiting=false
+      tm.serverSkyAckAt=state.clock
+      tm.serverSkyStatus=kind=='ack'
+        and ('SERVER ACK '..(details=='0' and '00:00 OR SYNC' or
+          fmtSec(tonumber(details) or 0))..' / CHECK SUN')
+        or ('SERVER ERROR: '..details)
+    end)
   end)
   if ok and evt then
     tm.serverSkyEvent=evt
@@ -1274,6 +1294,8 @@ local function queueServerSky(enabled)
   local tm=state.time
   tm.serverSkyEnabled=enabled
   tm.serverSkyPending=true
+  tm.serverSkyAwaiting=false
+  tm.serverSkyStatus='TIME CHANGE QUEUED'
   -- Avoid double-darkening when the server has a real time override.
   if enabled then tm.visualEnabled=false end
   persist()
@@ -1292,9 +1314,11 @@ local function flushServerSky()
   })
   if ok then
     tm.serverSkyPending=false
+    tm.serverSkyAwaiting=true
+    tm.serverSkyExpectedSeconds=action=='set' and value or '0'
     tm.serverSkyStatus=action=='set'
-      and ('SENT '..fmtSec(tonumber(value) or 0)..' / CHECK SKY')
-      or 'SERVER CLOCK SYNC SENT'
+      and ('AWAITING SERVER ACK '..fmtSec(tonumber(value) or 0))
+      or 'AWAITING SERVER SYNC ACK'
   else
     tm.serverSkyStatus='SEND FAILED: '..tostring(err):sub(1,60)
     pcall(ac.log,'VENOM X server sky event: '..tostring(err))
@@ -2123,7 +2147,7 @@ local function drawQuickPopup()
         if tm.lastSunHeight~=nil then
           ui.textDisabled(string.format('ACTUAL SUN Y: %.3f',tm.lastSunHeight))
         end
-        ui.textDisabled('TIME selection is local unless the sky API responds.')
+        ui.textDisabled('ACK proves receipt; verify physical sun in-game.')
       elseif mode=='PAINT' then
         local ww=(w-68)/4
         for i,preset in ipairs(PRESETS) do
@@ -2687,6 +2711,10 @@ end
 local function timeControlUpdate(dt)
   local tm=state.time
   flushServerSky()
+  if tm.serverSkyAwaiting and state.clock-tm.serverSkyLastAt>4 then
+    tm.serverSkyAwaiting=false
+    tm.serverSkyStatus='NO SERVER ACK / CHECK PLUGIN DLL AND LOGS'
+  end
   tm.curOffset=anim(tm.curOffset,tm.want,2.8,dt)
   if math.abs(tm.want-tm.curOffset)<1 then tm.curOffset=tm.want end
   -- First try the original v2.0 local companion channel. Pure is NOT required.
