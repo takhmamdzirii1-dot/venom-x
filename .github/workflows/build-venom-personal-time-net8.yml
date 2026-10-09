@@ -33,7 +33,12 @@ jobs:
       - name: Copy smoke tests
         run: cp -r server/VenomTimeSmokeTests upstream/VenomTimeSmokeTests
       - name: Check actual VENOM CSP0 packet decoding
-        run: dotnet run --project upstream/VenomTimeSmokeTests/VenomTimeSmokeTests.csproj -c Release
+        run: |
+          dotnet build upstream/VenomTimeSmokeTests/VenomTimeSmokeTests.csproj -c Release
+          find upstream/VenomTimeSmokeTests/bin/Release -name VenomTimeSmokeTests.dll -printf '%h\n' | while read out; do
+            cp upstream/AssettoServer/Redist/libcsp_xxhash3.so "$out/"
+          done
+          dotnet run --project upstream/VenomTimeSmokeTests/VenomTimeSmokeTests.csproj -c Release --no-build
       - name: Package plugin
         run: |
           mkdir -p artifact/plugins/VenomPersonalTimePlugin
