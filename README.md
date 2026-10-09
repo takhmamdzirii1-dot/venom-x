@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.19.1)
+# VENOM X — AssettoServer online HUD (v3.20.0)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -10,6 +10,36 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.20.0 — Real per-player TIME for AssettoServer 0.0.54.x
+
+VENOM X now sends `ac.OnlineEvent` commands (`VENOMX_SetTime`) to a compatible
+server-side **VenomPersonalTimePlugin**. The server plugin changes the
+WeatherFX time on outgoing weather updates **for that player only**.
+Other players and admins retain their own time; **no global time changes**.
+
+- Net8 plugin source: `server/VenomPersonalTimePlugin/`
+- .NET 8 build CI: `.github/workflows/build-venom-personal-time-net8.yml`
+- Successful compilation against AssettoServer `v0.0.54` in GitHub Actions;
+  in-game validation on the user's exact `0.0.54.26` remains pending.
+- Build artifact: `VENOM-Personal-Time-net8` from GitHub Actions.
+- Install on **server only**, once. No manual client apps, companion, or Pure hook.
+- Server configuration requirements: `EnableWeatherFx: true`,
+  `EnableClientMessages: true`, and add `VenomPersonalTimePlugin` to
+  existing `EnablePlugins` list. Do not overwrite other plugins.
+- NIGHT/DAY/Rise/Set/Blue Hour in VENOM X now send server sky requests.
+  Press RESET TIME to send `sync` and return to server clock.
+- Native screen color correction is now only an optional VISUAL SKY fallback
+  toggle; it is not turned on automatically when selecting a real sky time.
+- `SENT ... / CHECK SKY` in the UI means an event send succeeded, not that
+  the server accepted it. Full verification requires server logs and actual
+  sun/sky movement after the DLL is installed.
+
+**Important:** Never copy a .NET 9 HardBrain binary to the .NET 8 server.
+Use the custom .NET 8 plugin or upgrade the entire AssettoServer stack.
+This implementation avoids direct `ACTcpClient.SendPacketUdp` calls, which
+are internal in `v0.0.54`, by wrapping the supported
+`IWeatherImplementation.SendWeather` interface.
 
 ### v3.19.1 — Native personal visual time and mirror-safe notifications
 
