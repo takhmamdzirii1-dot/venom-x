@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.10.0'
+local VERSION = '3.10.1'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.10.0',
+  versionTag = 'v3.10.1',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -1004,75 +1004,67 @@ end
 
 local function drawTime()
   local tm=state.time
-  local usable=tm.mode=='CSP NATIVE'
-  sectionLabel('TIME / PERSONAL WEATHERFX')
-  ui.dummy(vec2(0,7))
+  sectionLabel('PERSONAL TIME / EACH PLAYER')
+  ui.dummy(vec2(0,5))
   local p=ui.getCursor()
-  ui.drawRectFilled(p,vec2(p.x+PANEL_W-35,p.y+82),C.cardSolid,12)
-  ui.drawRect(p,vec2(p.x+PANEL_W-35,p.y+82),C.accentFaint,12,ui.CornerFlags.All,1)
-  ui.dwriteDrawText(fmtSec(wrapDay(serverSec()+(usable and tm.curOffset or 0))),33,vec2(p.x+16,p.y+7),C.text)
-  ui.dwriteDrawText(usable and 'LOCAL REQUEST / SERVER UNCHANGED' or 'SERVER CLOCK',10,
-    vec2(p.x+16,p.y+58),C.accentSoft)
-  ui.dummy(vec2(0,96))
-  ui.textColored(usable and 'CSP LOCAL TIME CONTROL' or
-    'CSP LOCAL TIME UNAVAILABLE',usable and C.accentSoft or C.warn)
-  ui.textDisabled('API: '..tostring(tm.nativeResult))
-  if not usable then
-    ui.textWrapped('This CSP online-script context does not allow local sky time. No fake darkening or server-wide change is applied.')
+  ui.drawRectFilled(p,vec2(p.x+PANEL_W-35,p.y+80),C.cardSolid,12)
+  ui.drawRect(p,vec2(p.x+PANEL_W-35,p.y+80),C.accentFaint,12,ui.CornerFlags.All,1)
+  ui.dwriteDrawText(fmtSec(wrapDay(serverSec()+tm.curOffset)),34,
+    vec2(p.x+16,p.y+7),C.text)
+  ui.dwriteDrawText('YOUR SELECTED TIME',11,vec2(p.x+16,p.y+56),C.accentSoft)
+  ui.dummy(vec2(0,90))
+
+  -- Controls must never disappear just because online CSP blocks global
+  -- weather APIs. This is independent personal UI state for each player.
+  sectionLabel('CHOOSE YOUR TIME')
+  local tv=wrapDay(serverSec()+tm.curOffset)
+  local nv=ui.slider('##vx_personal_time',tv,0,86399,'',1)
+  if math.abs(nv-tv)>0.5 then
+    tm.want=wrapOffset(nv-serverSec())
+    tm.lastControl='SLIDER'
   end
+  ui.dummy(vec2(0,5))
+  local bw=math.max(95,(PANEL_W-56)/2)
+  for i,preset in ipairs(TIME_PRESETS) do
+    if (i-1)%2==1 then ui.sameLine() end
+    if ui.button(preset.label..'##vx_solar_'..i,vec2(bw,32)) then
+      setTimePreset(preset,i)
+      tm.lastControl=preset.label
+      toast('TIME: '..preset.label)
+    end
+  end
+  if ui.button('RESET TO SERVER TIME##vx_time_reset',vec2(0,30)) then
+    tm.want=0
+    tm.lastControl='RESET'
+    toast('TIME: SERVER CLOCK')
+  end
+
+  sectionLabel('FINE TUNE / GOLDEN HOUR')
+  local fineW=math.max(56,(PANEL_W-57)/4)
+  for i,minutes in ipairs({-15,-5,5,15}) do
+    if i>1 then ui.sameLine() end
+    local label=string.format('%+d min',minutes)
+    if ui.button(label..'##vx_fine_'..i,vec2(fineW,29)) then
+      tm.want=wrapOffset(tm.want+minutes*60)
+      tm.lastControl=label
+    end
+  end
+
   ui.separator()
-  sectionLabel('GOLDEN HOUR / SUN & MOON')
-  if usable then
-    local tv=wrapDay(serverSec()+tm.curOffset)
-    local nv=ui.slider('##vx_personal_time',tv,0,86399,'',1)
-    if math.abs(nv-tv)>0.5 then
-      tm.want=wrapOffset(nv-serverSec())
-      tm.lastControl='SLIDER'
-    end
-    ui.dummy(vec2(0,6))
-    local bw=math.max(95,(PANEL_W-56)/2)
-    for i,preset in ipairs(TIME_PRESETS) do
-      if (i-1)%2==1 then ui.sameLine() end
-      if ui.button(preset.label..'##vx_solar_'..i,vec2(bw,32)) then
-        setTimePreset(preset,i)
-        tm.lastControl=preset.label
-        toast('REQUESTED: '..preset.label)
-      end
-    end
-    if ui.button('RESET / SERVER CLOCK##vx_time_reset',vec2(0,30)) then
-      tm.want=0
-      tm.lastControl='RESET'
-    end
-    sectionLabel('FINE TUNE / GOLDEN COLORS')
-    local fineW=math.max(56,(PANEL_W-57)/4)
-    for i,minutes in ipairs({-15,-5,5,15}) do
-      if i>1 then ui.sameLine() end
-      local label=string.format('%+d min',minutes)
-      if ui.button(label..'##vx_fine_'..i,vec2(fineW,29)) then
-        tm.want=wrapOffset(tm.want+minutes*60)
-        tm.lastControl=label
-      end
-    end
+  ui.textDisabled('Server: '..fmtSec(wrapDay(serverSec())))
+  ui.textDisabled('Last selection: '..tostring(tm.lastControl))
+  if tm.mode=='CSP NATIVE' and tm.nativeApplied then
+    ui.textColored('CSP time API called; sky effect not verified.',C.accentSoft)
   else
-    ui.textDisabled('Time presets need a supported CSP local sky API.')
+    ui.textDisabled('Personal time selected. Sky remains server-controlled.')
   end
-  ui.separator()
-  sectionLabel('REAL SKY STATUS')
-  ui.textDisabled('Last input: '..tostring(tm.lastControl))
-  ui.textDisabled('Requested: '..fmtSec(wrapDay(serverSec()+tm.want)))
+  -- Sun and moon are read-only here. Never fabricate fake night exposure.
   if tm.lastSunHeight~=nil then
-    ui.textDisabled(string.format('Sun Y: %.3f (%s)',tm.lastSunHeight,
-      tm.lastSunHeight<0 and 'BELOW HORIZON' or 'ABOVE HORIZON'))
-  else
-    ui.textDisabled('Sun Y: '..tostring(tm.skyProbeError or 'UNKNOWN'))
+    ui.textDisabled(string.format('Real sun height: %.3f',tm.lastSunHeight))
   end
   if tm.lastMoonHeight~=nil then
-    ui.textDisabled(string.format('Moon Y: %.3f (%s)',tm.lastMoonHeight,
-      tm.lastMoonHeight>0 and 'ABOVE HORIZON' or 'BELOW HORIZON'))
-  else
-    ui.textDisabled('Moon Y: NOT AVAILABLE')
+    ui.textDisabled(string.format('Real moon height: %.3f',tm.lastMoonHeight))
   end
-  ui.textWrapped('Night sunlight, cloud colors and visible moon depend on real CSP weather, moon phase and date. No artificial lights or fake moon.')
 end
 
 local function drawHud()
