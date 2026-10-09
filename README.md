@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.22.0)
+# VENOM X — AssettoServer online HUD (v3.23.0)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -10,6 +10,41 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.23.0 — One-click real TIME with exact presets and automatic retry
+
+The former TIME UI derived an offset from CSP's `timeTotalSeconds`, then
+used a later copy of the same mutable clock to reconstruct an absolute
+timestamp. If the WeatherFX plugin changed that clock between those
+operations, the first button press could select an incorrect hour.
+
+AssettoServer v0.0.54.26 also hard-drops chat packets received less than
+1,000 ms after the last one. The VENOMX_SetTime request uses CSP's
+chat-encoded `$CSP0` transport; another TIME slider change or CSP event
+could block the command without generating a plugin ACK.
+
+**Fixed in v3.23.0 Lua only:**
+- Presets pass their exact absolute day-seconds directly; the target does
+  not depend on the mutable current WeatherFX time.
+- Both TIME sliders and +/-15/+/-5 minute controls use exact target seconds.
+- The TIME readout follows the selected clock forward from the click.
+- Rapid changes are coalesced, with a 340ms slider debounce and at least
+  1.35s spacing between chat-transmitted time requests.
+- If no server ACK arrives after 2.1s, retry automatically with the exact
+  same requested time, up to 3 bounded retries; a genuinely failed action
+  still shows a clear error instead of silently requiring a second click.
+- The selected absolute target is persisted across Lua reloads. Old stored
+  relative-offset entries are migrated when loaded.
+- The .NET time plugin DLL, collision modes, teleport protection and
+  vehicle option-saving code remain unchanged.
+
+Automated GitHub Actions run the actual Lua time bridge in Fengari with
+simulated CSP clocks and dropped/late messages. Tests passed for one-click
+midnight, 12:00 after a prior custom time, final slider value, 1-second
+rate-limiting, automatic retries and stale ACK suppression.
+
+The code passes automated tests; in-game first-click behavior must still
+be verified with a real client and AssettoServer.
 
 ### v3.22.0 — Smart teleport protection + Unstuck recovery
 
