@@ -5,6 +5,7 @@ on:
     paths:
       - 'VENOM_X.lua'
       - 'tests/car-options-regression.js'
+      - 'tests/ghost-mode-regression.js'
       - '.github/workflows/check-venom-lua.yml'
 jobs:
   lua-syntax:
@@ -44,3 +45,5 @@ jobs:
           NODE
       - name: Run live-Lua car options regression tests
         run: node tests/car-options-regression.js
+      - name: Run peer ghost collisions regression tests
+        run: node tests/ghost-mode-regression.js
