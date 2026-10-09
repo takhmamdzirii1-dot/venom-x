@@ -279,7 +279,7 @@ public sealed class VenomPersonalTimePlugin : IHostedService
     {
         _time.Clear(player.SessionId);
         player.FirstUpdateSent -= OnFirstUpdateSent;
-        if (!_ghostPlayers.TryRemove(player.SessionId, out _)) return;
+        if (!_ghostPlayers.TryRemove(player.SessionId, out var removed)) return;
         // Immediately release this player's ghost flag for remaining drivers.
         foreach (var entry in _entryCarManager.EntryCars)
         {
