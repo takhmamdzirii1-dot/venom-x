@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.17.0'
+local VERSION = '3.18.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.17.0',
+  versionTag = 'v3.18.0',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -214,6 +214,8 @@ local state = {
   sessionLearnAfter = 0,
   sessionLastChange = 0,
   lastAutoExtraCount = 0,
+  lastControlsCacheAt = -999,
+  snapshotReloadChecked = false,
   lastControls = nil,
   lastControlsAt = -1,
   lastCarPos = nil,
@@ -384,6 +386,10 @@ local function loadStored()
       vx_ph = 515,
       vx_sec = 'HOME',
       vx_dock_v2 = true,
+      vx_extra_car = '',
+      vx_extra_bits = '',
+      vx_extra_frame = -1,
+      vx_extra_epoch = 0,
     })
   end)
   if ok and type(res) == 'table' then
@@ -552,6 +558,62 @@ end
 
 -- Preserve switch state without spamming controls if they never changed.
 -- Return actual observable mismatches; online CSP might forbid setters.
+-- HOT-RELOAD CACHE: CSP periodically reloads this server script. Keep
+-- the current driving-session switches in CSP typed storage for reloads only.
+-- A new session has a lower sim.frame, or expires the 75s freshness window.
+local function encodeExtraSnapshot(snap)
+  if not snap then return '' end
+  local function bit(x) return x==true and '1' or x==false and '0' or '-' end
+  local bits={}
+  for i=1,#EXTRA_KEYS do bits[#bits+1]=bit(snap.extra[i]) end
+  for _,key in ipairs({'headlights','highBeams','lowBeams',
+     'hazards','turnLeft','turnRight'}) do bits[#bits+1]=bit(snap[key]) end
+  return table.concat(bits)
+end
+
+local function decodeExtraSnapshot(bits)
+  if type(bits)~='string' or #bits~=16 or bits:find('[^01%-]') then
+    return nil
+  end
+  local function get(i)
+    local x=bits:sub(i,i)
+    if x=='1' then return true end
+    if x=='0' then return false end
+    return nil
+  end
+  local result={extra={}}
+  for i=1,#EXTRA_KEYS do result.extra[i]=get(i) end
+  for i,key in ipairs({'headlights','highBeams','lowBeams',
+      'hazards','turnLeft','turnRight'}) do result[key]=get(10+i) end
+  return result
+end
+
+local function persistExtraSnapshot()
+  if not stored or not state.sessionOptions or not state.sessionCarKey then return end
+  local sf=stateVal(sim(),'frame')
+  local ok,now=pcall(os.time)
+  if type(sf)~='number' or not ok or type(now)~='number' then return end
+  stored.vx_extra_car=state.sessionCarKey
+  stored.vx_extra_bits=encodeExtraSnapshot(state.sessionOptions)
+  stored.vx_extra_frame=math.floor(sf)
+  stored.vx_extra_epoch=math.floor(now)
+  state.lastControlsCacheAt=state.clock
+end
+
+local function recoverExtraSnapshot(model)
+  if state.snapshotReloadChecked then return nil end
+  state.snapshotReloadChecked=true
+  if not stored or stored.vx_extra_car~=model then return nil end
+  local sf=stateVal(sim(),'frame')
+  local ok,now=pcall(os.time)
+  if type(sf)~='number' or not ok or type(now)~='number' then return nil end
+  local prevFrame,prevEpoch=tonumber(stored.vx_extra_frame),
+    tonumber(stored.vx_extra_epoch)
+  if not prevFrame or not prevEpoch or sf<prevFrame
+      or now<prevEpoch or now-prevEpoch>75 then return nil end
+  return decodeExtraSnapshot(stored.vx_extra_bits)
+end
+
 local function optionsReadout()
   local snap=state.sessionOptions
   if not snap then return 'AUTO CACHE: INITIALIZING' end
@@ -563,7 +625,7 @@ local function optionsReadout()
     end
   end
   if readable==0 then return 'AUTO CACHE: EXTRA FLAGS NOT READABLE' end
-  return string.format('AUTO CACHE: %d/10 EXTRAS READ / %d ENABLED',
+  return string.format('AUTO CACHE: %d/10 FLAGS READ / %d ON',
     readable,enabled)
 end
 
@@ -609,11 +671,13 @@ beginOptionsRestoration=function(snapshot)
   local desired=state.sessionOptions or snapshot or snapshotCarOptions(own)
   state.sessionOptions=desired
   state.sessionPinned=true
-  state.sessionLearnAfter=state.clock+6.0
+  persistExtraSnapshot()
+  state.sessionLearnAfter=state.clock+11.0
   state.sessionRetryAt=state.clock+5.0
   state.optionsRestore={
     snapshot=desired,
-    started=state.clock,deadline=state.clock+4.5,
+    started=state.clock,deadline=state.clock+10.0,
+    cleanChecks=0,
     nextAt=state.clock+0.16,pass=0,clean=0,totalAttempts=0,
     denied=0,unavailable=0
   }
@@ -738,34 +802,39 @@ end
 -- after 0.7s), and check up to 3.5s with bounded retry intervals.
 local function restoreTeleportOptions()
   local task=state.optionsRestore
-  if not task then return end
-  if state.clock<task.nextAt then return end
+  if not task or state.clock<task.nextAt then return end
   local stats=restoreCarOptions(task.snapshot)
   task.pass=task.pass+1
-  task.nextAt=state.clock+(task.pass<6 and .13 or .30)
+  task.nextAt=state.clock+(task.pass<9 and .15 or .40)
   task.totalAttempts=task.totalAttempts+stats.attempted
   task.denied=task.denied+stats.denied
   task.unavailable=task.unavailable+stats.unavailable
   if stats.extraReadable==0 then
-    state.optionsStatus='CSP CANNOT READ EXTRA A-J / LIGHTS ONLY'
+    state.optionsStatus='CAR JUMP: WAITING FOR EXTRA READBACK'
+    task.cleanChecks=0
   elseif stats.extraMissing>0 then
-    state.optionsStatus=string.format(
-      'EXTRA: %d RESET / %d API UNAVAILABLE / %d DENIED',
+    state.optionsStatus=string.format('EXTRA MISMATCH %d / NO API %d / REJECTED %d',
       stats.extraMissing,task.unavailable,task.denied)
+    task.cleanChecks=0
   elseif stats.missing>0 then
-    state.optionsStatus=string.format('LIGHTS: %d MISMATCH',stats.missing)
+    state.optionsStatus=string.format('LIGHT MISMATCH %d',stats.missing)
+    task.cleanChecks=0
   else
-    state.optionsStatus=string.format('EXTRAS VERIFIED: %d/10',
-      stats.extraReadable)
+    task.cleanChecks=(task.cleanChecks or 0)+1
+    state.optionsStatus=string.format('EXTRAS VERIFIED: %d/10',stats.extraReadable)
   end
-  if state.clock>=task.deadline then
-    state.optionsRestore=nil
-    state.sessionLearnAfter=state.clock+1.2
-    -- Do not insist old values forever: users can change doors, wings and
-    -- lights normally after the short teleport reset window.
-    if stats.extraMissing>0 or task.denied>0 or task.unavailable>0 then
-      pcall(ac.log,'VENOM X teleport controls: '..state.optionsStatus)
+  local stable=stats.extraReadable>0 and task.cleanChecks>=3 and
+    state.clock-task.started>2.1
+  if stable or state.clock>=task.deadline then
+    if not stable then
+      state.optionsStatus=string.format(
+        'RESTORE NOT VERIFIED / EXTRA %d / API %d / REJECTED %d',
+        stats.extraMissing,task.unavailable,task.denied)
+      pcall(ac.log,'VENOM X '..state.optionsStatus)
     end
+    state.optionsRestore=nil
+    state.sessionLearnAfter=state.clock+1.0
+    persistExtraSnapshot()
   end
 end
 
@@ -780,13 +849,17 @@ local function monitorExternalTeleports()
 
   if state.sessionCarKey~=key or not state.sessionOptions then
     state.sessionCarKey=key
-    state.sessionOptions=snapshotCarOptions(me)
+    local previous=recoverExtraSnapshot(key)
+    state.sessionOptions=previous or snapshotCarOptions(me)
     state.lastControls=state.sessionOptions
     state.lastControlsAt=now
     state.sessionPinned=true
     state.sessionLearnAfter=now+.6
     state.optionsRestore=nil
-    state.optionsStatus='AUTO TRACKING CAR OPTIONS'
+    state.optionsStatus=previous and 'RELOADED / AUTO CACHE RECOVERED'
+      or 'AUTO TRACKING CAR OPTIONS'
+    if previous then beginOptionsRestoration(previous)
+    else persistExtraSnapshot() end
   end
 
   local previous=state.lastCarPos
@@ -819,6 +892,9 @@ local function monitorExternalTeleports()
   if off>0 or on>0 then state.sessionLastChange=now end
   state.sessionOptions=mergeLiveOptionSnapshot(state.sessionOptions,sample)
   state.lastControls=state.sessionOptions
+  if off>0 or on>0 or now-state.lastControlsCacheAt>18 then
+    persistExtraSnapshot()
+  end
   if state.optionsStatus=='NOT TESTED' then
     state.optionsStatus='AUTO TRACKING CAR OPTIONS'
   end
