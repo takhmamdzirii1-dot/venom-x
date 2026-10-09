@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.16.0)
+# VENOM X — AssettoServer online HUD (v3.17.0)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -10,6 +10,45 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.17.0 — Automatic extra/light tracking, no Save button
+
+The previous “SAVE CURRENT SETUP” control has been removed completely
+from PLAYERS and quick CREW, because players should not have to manually
+save every changed door/wing option. VENOM X now:
+
+1. Reads the current car's supported Extra A-J, headlights, beams, hazard
+   and signal flags while driving and automatically learns changes
+   approximately every 80 ms.
+2. On an internal teleport, Content Manager/third-party map position jump
+   or CSP car-jump callback, freezes the last observed state before reset
+   and attempts to restore different switch/light flags.
+3. Keeps a live session memory for subsequent teleports; resumes learning
+   the driver's changes after a short reset-protection window, rather
+   than locking previous switches ON until leaving the game.
+4. If at least two active car controls drop together, treats that as a
+   possible car reset and attempts restoration rather than learning the
+   simultaneous OFF states.
+5. Displays *how many* Extra A-J switches are actually readable:
+   `AUTO CACHE: n/10 EXTRAS READ / n ENABLED`. Inability to read them
+   now says `EXTRA FLAGS NOT READABLE`, instead of falsely reporting
+   “UNCHANGED” based on the lighting fields only. Restoration failures
+   distinguish unavailable APIs, denied calls and option mismatches.
+
+**Limitations:** No generic online-script method can always restore
+internal door/spoiler animation variables that a particular car mod
+resets on car-jump; some switches are hold-mode, stationary-only or
+require neutral/brake. The restore logic only handles public CSP flags.
+Real-game verification is required and a no-read-access diagnostic
+cannot be corrected simply by additional retries.
+
+**TIME truthfulness:** Historical VENOM X v2 used a local Companion
+protocol; v1 did not implement an independent sky override. When neither
+a responding legacy Companion nor the native weather-time API is
+available in the online CSP script sandbox, selecting a clock preset
+cannot move the real sun. The TIME popup now shows the precise v2 and
+native API state plus actual sun Y so diagnosis is explicit. No Pure
+installation and no server-wide `/settime` has been added.
 
 ### v3.16.0 — 1:1 CMRT gearbox proportions, recolored VENOM crimson
 
