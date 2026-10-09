@@ -1450,7 +1450,9 @@ local function drawTime()
   elseif tm.mode=='CSP NATIVE' and tm.nativeApplied then
     ui.textColored('CSP time API called; sky effect not verified.',C.accentSoft)
   else
-    ui.textDisabled('No local sky controller. Clock selection only.')
+    ui.textColored('ACTUAL SKY TIME NOT AVAILABLE',C.warn)
+    ui.textDisabled('V2: '..tostring(tm.legacyAck):sub(1,70))
+    ui.textDisabled('CSP: '..tostring(tm.nativeResult):sub(1,70))
   end
   -- Sun and moon are read-only here. Never fabricate fake night exposure.
   if tm.lastSunHeight~=nil then
@@ -1777,7 +1779,7 @@ local function drawQuickPopup()
   if not b then return end
   local scr=getScreenSize()
   local w=math.min(302,math.max(220,scr.x-16))
-  local h=mode=='TIME' and 316 or mode=='PAINT' and 220 or 270
+  local h=mode=='TIME' and 382 or mode=='PAINT' and 220 or 270
   h=math.min(h,math.max(160,scr.y-78))
   -- Open flyouts beside the vertical rail, aligned to the selected icon.
   local chosenRow=1
@@ -1866,8 +1868,14 @@ local function drawQuickPopup()
         elseif tm.mode=='CSP NATIVE' then
           ui.textDisabled('CSP local sky API detected (not visually verified).')
         else
-          ui.textColored('SKY LOCKED / CLOCK PREVIEW ONLY',C.warn)
+          ui.textColored('REAL SKY NOT CHANGING',C.warn)
+          ui.textDisabled('V2: '..tostring(tm.legacyAck):sub(1,54))
+          ui.textDisabled('NATIVE: '..tostring(tm.nativeResult):sub(1,54))
         end
+        if tm.lastSunHeight~=nil then
+          ui.textDisabled(string.format('ACTUAL SUN Y: %.3f',tm.lastSunHeight))
+        end
+        ui.textDisabled('TIME selection is local unless the sky API responds.')
       elseif mode=='PAINT' then
         local ww=(w-68)/4
         for i,preset in ipairs(PRESETS) do
