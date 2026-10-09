@@ -1,0 +1,42 @@
+name: Build VENOM Personal Time (AssettoServer 0.0.54 / .NET 8)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'server/VenomPersonalTimePlugin/**'
+      - '.github/workflows/build-venom-personal-time-net8.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout VENOM X
+        uses: actions/checkout@v4
+      - name: Checkout AssettoServer v0.0.54
+        uses: actions/checkout@v4
+        with:
+          repository: compujuckel/AssettoServer
+          ref: v0.0.54
+          path: upstream
+      - name: Set up .NET SDK 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Copy plugin into upstream solution
+        run: cp -r server/VenomPersonalTimePlugin upstream/VenomPersonalTimePlugin
+      - name: Restore
+        run: dotnet restore upstream/VenomPersonalTimePlugin/VenomPersonalTimePlugin.csproj -p:RuntimeIdentifier=linux-x64
+      - name: Build plugin
+        run: dotnet build upstream/VenomPersonalTimePlugin/VenomPersonalTimePlugin.csproj -c Release --no-restore -p:RuntimeIdentifier=linux-x64
+      - name: Package plugin
+        run: |
+          mkdir -p artifact/plugins/VenomPersonalTimePlugin
+          find upstream/VenomPersonalTimePlugin/bin/Release -name 'VenomPersonalTimePlugin.dll' -exec cp {} artifact/plugins/VenomPersonalTimePlugin/ \;
+          find upstream/VenomPersonalTimePlugin/bin/Release -name 'VenomPersonalTimePlugin.deps.json' -exec cp {} artifact/plugins/VenomPersonalTimePlugin/ \;
+          test -s artifact/plugins/VenomPersonalTimePlugin/VenomPersonalTimePlugin.dll
+      - name: Upload plugin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VENOM-Personal-Time-net8
+          path: artifact/plugins
+          if-no-files-found: error
