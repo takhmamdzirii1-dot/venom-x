@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.20.2'
+local VERSION = '3.20.3'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.20.2',
+  versionTag = 'v3.20.3',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -506,7 +506,8 @@ end
 local beginOptionsRestoration
 
 local function teleportSelf(pos, dir, message)
-  if beginOptionsRestoration then beginOptionsRestoration() end
+  -- Snapshot the live extras BEFORE physics.setCarPosition resets a modded car.
+  if beginOptionsRestoration then beginOptionsRestoration(nil, true) end
   local ok, result = pcall(physics.setCarPosition, 0, pos, dir)
   if ok and result ~= false then
     if message then toast(message) end
@@ -526,7 +527,7 @@ end
 local function teleportDest(d)
   if not d then return end
   if state.destSource == 'chat' and state.chatEx then
-    if beginOptionsRestoration then beginOptionsRestoration() end
+    if beginOptionsRestoration then beginOptionsRestoration(nil, true) end
     local ok, res = pcall(function() return state.chatEx.teleportTo(d.id) end)
     if ok and res then
       toast(string.format('TELEPORTED TO %s', d.name))
@@ -556,7 +557,12 @@ end
 -- never fire setters unconditionally, only restore a proven mismatch shortly
 -- after teleport. Unsupported CSP online APIs are safely ignored.
 local function preserveFlag(v)
-  return type(v)=='boolean' and v or nil
+  -- Lua "condition and value or nil" drops a valid false flag.
+  -- Both ON and OFF are essential to faithfully restore modded car options.
+  if type(v)=='boolean' then return v end
+  -- Some CSP car-state bindings expose switches as the numeric 0/1.
+  if type(v)=='number' and (v==0 or v==1) then return v==1 end
+  return nil
 end
 
 local EXTRA_KEYS={'extraA','extraB','extraC','extraD','extraE','extraF','extraG','extraH','extraI','extraJ'}
@@ -676,7 +682,7 @@ local function optionSwitchDelta(old,live)
   return off,on
 end
 
-beginOptionsRestoration=function(snapshot)
+beginOptionsRestoration=function(snapshot, beforeTeleport)
   local own=car()
   if not own then return false end
   local carKey=tostring(stateVal(own,'id') or 'UNKNOWN')
@@ -685,22 +691,32 @@ beginOptionsRestoration=function(snapshot)
     state.sessionPinned=false
     state.sessionCarKey=carKey
   end
-  -- Most recent automatically observed driver preferences take precedence
-  -- until a teleport ends. Freeze learning during reset/reposition events.
+  local active=state.optionsRestore
+  -- A menu teleport runs BEFORE the car moves, so its fresh snapshot is
+  -- authoritative. This picks up driver changes made immediately before TP.
+  -- A jump callback runs AFTER the reset, so NEVER learn reset values there.
   local desired=state.sessionOptions or snapshot or snapshotCarOptions(own)
+  if beforeTeleport and not active then
+    desired=mergeLiveOptionSnapshot(desired,snapshot or snapshotCarOptions(own))
+  end
   state.sessionOptions=desired
   state.sessionPinned=true
   persistExtraSnapshot()
-  state.sessionLearnAfter=state.clock+11.0
-  state.sessionRetryAt=state.clock+5.0
+  -- Prevent a delayed physics/car-script reset from becoming the new state.
+  -- Learning resumes when restoration finishes (rather than after 11s).
+  state.sessionLearnAfter=state.clock+10.0
   state.optionsRestore={
     snapshot=desired,
-    started=state.clock,deadline=state.clock+10.0,
+    started=state.clock,
+    -- Do not stop at the first 2-second run of clean frames: mod cars may
+    -- reset their extras several seconds AFTER the physical teleport.
+    minHoldUntil=state.clock+5.0,
+    deadline=state.clock+11.0,
     cleanChecks=0,
     nextAt=state.clock+0.16,pass=0,clean=0,totalAttempts=0,
     denied=0,unavailable=0
   }
-  state.optionsStatus='TP / AUTO RESTORE ACTIVE'
+  state.optionsStatus='TP / CAR OPTIONS PROTECTED'
   return true
 end
 
@@ -843,7 +859,7 @@ local function restoreTeleportOptions()
     state.optionsStatus=string.format('EXTRAS VERIFIED: %d/10',stats.extraReadable)
   end
   local stable=stats.extraReadable>0 and task.cleanChecks>=3 and
-    state.clock-task.started>2.1
+    state.clock>=task.minHoldUntil
   if stable or state.clock>=task.deadline then
     if not stable then
       state.optionsStatus=string.format(
@@ -852,7 +868,7 @@ local function restoreTeleportOptions()
       pcall(ac.log,'VENOM X '..state.optionsStatus)
     end
     state.optionsRestore=nil
-    state.sessionLearnAfter=state.clock+1.0
+    state.sessionLearnAfter=state.clock+0.30
     persistExtraSnapshot()
   end
 end
@@ -926,7 +942,18 @@ local function registerCarJumpProtection()
   local ok,err=pcall(function()
     -- Preserve Disposable: if it is GC'd, CSP might unsubscribe this callback.
     state.carJumpSubscription=ac.onCarJumped(0,function()
-      if not state.optionsRestore and (state.sessionOptions or state.lastControls) then
+      if state.optionsRestore then
+        -- A delayed jump inside our guard needs extra time for mod scripts to
+        -- finish their resets. Keep the original desired switches intact.
+        local task=state.optionsRestore
+        task.minHoldUntil=math.min(task.started+13.0,
+          math.max(task.minHoldUntil,state.clock+3.0))
+        task.deadline=math.min(task.started+17.0,
+          math.max(task.deadline,state.clock+6.0))
+        task.cleanChecks=0
+        task.nextAt=state.clock+0.16
+        state.optionsStatus='CAR JUMP / KEEPING OPTIONS'
+      elseif state.sessionOptions or state.lastControls then
         beginOptionsRestoration(state.sessionOptions or state.lastControls)
         state.optionsStatus='CAR JUMP / RESTORING OPTIONS'
       end
@@ -977,7 +1004,7 @@ local function teleportToPlayer(p)
   -- See CSP Online-stuff/old-teleport/teleport-to-car.lua by Sahneisttoll.
   local destination=vec3(target.position.x-x*11,target.position.y+0.2,target.position.z-z*11)
   -- Shared preservation before any car jump: player, destination or pits.
-  beginOptionsRestoration(originalOptions)
+  beginOptionsRestoration(originalOptions, true)
   local ok,answer=pcall(physics.setCarPosition,0,destination,vec3(-x,0,-z))
   if not ok or answer==false then
     state.optionsRestore=nil
