@@ -6,6 +6,7 @@ on:
       - 'VENOM_X.lua'
       - 'tests/car-options-regression.js'
       - 'tests/ghost-mode-regression.js'
+      - 'tests/smart-teleport-recovery-regression.js'
       - '.github/workflows/check-venom-lua.yml'
 jobs:
   lua-syntax:
@@ -47,3 +48,5 @@ jobs:
         run: node tests/car-options-regression.js
       - name: Run peer ghost collisions regression tests
         run: node tests/ghost-mode-regression.js
+      - name: Run smart teleport collision and recovery tests
+        run: node tests/smart-teleport-recovery-regression.js
