@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'server/VenomPersonalTimePlugin/**'
+      - 'server/VenomTimeSmokeTests/**'
       - '.github/workflows/build-venom-personal-time-net8.yml'
 
 jobs:
@@ -29,6 +30,10 @@ jobs:
         run: dotnet restore upstream/VenomPersonalTimePlugin/VenomPersonalTimePlugin.csproj -p:RuntimeIdentifier=linux-x64
       - name: Build plugin
         run: dotnet build upstream/VenomPersonalTimePlugin/VenomPersonalTimePlugin.csproj -c Release --no-restore -p:RuntimeIdentifier=linux-x64
+      - name: Copy smoke tests
+        run: cp -r server/VenomTimeSmokeTests upstream/VenomTimeSmokeTests
+      - name: Check actual VENOM CSP0 packet decoding
+        run: dotnet run --project upstream/VenomTimeSmokeTests/VenomTimeSmokeTests.csproj -c Release
       - name: Package plugin
         run: |
           mkdir -p artifact/plugins/VenomPersonalTimePlugin
