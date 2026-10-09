@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.18.1)
+# VENOM X — AssettoServer online HUD (v3.19.1)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -10,6 +10,13 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.19.1 — Native personal visual time and mirror-safe notifications
+
+- The v3.19.0 toast positioning accidentally capped the first notification to `screenHeight - 156`, pushing it back toward the logo on some resolutions. The first VENOM notification now reserves a larger zone below the central logo and typical Virtual Mirror position. Small screens prioritize the newest notification. The mirror itself is user-configurable, so its exact coordinates cannot be read by the CSP Online Lua script.
+- Personal visual time now first uses the **CSP Online Lua color-correction API** (`ac.ColorCorrectionModulationRgb` + `ac.addColorCorrection`) to alter the locally rendered scene. NIGHT darkens and cools the scene; GOLDEN RISE, GOLDEN SET and BLUE HOUR apply their own tone. DAY returns the scene toward neutral. The intensity slider and time choice are saved. Native color correction needs client CSP/postprocessing support. If unavailable or rejected, a HUD tint fallback is retained.
+- The TIME panels show a `SCENE FILTER` diagnostic indicating API registration or an error. **Registered does not mean visually verified**. These are local color grades, not real astronomical sun/moon movement, scene relighting, or weather changes. Other players' clocks, colors and weather are unaffected by a player's choice.
+- Test: Disconnect, rejoin, select TIME → NIGHT 00:00 and compare with DAY 12:00, then send a screenshot that includes `SCENE FILTER`. The previous version's in-game failure prompted this change; no successful live CSP validation has been claimed.
 
 ### v3.18.0 — Extra state survives script hot reload; physical sky limitation
 
