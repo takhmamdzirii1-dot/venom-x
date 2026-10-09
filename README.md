@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.13.0)
+# VENOM X — AssettoServer online HUD (v3.14.0)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -10,6 +10,41 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.14.0 — Compact CMRT-inspired telemetry and session cache priority fix
+
+The previously tall circular tachometer was replaced by a small horizontal
+CMRT-inspired layout drawn **entirely with VENOM X CSP vector primitives**:
+oblong obsidian pill, large gear indicator on the left, RPM progression LEDs
+along the top, readable KM/H and RPM values side by side, a right-side
+percent ring, and a low-height fuel / remaining-laps strip. The percent ring
+shows the car's **ERS/KERS charge** where `kersPresent` and `kersCharge`
+exist; regular non-KERS cars use remaining fuel percent instead. Remaining
+laps use `fuel/fuelPerLap` when available, or '--' if missing. No CMRT files,
+fonts, or art are copied into VENOM X and players install nothing. All
+existing HUD show/hide, draggable position, scale 80–130%, opacity and
+speed smoothing features remain. Colors match the VENOM crimson theme.
+
+**Actual cache regression fixed:** The pre-teleport snapshot was formerly
+prioritized above `state.sessionOptions`. A second teleport could therefore
+replace a pinned setup with already-reset switches. Now `sessionOptions`
+takes priority until the user intentionally presses **SAVE CURRENT SETUP**;
+subsequent jumps, including external Map/CM jumps, must use the saved state.
+A bounded mismatch-check continues throughout the current gameplay
+session rather than stopping after 4.5 seconds. This is still best-effort
+and **cannot access wing/door animation internal Lua state** that a specific
+car mod keeps separately from Extra A-J.
+
+**TIME:** v3.13 original v2 Companion channel + native weather API fallback
+remain unchanged. Historical v1 only read the server time; v2 used an
+existing local Companion, and v3 stored bridge keys. If no client controller
+is present in the online CSP Lua context, no server-only command can
+force genuinely separate sky time for each player. Buttons continue to
+work for personal clock selection but the physical sky is unverified.
+
+Validation performed: archive Lua/manifest read, historical GitHub
+source comparison, static regression checks. No actual CSP/Assetto
+Corsa rendering or physical sky-time test was possible here.
 
 ### v3.13.0 — VENOM visual identity, legacy v2 time compatibility, in-session option memory
 
