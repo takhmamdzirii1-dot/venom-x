@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.11.1'
+local VERSION = '3.11.2'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.11.1',
+  versionTag = 'v3.11.2',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -458,12 +458,17 @@ local function headingDir(heading)
   return vec3(math.sin(rad), 0, -math.cos(rad))
 end
 
+local beginOptionsRestoration
+
 local function teleportSelf(pos, dir, message)
+  if beginOptionsRestoration then beginOptionsRestoration() end
   local ok, result = pcall(physics.setCarPosition, 0, pos, dir)
   if ok and result ~= false then
     if message then toast(message) end
     return true
   end
+  state.optionsRestore=nil
+  state.optionsStatus='TELEPORT REJECTED'
   toast(L.teleportFailed, 'warn')
   return false
 end
@@ -476,11 +481,14 @@ end
 local function teleportDest(d)
   if not d then return end
   if state.destSource == 'chat' and state.chatEx then
+    if beginOptionsRestoration then beginOptionsRestoration() end
     local ok, res = pcall(function() return state.chatEx.teleportTo(d.id) end)
     if ok and res then
       toast(string.format('TELEPORTED TO %s', d.name))
       return
     end
+    state.optionsRestore=nil
+    state.optionsStatus='SERVER TELEPORT REJECTED'
   end
   if d.pos then
     teleportConfigDest(d)
@@ -521,6 +529,19 @@ end
 
 -- Preserve switch state without spamming controls if they never changed.
 -- Return actual observable mismatches; online CSP might forbid setters.
+beginOptionsRestoration=function(snapshot)
+  local own=car()
+  if not own then return false end
+  state.optionsRestore={
+    snapshot=snapshot or snapshotCarOptions(own),
+    started=state.clock,deadline=state.clock+4.5,
+    nextAt=state.clock+0.16,pass=0,clean=0,totalAttempts=0,
+    denied=0,unavailable=0
+  }
+  state.optionsStatus='TP / WATCHING VEHICLE CONTROLS'
+  return true
+end
+
 local function restoreCarOptions(snapshot)
   local result={missing=0,attempted=0,denied=0,unavailable=0,readable=0}
   if not snapshot then return result end
@@ -628,7 +649,7 @@ local function restoreTeleportOptions()
   end
   -- Hold on long enough for delayed post-jump resets but avoid fighting
   -- intentional new driver input indefinitely.
-  if (state.clock-task.started)>=1.4 and task.clean>=3 then
+  if (state.clock-task.started)>=2.4 and task.clean>=3 then
     state.optionsStatus=task.totalAttempts>0 and 'RESTORED / VERIFIED'
        or stats.readable>0 and 'UNCHANGED' or 'NO READ ACCESS'
     state.optionsRestore=nil
@@ -686,13 +707,8 @@ local function teleportToPlayer(p)
   -- use -look so that our resulting car.look matches the other driver's.
   -- See CSP Online-stuff/old-teleport/teleport-to-car.lua by Sahneisttoll.
   local destination=vec3(target.position.x-x*11,target.position.y+0.2,target.position.z-z*11)
-  -- Set up restoration *before* the CSP car-jump event can fire.
-  state.optionsRestore={
-    snapshot=originalOptions,started=state.clock,deadline=state.clock+3.5,
-    nextAt=state.clock+0.16,pass=0,clean=0,totalAttempts=0,
-    denied=0,unavailable=0
-  }
-  state.optionsStatus='TP / WAITING FOR CAR RESET'
+  -- Shared preservation before any car jump: player, destination or pits.
+  beginOptionsRestoration(originalOptions)
   local ok,answer=pcall(physics.setCarPosition,0,destination,vec3(-x,0,-z))
   if not ok or answer==false then
     state.optionsRestore=nil
