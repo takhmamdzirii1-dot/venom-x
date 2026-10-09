@@ -11,8 +11,10 @@ function extract(start,end) {
 const helper=extract('local function ghostUsable()', 'local function refreshDestinations(force)');
 const tests=`
 state={
-  clock=0,ghost={enabled=false,peers={},applied={},event=nil,checked=false,
-   supported=false,nextSync=0,nextScan=0,lastStatus='OFF'}
+  clock=0,cspChatNextAt=0,time={serverSkyNextSendAt=0},
+  ghost={enabled=false,peers={},applied={},event=nil,checked=false,
+   supported=false,nextSync=0,nextScan=0,lastStatus='OFF',
+   confirmed=false,waiting=false,queued=false,sendAt=-999,retries=0}
 }
 HUMAN_SESSION_IDS={[0]=true,[1]=true,[2]=true,[3]=true,[4]=true,[5]=true}
 stateVal=function(c,k) return c and c[k] end
@@ -58,8 +60,14 @@ assert(#actions==0,'ghost OFF must not change any colliders')
 assert(broadcasts[1]==false,'initial ghost state not broadcast OFF')
 print('PASS: init is OFF, sends sync but does not touch collisions')
 
+state.clock=1.5
 assert(toggleGhostMode()==true)
 assert(state.ghost.enabled and saves==1,'ghost ON not persisted')
+assert(not state.ghost.confirmed and state.ghost.waiting,
+  'GHOST ON must not claim activation before a server ACK')
+receiver(nil,{enabled=true})
+assert(state.ghost.confirmed and not state.ghost.waiting,
+  'GHOST ON must become confirmed only after server ACK')
 assert(#actions==2,'must disable only two human remote vehicles')
 assert(actions[1].index==1 and actions[1].disabled==true)
 assert(actions[2].index==2 and actions[2].disabled==true)
@@ -67,8 +75,11 @@ assert(broadcasts[#broadcasts]==true)
 print('PASS: ghost ON disables only remote humans and broadcasts state')
 
 receiver(alice,{enabled=true})
+state.clock=3
 assert(toggleGhostMode()==true)
-assert(not state.ghost.enabled,'ghost OFF not saved')
+receiver(nil,{enabled=false})
+assert(not state.ghost.enabled and state.ghost.confirmed,
+  'ghost OFF not saved and acknowledged')
 assert(actions[#actions].index==2 and actions[#actions].disabled==false,
   'when own ghost turns OFF, a normal player must regain collisions')
 assert(state.ghost.applied[1].disabled==true,
@@ -82,7 +93,9 @@ ghostUpdate()
 assert(state.ghost.applied[1].disabled==false,'peer ghost OFF must restore collision')
 print('PASS: receiving peer OFF restores collision')
 
+state.clock=5
 toggleGhostMode()
+receiver(nil,{enabled=true})
 local charlie={index=3,sessionID=3,isConnected=true,isActive=true,
   id='car',driverName='CHARLIE'}
 cars[#cars+1]=charlie
@@ -90,9 +103,11 @@ state.clock=state.clock+1
 ghostUpdate()
 assert(state.ghost.applied[3] and state.ghost.applied[3].disabled,
   'late joiner should get ghost collision settings on local client')
-state.clock=state.clock+6
+state.clock=state.clock+7
 ghostUpdate()
 assert(broadcasts[#broadcasts]==true,'heartbeat must advertise mode to late joiners')
+assert(state.time.serverSkyNextSendAt>=state.cspChatNextAt,
+  'ghost must prevent TIME packet from colliding with the CSP0 chat limiter')
 print('PASS: late joiner receives local collision disable and heartbeat')
 
 -- ON or OFF must never modify the human player's local car or AI traffic.
