@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.21.0'
+local VERSION = '3.22.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.21.0',
+  versionTag = 'v3.22.0',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -227,6 +227,12 @@ local state = {
     enabled=false, peers={}, applied={}, event=nil, checked=false,
     supported=false, nextSync=0, nextScan=0, lastStatus='OFF'
   },
+  -- Temporary collision protection is separate from the persistent ghost mode.
+  tpShield = {active=false,untilAt=0,minUntil=0,status='READY',
+    nextCheck=0,started=0},
+  recovery = {spot=nil,carKey=nil,stable=0,nextAt=0,
+    captureAfter=5,lastCaptureAt=-999,cooldownUntil=0,
+    confirmUntil=0,status='SEARCHING FOR SAFE STOP'},
   time = {
     want=0,curOffset=0,mode='SERVER',nativeRejected=false,
     nativeAttempted=false,nativeApplied=false,nativeResult='NOT CALLED',
@@ -512,12 +518,15 @@ local function headingDir(heading)
 end
 
 local beginOptionsRestoration
+local startTeleportShield
+local tryRecoverCar
 
 local function teleportSelf(pos, dir, message)
   -- Snapshot the live extras BEFORE physics.setCarPosition resets a modded car.
   if beginOptionsRestoration then beginOptionsRestoration(nil, true) end
   local ok, result = pcall(physics.setCarPosition, 0, pos, dir)
   if ok and result ~= false then
+    if startTeleportShield then startTeleportShield() end
     if message then toast(message) end
     return true
   end
@@ -538,6 +547,7 @@ local function teleportDest(d)
     if beginOptionsRestoration then beginOptionsRestoration(nil, true) end
     local ok, res = pcall(function() return state.chatEx.teleportTo(d.id) end)
     if ok and res then
+      if startTeleportShield then startTeleportShield() end
       toast(string.format('TELEPORTED TO %s', d.name))
       return
     end
@@ -950,6 +960,10 @@ local function registerCarJumpProtection()
   local ok,err=pcall(function()
     -- Preserve Disposable: if it is GC'd, CSP might unsubscribe this callback.
     state.carJumpSubscription=ac.onCarJumped(0,function()
+      if startTeleportShield and state.clock>2 then
+        -- Captures Content Manager/map teleports as well as VENOM.
+        startTeleportShield()
+      end
       if state.optionsRestore then
         -- A delayed jump inside our guard needs extra time for mod scripts to
         -- finish their resets. Keep the original desired switches intact.
@@ -1021,6 +1035,7 @@ local function teleportToPlayer(p)
     pcall(ac.log,'VENOM X teleport rejected: '..tostring(answer))
     return
   end
+  if startTeleportShield then startTeleportShield() end
   -- A moving player can teleport directly. Clear momentum after placement
   -- to avoid being thrown forward at the original driving speed. If this
   -- optional CSP helper is restricted, position verification still runs.
@@ -1264,6 +1279,198 @@ local function ghostUpdate()
     -- without adding a new server DLL or installing a client-side mod.
     sendGhostState()
   end
+end
+
+-- SMART TP SHIELD: temporarily turn off collisions for OUR own car only.
+-- This protects against both human and AI overlap after placement; world
+-- geometry is still managed by the game's track physics.
+-- Do not modify the peer ghost network state, which has its own lifecycle.
+local function carDistanceSquared(a,b)
+  if not a or not b then return math.huge end
+  local dx=(tonumber(a.x) or 0)-(tonumber(b.x) or 0)
+  local dy=(tonumber(a.y) or 0)-(tonumber(b.y) or 0)
+  local dz=(tonumber(a.z) or 0)-(tonumber(b.z) or 0)
+  return dx*dx+dy*dy+dz*dz
+end
+
+local function nearbyCars(radius)
+  local me=car()
+  if not me or not me.position or type(ac.iterateCars)~='function' then
+    return true -- fail safe: do not call an area clear without evidence
+  end
+  for _,other in ac.iterateCars() do
+    if other.index~=0 and other.isConnected and other.isActive and
+       other.position and carDistanceSquared(me.position,other.position)<radius*radius then
+      return true
+    end
+  end
+  return false
+end
+
+local function stopTeleportShield()
+  local shield=state.tpShield
+  if not shield.active then return end
+  shield.active=false
+  -- Only restore local index 0 that this feature specifically disabled.
+  -- Existing GHOST player colliders (remote indices) are untouched.
+  local ok,ret=pcall(physics.disableCarCollisions,0,false)
+  shield.status=(ok and ret~=false) and 'NORMAL COLLISIONS RESTORED' or
+    'COULD NOT RESTORE COLLISIONS'
+  if not ok or ret==false then
+    pcall(ac.log,'VENOM X TP shield release rejected: '..tostring(ret))
+  end
+end
+
+startTeleportShield=function()
+  local shield=state.tpShield
+  local recovery=state.recovery
+  -- Protect the last known road position from being replaced by a transient
+  -- spawn point, physics reset, or airborn car after a teleport.
+  recovery.captureAfter=state.clock+11
+  recovery.stable=0
+  if type(physics)~='table' or
+     type(physics.disableCarCollisions)~='function' then
+    shield.status='TP SHIELD UNAVAILABLE / CSP PHYSICS API'
+    return false
+  end
+  local ok,ret=pcall(physics.disableCarCollisions,0,true)
+  if not ok or ret==false then
+    shield.status='TP SHIELD REJECTED BY CSP'
+    return false
+  end
+  shield.active=true
+  shield.started=state.clock
+  shield.minUntil=state.clock+3
+  shield.untilAt=state.clock+14
+  shield.nextCheck=state.clock+0.4
+  shield.status='TP SHIELD ACTIVE'
+  return true
+end
+
+local function updateTeleportShield()
+  local shield=state.tpShield
+  if not shield.active or state.clock<shield.nextCheck then return end
+  shield.nextCheck=state.clock+0.3
+  -- Minimum 3-second grace period. Keep protection while another car is
+  -- within 12m, but cap at 14 seconds so collision bypass cannot persist.
+  if state.clock>=shield.minUntil and
+     (not nearbyCars(12) or state.clock>=shield.untilAt) then
+    if state.clock>=shield.untilAt and nearbyCars(12) then
+      toast('TP SHIELD ENDING / WATCH NEARBY TRAFFIC','warn')
+    end
+    stopTeleportShield()
+  end
+end
+
+-- UNSTUCK / RECOVERY: remember recent reliably stopped and upright positions.
+-- No fabricated "road-safe" coordinates, no auto-teleport into random lanes,
+-- no repeated risky moves while the car is being driven fast.
+local function sampleRecoverySpot()
+  local recovery=state.recovery
+  if state.clock<recovery.nextAt then return end
+  recovery.nextAt=state.clock+1
+  local me=car()
+  if not me or not me.position then return end
+  local key=tostring(stateVal(me,'id') or 'UNKNOWN')
+  if recovery.carKey~=key then
+    recovery.carKey=key
+    recovery.spot=nil
+    recovery.stable=0
+    recovery.captureAfter=state.clock+3
+  end
+  if state.clock<recovery.captureAfter or state.tpShield.active or
+     state.optionsRestore or nearbyCars(9) then
+    recovery.stable=0
+    return
+  end
+  local speed=tonumber(stateVal(me,'speedKmh'))
+  local p=me.position
+  local heading=me.look
+  local x=heading and tonumber(heading.x)
+  local z=heading and tonumber(heading.z)
+  local up=me.up and tonumber(me.up.y)
+  local wheels=tonumber(stateVal(me,'wheelsOnGround'))
+  if not speed or speed>8 or not x or not z or x*x+z*z<0.5 or
+     not tonumber(p.x) or not tonumber(p.y) or not tonumber(p.z) or
+     (up and up<0.8) or (wheels and wheels<2) then
+    recovery.stable=0
+    return
+  end
+  recovery.stable=recovery.stable+1
+  if recovery.stable<3 then return end
+  local length=math.sqrt(x*x+z*z)
+  recovery.spot={
+    x=p.x,y=p.y,z=p.z,
+    dirX=-x/length,dirZ=-z/length,
+    carKey=key,at=state.clock
+  }
+  recovery.lastCaptureAt=state.clock
+  recovery.status='SAFE STOP SAVED'
+end
+
+tryRecoverCar=function()
+  local recovery=state.recovery
+  local me=car()
+  if not me or not me.position then
+    toast('RECOVERY UNAVAILABLE','warn') return false
+  end
+  if state.clock<recovery.cooldownUntil then
+    toast('RECOVERY COOLDOWN / WAIT','warn') return false
+  end
+  if state.pendingTeleport then
+    toast('WAIT FOR PREVIOUS TELEPORT','warn') return false
+  end
+  local key=tostring(stateVal(me,'id') or 'UNKNOWN')
+  local spot=recovery.spot
+  local hasSpot=spot and spot.carKey==key and
+     state.clock-spot.at<1200
+  local speed=tonumber(stateVal(me,'speedKmh')) or 0
+  if not hasSpot or speed>30 then
+    if state.clock>=recovery.confirmUntil then
+      recovery.confirmUntil=state.clock+4
+      toast(hasSpot and 'RECOVER WHILE MOVING? PRESS AGAIN TO CONFIRM' or
+        'NO SAFE STOP / PRESS AGAIN TO RETURN TO PITS','warn')
+      return false
+    end
+  end
+  recovery.confirmUntil=0
+  recovery.cooldownUntil=state.clock+12
+  recovery.status='RECOVERY REQUESTED'
+  if not hasSpot then
+    -- Deliberate fallback; the second press confirms the pits destination.
+    returnToPits()
+    return true
+  end
+  -- Move exactly to a previously observed upright stationary position.
+  -- Orientation is inverted to match physics.setCarPosition.
+  local ok=teleportSelf(vec3(spot.x,spot.y+0.18,spot.z),
+    vec3(spot.dirX,0,spot.dirZ),'RECOVERED TO LAST SAFE STOP')
+  if not ok then
+    recovery.status='RECOVERY FAILED'
+    recovery.cooldownUntil=state.clock
+    return false
+  end
+  if type(physics.setCarVelocity)=='function' then
+    pcall(physics.setCarVelocity,0,vec3(0,0,0))
+  end
+  if type(physics.awakeCar)=='function' then
+    pcall(physics.awakeCar,0)
+  end
+  recovery.status='RECOVERED / TP SHIELD APPLIED'
+  return true
+end
+
+local function recoveryStatusLine()
+  local r=state.recovery
+  local shield=state.tpShield
+  if shield.active then
+    return string.format('TP SHIELD ACTIVE  /  %.0fs MAX',
+      math.max(0,shield.untilAt-state.clock))
+  end
+  if r.spot and state.clock-r.spot.at<1200 then
+    return 'RECOVERY READY  /  LAST SAFE STOP'
+  end
+  return 'RECOVERY: NO VERIFIED STOP / PITS FALLBACK'
 end
 
 local function refreshDestinations(force)
@@ -1606,6 +1813,13 @@ local function drawHome()
   ui.textDisabled(tostring(ghost.lastStatus))
   ui.textDisabled('No player collisions. Traffic and walls remain physical.')
   ui.separator()
+  sectionLabel('SMART TP PROTECTION / UNSTUCK')
+  ui.textDisabled(recoveryStatusLine())
+  if ui.button('RECOVER / LAST SAFE STOP##vxhomeRecover',vec2(0,33)) then
+    tryRecoverCar()
+  end
+  ui.textDisabled('Safe stop preferred; confirm twice for fallback to pits.')
+  ui.separator()
   local me = car()
   if me then
     local bw = math.max(80,(PANEL_W-52)/2)
@@ -1671,6 +1885,11 @@ local function drawTeleport()
   ui.sameLine()
   if ui.button(L.returnToPits, vec2(0, 26)) then
     returnToPits()
+  end
+  ui.separator()
+  ui.textDisabled(recoveryStatusLine())
+  if ui.button('UNSTUCK / RECOVER##vxTpRecover',vec2(0,28)) then
+    tryRecoverCar()
   end
 end
 
@@ -2217,6 +2436,11 @@ local function drawQuickPopup()
         if ui.button('RETURN TO PITS##vxqpit',vec2(w-50,30)) then
           returnToPits()
           state.quickMode=nil
+        end
+        ui.separator()
+        ui.textDisabled(recoveryStatusLine())
+        if ui.button('UNSTUCK / RECOVER##vxqRecover',vec2(w-50,30)) then
+          if tryRecoverCar() then state.quickMode=nil end
         end
       elseif mode=='FRIEND' then
         refreshPlayers(false)
@@ -2889,6 +3113,8 @@ function script.update(dt)
   ghostUpdate()
   monitorExternalTeleports()
   restoreTeleportOptions()
+  updateTeleportShield()
+  sampleRecoverySpot()
   verifyPlayerTeleport()
   if (state.panelOpen and state.section == 'PLAYERS') or state.quickMode=='FRIEND' then
     refreshPlayers(false)
