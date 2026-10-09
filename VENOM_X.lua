@@ -60,16 +60,7 @@ local L = {
   presetPurple = 'PURPLE',
   presetPink = 'PINK',
   localTime = 'LOCAL TIME',
-  controllerPure = 'PURE',
-  controllerWfx = 'WEATHER FX',
-  timeReady = 'READY',
-  timeNoModule = 'TIME MODULE NOT INSTALLED',
-  timeInstall = 'INSTALL',
-  timeInstallMsg = 'Copy VENOM_X_Client.zip into the Assetto Corsa root folder (drag it into Content Manager) and restart the game. Requires the Pure weather script.',
-  timeUnavailable = 'Local time unavailable with current weather controller.',
-  timeActive = 'SHIFT %+.1f h',
   timeReset = 'RESET TO SERVER',
-  timeWaiting = 'WAITING FOR WEATHER SCRIPT',
   presetSunrise = 'GOLDEN RISE 07:15',
   presetDay = 'DAY 12:00',
   presetSunset = 'GOLDEN SET 18:00',
@@ -1019,11 +1010,11 @@ local function drawTime()
   local p=ui.getCursor()
   ui.drawRectFilled(p,vec2(p.x+PANEL_W-35,p.y+82),C.cardSolid,12)
   ui.drawRect(p,vec2(p.x+PANEL_W-35,p.y+82),C.accentFaint,12,ui.CornerFlags.All,1)
-  ui.dwriteDrawText(fmtSec(wrapDay(serverSec()+tm.curOffset)),33,vec2(p.x+16,p.y+7),C.text)
-  ui.dwriteDrawText('PERSONAL REQUEST / SERVER CLOCK UNCHANGED',10,
+  ui.dwriteDrawText(fmtSec(wrapDay(serverSec()+(usable and tm.curOffset or 0))),33,vec2(p.x+16,p.y+7),C.text)
+  ui.dwriteDrawText(usable and 'LOCAL REQUEST / SERVER UNCHANGED' or 'SERVER CLOCK',10,
     vec2(p.x+16,p.y+58),C.accentSoft)
   ui.dummy(vec2(0,96))
-  ui.textColored(usable and 'CSP LOCAL TIME / NO BRIDGE' or
+  ui.textColored(usable and 'CSP LOCAL TIME CONTROL' or
     'CSP LOCAL TIME UNAVAILABLE',usable and C.accentSoft or C.warn)
   ui.textDisabled('API: '..tostring(tm.nativeResult))
   if not usable then
