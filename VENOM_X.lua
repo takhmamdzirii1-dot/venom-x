@@ -1463,7 +1463,8 @@ tryRecoverCar=function()
   if type(physics.awakeCar)=='function' then
     pcall(physics.awakeCar,0)
   end
-  recovery.status='RECOVERED / TP SHIELD APPLIED'
+  recovery.status=state.tpShield.active and
+    'RECOVERED / TP SHIELD ACTIVE' or 'RECOVERED / SHIELD UNAVAILABLE'
   return true
 end
 
