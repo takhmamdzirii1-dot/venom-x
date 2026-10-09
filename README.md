@@ -11,6 +11,36 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
 
+### 2026-10-09 hotfix — CSP0 CHAT transport for AssettoServer 0.0.54.26
+
+**Confirmed from actual user log:** after the DLL loaded and logged
+`[VENOM TIME] Started`, online TIME requests were received as
+`CHAT: ... $CSP0:YOpFD5uQc2V0ADA`, NOT as native
+`CSPMessageTypeTcp.ClientMessage`. Stock AssettoServer 0.0.54
+does not decode that chat-encoded payload into server-side OnlineEvents,
+so `RegisterOnlineEvent` handlers were never called. Older DLLs therefore
+cannot control the physical sky, even though they loaded successfully.
+
+The fixed server-only plugin now listens to the built-in cancellable
+`ChatService.MessageReceived` event, recognizes **only** the matching
+`VENOMX_SetTime` encoded command (protocol opcode `60000`, Lua packet ID
+`0x909B0F45`), parses its four-character mode and up to eight seconds
+digits, cancels public forwarding, then uses the existing personal WeatherFX
+sender. The original direct OnlineEvent transport also remains supported.
+No new client files or Lua installation are required.
+
+.NET 8 GitHub Actions smoke tests **passed** on captured commands for
+`set 0`, `sync 0`, `set 67200`, `set 86399`, `set 16961`; unrelated
+packet rejection and the generated OnlineEvent packet hash also passed.
+Download the **latest successful build with the chat bridge**, replace the
+old server DLL, restart server and reconnect players. Verify both
+`[VENOM TIME] CSP0 CHAT BRIDGE decoded` and
+`[VENOM TIME] Received mode=set` in the server log and
+`SERVER ACK` inside VENOM TIME.
+
+Compilation and payload decoding are verified in CI. Real in-game sky
+movement has **not** been confirmed yet.
+
 ### v3.20.1 — End-to-end personal TIME acknowledgements
 
 - The client no longer treats a successful Lua `pcall` as proof the server accepted a time setting.
