@@ -133,6 +133,37 @@ local TIME_PRESETS = {
   { label = L.presetNight, sec = 0 },
 }
 
+-- Per-player scene tint only. Does not move the physical sun or alter weather.
+-- Format: local hour, filter opacity, filter RGB. Midnight wraps smoothly.
+local VISUAL_TIME_STOPS = {
+  {0.00, 0.88, 0.008, 0.015, 0.050},
+  {4.70, 0.88, 0.008, 0.015, 0.050},
+  {5.80, 0.70, 0.035, 0.025, 0.064},
+  {7.25, 0.29, 0.46, 0.20, 0.085},
+  {8.60, 0.08, 0.52, 0.34, 0.27},
+  {10.0, 0.00, 0.05, 0.05, 0.06},
+  {16.5, 0.00, 0.05, 0.05, 0.06},
+  {18.0, 0.34, 0.42, 0.14, 0.10},
+  {18.67,0.62, 0.035,0.050,0.14},
+  {20.0, 0.82, 0.010,0.022,0.067},
+  {24.0, 0.88, 0.008,0.015,0.050},
+}
+local function visualTimeProfile(sec)
+  local h=(sec % 86400)/3600
+  for i=1,#VISUAL_TIME_STOPS-1 do
+    local a,b=VISUAL_TIME_STOPS[i],VISUAL_TIME_STOPS[i+1]
+    if h<=b[1] then
+      local t=(h-a[1])/(b[1]-a[1])
+      t=t*t*(3-2*t)
+      return a[3]+(b[3]-a[3])*t,
+        a[4]+(b[4]-a[4])*t,
+        a[5]+(b[5]-a[5])*t,
+        a[2]+(b[2]-a[2])*t
+    end
+  end
+  return 0.008,0.015,0.050,0.88
+end
+
 local HUMAN_SESSION_IDS = { [0] = true, [1] = true, [2] = true, [3] = true, [4] = true, [5] = true }
 
 local ORB_SIZE = 56
@@ -231,6 +262,8 @@ local state = {
     legacyShared=nil,legacyConnected=false,legacyReady=false,
     legacySeq=nil,legacyPendingAt=-999,legacyLastTarget=0,
     legacyAck='NOT CONNECTED',legacyProbeAt=-999,
+    visualEnabled=false,visualStrength=1.0,
+    visualR=0,visualG=0,visualB=0,visualOpacity=0,
   },
 
 
@@ -386,6 +419,9 @@ local function loadStored()
       vx_ph = 515,
       vx_sec = 'HOME',
       vx_dock_v2 = true,
+      vx_visual_on = false,
+      vx_visual_power = 1.0,
+      vx_visual_offset = 0,
       vx_extra_car = '',
       vx_extra_bits = '',
       vx_extra_frame = -1,
@@ -407,6 +443,14 @@ local function loadStored()
     if type(res.vx_ph) == 'number' then state.panelH = clamp(res.vx_ph, 380, 680) end
     if type(res.vx_sec) == 'string' then state.section = res.vx_sec end
     if type(res.vx_dock_v2) == 'boolean' then state.quickDockVisible = res.vx_dock_v2 end
+    if type(res.vx_visual_on) == 'boolean' then state.time.visualEnabled = res.vx_visual_on end
+    if type(res.vx_visual_power) == 'number' then
+      state.time.visualStrength=clamp(res.vx_visual_power,0.35,1)
+    end
+    if type(res.vx_visual_offset) == 'number' and math.abs(res.vx_visual_offset)<=43200 then
+      state.time.want=res.vx_visual_offset
+      state.time.curOffset=res.vx_visual_offset
+    end
   end
 end
 
@@ -425,6 +469,9 @@ local function persist()
   stored.vx_ph = state.panelH
   stored.vx_sec = state.section
   stored.vx_dock_v2 = state.quickDockVisible
+  stored.vx_visual_on = state.time.visualEnabled
+  stored.vx_visual_power = state.time.visualStrength
+  stored.vx_visual_offset = state.time.want
 end
 
 local function loadConfig()
@@ -1170,6 +1217,8 @@ end
 -- worked, and provide fine adjustment around the local weather conditions.
 local function setTimePreset(preset, index)
   state.time.want = wrapOffset(preset.sec - serverSec())
+  state.time.visualEnabled=true
+  persist()
 end
 
 local function setPanelSize(idx)
@@ -2472,6 +2521,13 @@ local function timeControlUpdate(dt)
   elseif tm.mode~='CSP NATIVE' and not tm.nativeRejected then
     tm.nativeResult='UNAVAILABLE IN ONLINE SCRIPT'
   end
+  -- Simulate personal exposure even if neither Companion nor native API runs.
+  local vr,vg,vb,va=visualTimeProfile(serverSec()+tm.curOffset)
+  tm.visualR=anim(tm.visualR,vr,6,dt)
+  tm.visualG=anim(tm.visualG,vg,6,dt)
+  tm.visualB=anim(tm.visualB,vb,6,dt)
+  tm.visualOpacity=anim(tm.visualOpacity,
+    tm.visualEnabled and va*tm.visualStrength or 0,6,dt)
   if state.clock-tm.skyProbeAt>1 then
     tm.skyProbeAt=state.clock
     local skyFn=type(ac.getSkyFeatureDirection)=='function' and ac.getSkyFeatureDirection
@@ -2553,6 +2609,27 @@ function script.update(dt)
   end
 end
 
+-- Local night/day exposure is one non-interactive full-screen fill.
+-- Draw before the branded HUD, toasts and speedometer so those stay sharp.
+local function drawVisualSky()
+  local tm=state.time
+  if (tm.visualOpacity or 0)<.004 then return end
+  local scr=getScreenSize()
+  if not scr or type(ui.drawRectFilled)~='function' then return end
+  local began=false
+  local ok,err=pcall(function()
+    ui.beginTransparentWindow('vx_visual_time_filter',vec2(0,0),
+      vec2(scr.x,scr.y),true,false)
+    began=true
+    ui.drawRectFilled(vec2(0,0),vec2(scr.x,scr.y),
+      rgbm(tm.visualR,tm.visualG,tm.visualB,tm.visualOpacity),0)
+    ui.endTransparentWindow()
+    began=false
+  end)
+  if began then pcall(ui.endTransparentWindow) end
+  if not ok then error(err) end
+end
+
 -- Always-on official VENOM banner, centered against the full UI viewport.
 -- Place optimized image at assets/venom_logo.webp in this GitHub repository.
 -- Loaded over HTTPS and cached by CSP; no per-frame downloads or client mods.
@@ -2576,6 +2653,11 @@ local function drawVenomOfficialLogo()
 end
 
 function script.drawUI()
+  local gradeOk,gradeErr=pcall(drawVisualSky)
+  if not gradeOk and not state.visualErrorReported then
+    state.visualErrorReported=true
+    pcall(ac.log,'VENOM X local visual time: '..tostring(gradeErr))
+  end
   local logoOk,logoErr=pcall(drawVenomOfficialLogo)
   if not logoOk and not state.logoErrorReported then
     state.logoErrorReported=true
