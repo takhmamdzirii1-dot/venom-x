@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.20.3'
+local VERSION = '3.21.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.20.3',
+  versionTag = 'v3.21.0',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -222,6 +222,11 @@ local state = {
   lastCarSampleAt = nil,
   registeredJumpHook = false,
   carJumpSubscription = nil,
+  -- Per-player ghost collisions: only disable OTHER human car colliders.
+  ghost = {
+    enabled=false, peers={}, applied={}, event=nil, checked=false,
+    supported=false, nextSync=0, nextScan=0, lastStatus='OFF'
+  },
   time = {
     want=0,curOffset=0,mode='SERVER',nativeRejected=false,
     nativeAttempted=false,nativeApplied=false,nativeResult='NOT CALLED',
@@ -391,6 +396,7 @@ local function loadStored()
       vx_ph = 515,
       vx_sec = 'HOME',
       vx_dock_v2 = true,
+      vx_ghost = false,
       vx_visual_offset = 0,
       vx_server_sky = false,
       vx_extra_car = '',
@@ -414,6 +420,7 @@ local function loadStored()
     if type(res.vx_ph) == 'number' then state.panelH = clamp(res.vx_ph, 380, 680) end
     if type(res.vx_sec) == 'string' then state.section = res.vx_sec end
     if type(res.vx_dock_v2) == 'boolean' then state.quickDockVisible = res.vx_dock_v2 end
+    if type(res.vx_ghost) == 'boolean' then state.ghost.enabled=res.vx_ghost end
     if type(res.vx_server_sky) == 'boolean' then
       state.time.serverSkyEnabled=res.vx_server_sky
       state.time.serverSkyPending=res.vx_server_sky
@@ -440,6 +447,7 @@ local function persist()
   stored.vx_ph = state.panelH
   stored.vx_sec = state.section
   stored.vx_dock_v2 = state.quickDockVisible
+  stored.vx_ghost = state.ghost.enabled
   -- Backwards-compatible storage key: holds the REAL SKY time offset.
   -- Old vx_visual_on/vx_visual_power settings are intentionally ignored.
   stored.vx_visual_offset = state.time.want
@@ -1102,6 +1110,149 @@ local function refreshPlayers(force)
   state.players = list
 end
 
+-- GHOST MODE: a peer-to-peer CSP OnlineEvent shares each driver's own
+-- opt-in mode, including drivers who join later. Never alter AI colliders.
+-- physics.disableCarCollisions(index, value) requires CSP with remote-car
+-- support (introduced in CSP 0.2.8). Both clients must run the online script.
+local function ghostUsable()
+  return type(physics)=='table' and
+    type(physics.disableCarCollisions)=='function' and
+    type(ac.OnlineEvent)=='function' and ac.StructItem~=nil
+end
+
+local function initGhostEvent()
+  local g=state.ghost
+  if g.checked then return end
+  g.checked=true
+  g.supported=ghostUsable()
+  if not g.supported then
+    g.lastStatus='GHOST UNAVAILABLE / CSP 0.2.8+ REQUIRED'
+    return
+  end
+  local ok,evt=pcall(function()
+    return ac.OnlineEvent({
+      ac.StructItem.key('VENOMX_Ghost_v1'),
+      enabled=ac.StructItem.boolean()
+    },function(sender,message)
+      if not sender or not message or sender.index==0 then return end
+      local sid=stateVal(sender,'sessionID')
+      if type(sid)~='number' or not HUMAN_SESSION_IDS[sid] or
+         not isHumanCar(sender,
+           stateVal(sender,'driverName'),stateVal(sender,'id'),sid) then
+        return
+      end
+      -- Only accept this driver speaking for their OWN session.
+      g.peers[sid]={enabled=message.enabled==true,lastAt=state.clock}
+      g.nextScan=0
+    end)
+  end)
+  if ok and evt then
+    g.event=evt
+    g.lastStatus=g.enabled and 'GHOST ON / SYNCING' or 'GHOST OFF / READY'
+  else
+    g.supported=false
+    g.lastStatus='GHOST EVENT ERROR'
+    pcall(ac.log,'VENOM X ghost event init: '..tostring(evt))
+  end
+end
+
+local function ghostDisableAt(index,disabled)
+  local ok,ret=pcall(physics.disableCarCollisions,index,disabled)
+  if not ok or ret==false then
+    state.ghost.lastStatus='GHOST PHYSICS API REJECTED'
+    return false
+  end
+  return true
+end
+
+local function scanGhostCollisions()
+  local g=state.ghost
+  if not g.supported then return end
+  local seen={}
+  -- A client's own car keeps normal traffic/world physics. Setting
+  -- remote human colliders is sufficient for the player-pair interaction.
+  for _,c in ac.iterateCars() do
+    if c.index~=0 and c.isConnected and c.isActive then
+      local sid=stateVal(c,'sessionID')
+      if isHumanCar(c,stateVal(c,'driverName'),stateVal(c,'id'),sid) then
+        seen[c.index]=true
+        local peer=g.peers[sid]
+        local peerGhost=peer and peer.enabled and
+          state.clock-peer.lastAt<16 or false
+        local disable=g.enabled or peerGhost
+        local prev=g.applied[c.index]
+        if not prev or prev.session~=sid or prev.disabled~=disable then
+          -- Avoid enabling an untouched collider: only restore ones
+          -- previously disabled by VENOM X.
+          if disable or (prev and prev.disabled) then
+            if ghostDisableAt(c.index,disable) then
+              g.applied[c.index]={session=sid,disabled=disable}
+            end
+          else
+            g.applied[c.index]={session=sid,disabled=false}
+          end
+        end
+      end
+    end
+  end
+  for idx,prev in pairs(g.applied) do
+    if not seen[idx] then
+      -- Disconnected cars can be recycled with a different session ID.
+      -- Forget their previous state rather than affecting a new occupant.
+      g.applied[idx]=nil
+    end
+  end
+end
+
+local function sendGhostState()
+  local g=state.ghost
+  if not g.event then return false end
+  local ok,ret=pcall(g.event,{enabled=g.enabled})
+  if ok and ret~=false then return true end
+  g.lastStatus='GHOST SYNC FAILED'
+  pcall(ac.log,'VENOM X ghost network send: '..tostring(ret))
+  return false
+end
+
+local function setGhostEnabled(enabled)
+  local g=state.ghost
+  initGhostEvent()
+  if not g.supported or not g.event then
+    toast(g.lastStatus,'warn')
+    return false
+  end
+  g.enabled=enabled==true
+  persist()
+  g.lastStatus=g.enabled and 'GHOST ON / PLAYERS ONLY' or
+    'GHOST OFF / NORMAL COLLISIONS'
+  -- Immediate local update; status broadcast must reach other clients too.
+  scanGhostCollisions()
+  sendGhostState()
+  g.nextSync=state.clock+5
+  toast(g.enabled and 'GHOST MODE: ON' or 'GHOST MODE: OFF')
+  return true
+end
+
+local function toggleGhostMode()
+  return setGhostEnabled(not state.ghost.enabled)
+end
+
+local function ghostUpdate()
+  local g=state.ghost
+  initGhostEvent()
+  if not g.supported then return end
+  if state.clock>=g.nextScan then
+    g.nextScan=state.clock+0.75
+    scanGhostCollisions()
+  end
+  if state.clock>=g.nextSync then
+    g.nextSync=state.clock+5
+    -- Periodic state allows a driver joining late to discover existing ghosts
+    -- without adding a new server DLL or installing a client-side mod.
+    sendGhostState()
+  end
+end
+
 local function refreshDestinations(force)
   if not force and (state.frames - state.destAt) < 150 then return end
   state.destAt = state.frames
@@ -1432,6 +1583,15 @@ local function drawHome()
   if ui.button('PLAYERS   /   GO TO FRIEND   >##vxhomePL', vec2(0,40)) then setSection('PLAYERS') end
   if ui.button('CAR COLOR   /   CUSTOM PAINT   >##vxhomeCL', vec2(0,40)) then setSection('COLOR') end
   if ui.button('TIME & SKY   /   ENVIRONMENT   >##vxhomeTM', vec2(0,40)) then setSection('TIME') end
+  ui.separator()
+  sectionLabel('GHOST MODE / PLAYERS ONLY')
+  local ghost=state.ghost
+  if ui.button((ghost.enabled and 'GHOST MODE   ON  /  DISABLE' or
+      'GHOST MODE   OFF  /  ENABLE')..'##vxhomeGHOST',vec2(0,38)) then
+    toggleGhostMode()
+  end
+  ui.textDisabled(tostring(ghost.lastStatus))
+  ui.textDisabled('No player collisions. Traffic and walls remain physical.')
   ui.separator()
   local me = car()
   if me then
@@ -1810,6 +1970,7 @@ local QUICK_ACTIONS = {
   { key='LIGHT', label='LIGHT', hint='Toggle vehicle headlights' },
   { key='HAZARD', label='HAZ', hint='Toggle vehicle hazard lights' },
   { key='HUD', label='HUD', hint='Toggle speedometer display' },
+  { key='GHOST', label='GHOST', hint='Toggle player-only collision ghost mode' },
   { key='MENU', label='MENU', hint='Open complete VENOM X menu' },
 }
 
@@ -1857,6 +2018,14 @@ local function quickGlyph(kind,cx,cy,paint)
     ui.drawLine(v(cx+10,cy+8),v(cx,cy-10),paint,1.8)
     ui.drawLine(v(cx,cy-4),v(cx,cy+3),paint,1.9)
     ui.drawCircleFilled(v(cx,cy+6),1,paint,8)
+  elseif kind=='GHOST' then
+    ui.drawCircle(v(cx,cy-1),9,paint,24,1.6)
+    ui.drawCircleFilled(v(cx-4,cy-2),1.5,paint,12)
+    ui.drawCircleFilled(v(cx+4,cy-2),1.5,paint,12)
+    ui.drawLine(v(cx-8,cy+9),v(cx-4,cy+6),paint,1.4)
+    ui.drawLine(v(cx-4,cy+6),v(cx,cy+9),paint,1.4)
+    ui.drawLine(v(cx,cy+9),v(cx+4,cy+6),paint,1.4)
+    ui.drawLine(v(cx+4,cy+6),v(cx+8,cy+9),paint,1.4)
   elseif kind=='HUD' then
     ui.drawCircle(v(cx,cy),10,paint,32,1.7)
     ui.drawLine(v(cx,cy),v(cx+6,cy-7),paint,1.9)
@@ -1889,6 +2058,7 @@ local function performQuickAction(key)
   if key=='MENU' then openPanel(nil) return end
   if key=='LIGHT' then toggleHeadlights() return end
   if key=='HAZARD' then toggleHazards() return end
+  if key=='GHOST' then toggleGhostMode() return end
   if key=='HUD' then
     state.hudVisible=not state.hudVisible
     persist()
@@ -1951,7 +2121,8 @@ local function drawQuickDock()
       local active=selected or
         (item.key=='HUD' and state.hudVisible) or
         (item.key=='LIGHT' and vehicle and vehicle.headlightsActive) or
-        (item.key=='HAZARD' and vehicle and vehicle.hazardLights)
+        (item.key=='HAZARD' and vehicle and vehicle.hazardLights) or
+        (item.key=='GHOST' and state.ghost.enabled)
       local actionColor=item.key=='HAZARD' and C.warn or C.accent
       local bg=active and C.btnActive or hovered and C.btnHover or C.btnFlat
       ui.drawRectFilled(vec2(xx,yy),vec2(xx+tileW,yy+tileH),
@@ -2702,6 +2873,7 @@ function script.update(dt)
     state.sectT = math.min(1, state.sectT + state.dt * 7)
   end
   timeControlUpdate(state.dt)
+  ghostUpdate()
   monitorExternalTeleports()
   restoreTeleportOptions()
   verifyPlayerTeleport()
