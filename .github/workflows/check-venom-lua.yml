@@ -1,0 +1,25 @@
+name: Validate VENOM X Lua syntax
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'VENOM_X.lua'
+      - '.github/workflows/check-venom-lua.yml'
+jobs:
+  lua-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Lua syntax parser
+        run: npm install --no-save --silent luaparse@0.3.1
+      - name: Parse CSP Lua source
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const luaparse=require('luaparse');
+          const source=fs.readFileSync('VENOM_X.lua','utf8');
+          const ast=luaparse.parse(source, {luaVersion:'5.2',comments:false});
+          if (!ast || ast.type!=='Chunk') process.exit(1);
+          console.log('VENOM X Lua parsed successfully ('+source.length+' bytes)');
+          NODE
