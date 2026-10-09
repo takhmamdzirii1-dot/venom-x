@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.11.2'
+local VERSION = '3.12.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.11.2',
+  versionTag = 'v3.12.0',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -203,6 +203,10 @@ local state = {
   pendingTeleport = nil,
   optionsRestore = nil,
   optionsStatus = 'NOT TESTED',
+  lastControls = nil,
+  lastCarPos = nil,
+  lastCarSampleAt = nil,
+  registeredJumpHook = false,
   time = {
     want=0,curOffset=0,mode='SERVER',nativeRejected=false,
     nativeAttempted=false,nativeApplied=false,nativeResult='NOT CALLED',
@@ -514,13 +518,16 @@ local function preserveFlag(v)
   return type(v)=='boolean' and v or nil
 end
 
+local EXTRA_KEYS={'extraA','extraB','extraC','extraD','extraE','extraF','extraG','extraH','extraI','extraJ'}
+
 local function snapshotCarOptions(me)
   local snapshot={extra={}}
-  for i,key in ipairs({'extraA','extraB','extraC','extraD','extraE','extraF'}) do
+  for i,key in ipairs(EXTRA_KEYS) do
     snapshot.extra[i]=preserveFlag(stateVal(me,key))
   end
   snapshot.headlights=preserveFlag(stateVal(me,'headlightsActive'))
   snapshot.highBeams=preserveFlag(stateVal(me,'highBeams'))
+  snapshot.lowBeams=preserveFlag(stateVal(me,'lowBeams'))
   snapshot.hazards=preserveFlag(stateVal(me,'hazardLights'))
   snapshot.turnLeft=preserveFlag(stateVal(me,'turningLeftOnly'))
   snapshot.turnRight=preserveFlag(stateVal(me,'turningRightOnly'))
@@ -566,7 +573,7 @@ local function restoreCarOptions(snapshot)
     end
   end
 
-  for i,key in ipairs({'extraA','extraB','extraC','extraD','extraE','extraF'}) do
+  for i,key in ipairs(EXTRA_KEYS) do
     local wanted=snapshot.extra[i]
     local current=preserveFlag(stateVal(me,key))
     if wanted~=nil and current~=nil then
@@ -587,7 +594,28 @@ local function restoreCarOptions(snapshot)
     end
   end
   restoreBool('headlightsActive',snapshot.headlights,ac.setHeadlights)
-  restoreBool('highBeams',snapshot.highBeams,ac.setHighBeams)
+  -- CSP commonly exposes car.lowBeams rather than car.highBeams.
+  if snapshot.highBeams~=nil then
+    restoreBool('highBeams',snapshot.highBeams,ac.setHighBeams)
+  elseif snapshot.lowBeams~=nil then
+    local nowLow=preserveFlag(stateVal(me,'lowBeams'))
+    if nowLow~=nil then
+      result.readable=result.readable+1
+      if nowLow~=snapshot.lowBeams then
+        result.missing=result.missing+1
+        if type(ac.setHighBeams)=='function' then
+          local ok,ret=pcall(ac.setHighBeams,not snapshot.lowBeams)
+          if ok and ret~=false then
+            result.attempted=result.attempted+1
+          else
+            result.denied=result.denied+1
+          end
+        else
+          result.unavailable=result.unavailable+1
+        end
+      end
+    end
+  end
 
   local h=preserveFlag(stateVal(me,'hazardLights'))
   local l=preserveFlag(stateVal(me,'turningLeftOnly'))
@@ -665,6 +693,49 @@ local function restoreTeleportOptions()
     state.optionsRestore=nil
   else
     state.optionsStatus=string.format('CHECKING %d / MISSING %d',task.pass,stats.missing)
+  end
+end
+
+-- Track switches continuously to preserve them when a CM/map teleport
+-- happens OUTSIDE the VENOM X menu. No vehicle physics reset is called here.
+local function monitorExternalTeleports()
+  local me=car()
+  if not me or not me.position then return end
+  local pos=me.position
+  if type(pos.x)~='number' or type(pos.z)~='number' then return end
+  local previous=state.lastCarPos
+  local now=state.clock
+  if previous and state.lastCarSampleAt and not state.optionsRestore then
+    local elapsed=now-state.lastCarSampleAt
+    local dx,dz=pos.x-previous.x,pos.z-previous.z
+    -- 70 metres in under .25s is a teleport, not normal driving.
+    if elapsed>0 and elapsed<0.25 and dx*dx+dz*dz>4900
+       and state.lastControls then
+      beginOptionsRestoration(state.lastControls)
+      state.optionsStatus='EXTERNAL MAP TP / RESTORING'
+    end
+  end
+  state.lastCarPos={x=pos.x,y=pos.y,z=pos.z}
+  state.lastCarSampleAt=now
+  if not state.optionsRestore then
+    state.lastControls=snapshotCarOptions(me)
+  end
+end
+
+local function registerCarJumpProtection()
+  if state.registeredJumpHook then return end
+  state.registeredJumpHook=true
+  if type(ac.onCarJumped)~='function' then return end
+  local ok,err=pcall(function()
+    ac.onCarJumped(0,function()
+      if not state.optionsRestore and state.lastControls then
+        beginOptionsRestoration(state.lastControls)
+        state.optionsStatus='CAR JUMP / RESTORING OPTIONS'
+      end
+    end)
+  end)
+  if not ok then
+    pcall(ac.log,'VENOM X car jump hook unavailable: '..tostring(err))
   end
 end
 
@@ -2031,6 +2102,7 @@ function script.update(dt)
     state.sectT = math.min(1, state.sectT + state.dt * 7)
   end
   timeControlUpdate(state.dt)
+  monitorExternalTeleports()
   restoreTeleportOptions()
   verifyPlayerTeleport()
   if (state.panelOpen and state.section == 'PLAYERS') or state.quickMode=='FRIEND' then
@@ -2113,6 +2185,7 @@ applyPanelSize()
 loadConfig()
 buildConfigDests()
 loadChat()
+registerCarJumpProtection()
 refreshDestinations(true)
 setSection(state.section)
 
