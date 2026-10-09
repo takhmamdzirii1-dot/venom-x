@@ -21,5 +21,23 @@ jobs:
           const source=fs.readFileSync('VENOM_X.lua','utf8');
           const ast=luaparse.parse(source, {luaVersion:'5.2',comments:false});
           if (!ast || ast.type!=='Chunk') process.exit(1);
-          console.log('VENOM X Lua parsed successfully ('+source.length+' bytes)');
+          const removed = [
+            'drawVisualSky', 'ensureSceneColorCorrection',
+            'updateSceneColorCorrection', 'VISUAL_TIME_STOPS',
+            'SCENE_LIGHT_STOPS', 'ac.addColorCorrection',
+            '##vx_visual_mode', '##vxq_filter'
+          ];
+          const remnants = removed.filter(item => source.includes(item));
+          if (remnants.length) throw Error('Legacy visual filters still present: '+remnants.join(', '));
+          const preserved = [
+            "ac.StructItem.key('VENOMX_SetTime')",
+            'queueServerSky(true)', 'queueServerSky(false)',
+            '##vx_personal_time', '##vxq_clock',
+            'local function teleportToPlayer(p)',
+            'local function drawSpeedometer()',
+            'assets/venom_logo.webp'
+          ];
+          const missing = preserved.filter(item => !source.includes(item));
+          if (missing.length) throw Error('Required VENOM functionality missing: '+missing.join(', '));
+          console.log('VENOM X Lua syntax + real sky/no-filter regression checks passed ('+source.length+' bytes)');
           NODE
