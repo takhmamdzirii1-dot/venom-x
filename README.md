@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.11.2)
+# VENOM X — AssettoServer online HUD (v3.12.0)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -10,6 +10,20 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.12.0 — Horizontal frosted-glass quick dock and extra J preservation
+
+- VENOM X logo (left click) shows/hides the QUICK DOCK, rather than opening the large menu; right click opens the full panel. The standalone MENU icon opens the complete panel, and Ctrl+Shift+X still works.
+- Dock is OPEN on first entry in this version. A new local preference key replaces the old dock toggle so legacy hidden state does not unexpectedly hide the redesigned strip.
+- Eight actions stay in ONE horizontal row: MAP, CREW, TIME, PAINT, LIGHT, HAZ, HUD and MENU, with adaptive tile widths.
+- Real native CSP transparent tool window background, low-opacity idle style, high-contrast hover reveal, spring-like ease-out fade/slide entrance and exit, and persistent visibility.
+- Expanded car-switch snapshots from Extra A-F to **Extra A-J**. Added a low-beam state fallback where CSP has no independent high-beams flag.
+- Added guarded `ac.onCarJumped` event and a large-position-jump detector using the previous frame's car switch state to cover teleports made from **external Content Manager/map**, not just VENOM X buttons. Restoration still depends on online scripting API access and the specific car mod.
+- Existing behind-player 11m, orientation matching, no-stop restriction, momentum clearing, status reporting and conditional recovery remain.
+
+**Known TIME limitation:** Initial v3.6/v3.7 local sky logic relied on a client Pure/WeatherFX bridge; those revisions did not provide reliable standalone per-player sky time from the server script. Current CSP online Lua in the reported session does not expose `ac.setWeatherTimeOffset`, so this version preserves the user's private clock chooser and accurate requested time but cannot truthfully promise actual independent sunrise/night, regardless of preset values. The configured sunrise/sunset values are 07:15 and 18:00. No automatic shared server time changes are issued.
+
+**QA:** GitHub source/static checks passed. An actual Assetto Corsa+CSP session is needed to verify UI render transparency, delayed car control restoration and any sky behavior. For missing extras, read the per-teleport diagnostic in PLAYERS/CREW.
 
 ### v3.11.2 — All teleport types use preservation
 
