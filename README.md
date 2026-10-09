@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.20.0)
+# VENOM X — AssettoServer online HUD (v3.20.1)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -10,6 +10,22 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.20.1 — End-to-end personal TIME acknowledgements
+
+- The client no longer treats a successful Lua `pcall` as proof the server accepted a time setting.
+- The updated .NET 8 VENOM time plugin sends back an OnlineEvent ACK only after it
+  handles the client's command and dispatches a WeatherFX update; unexpected commands
+  or dispatch exceptions trigger a server error response instead.
+- TIME displays `AWAITING SERVER ACK`, `SERVER ACK`, `SERVER ERROR`, or
+  `NO SERVER ACK / CHECK PLUGIN DLL AND LOGS` after 4 seconds.
+- A server ACK confirms receiving/dispatching the packet, **not** visible physical
+  sun or moon movement. If sky still does not change after an ACK, verify the
+  WeatherFX controller (Pure PP is a post-processing filter, not proof of
+  the selected weather controller), client CSP and server logs.
+- Reinstall the *new* `VENOM-Personal-Time-net8` DLL from a successful
+  GitHub Actions artifact built after v3.20.0, then restart server and reconnect.
+  Do not keep the initial v3.20.0 DLL for this diagnostic test.
 
 ### v3.20.0 — Real per-player TIME for AssettoServer 0.0.54.x
 
