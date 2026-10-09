@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.15.0'
+local VERSION = '3.16.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.15.0',
+  versionTag = 'v3.16.0',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -2027,8 +2027,10 @@ end
 
 speedoRect = function()
   local scr = getScreenSize()
-  local k = clamp(state.hudScale or 100, 80, 130) / 100
-  local w, h = math.floor(369*k), math.floor(110*k)
+  -- Source CMRT gearbox uses 435x100 for its KERS capsule. Display at
+  -- 70% by default, matching the compact ~305px screenshot reference.
+  local k = .70 * clamp(state.hudScale or 100, 80, 130) / 100
+  local w, h = math.floor(435*k), math.floor(135*k)
   local x, y = state.spdX, state.spdY
   if type(x) ~= 'number' or x < 0 then x,y = scr.x-w-26,scr.y-h-70 end
   if type(y) ~= 'number' or y < 0 then y = scr.y-h-70 end
@@ -2083,6 +2085,10 @@ end
 -- native CSP vector primitives. No imported font/image or third-party code.
 -- Geometry: long thin pill, gear ring, RPM shift dots, speed, KERS/fuel
 -- circular percentage, and a slim fuel/estimated-laps footer.
+-- Pixel-faithful CMRT gearbox layout, rebuilt with VENOM crimson colors.
+-- Matching original 435x100 KERS variant proportions, 14 RPM LEDs, the
+-- large 50px endcaps, two 46px dial outlines and floating fuel capsule.
+-- Recreated entirely with native CSP vector calls; no local files required.
 local function drawSpeedometer()
   if not state.hudVisible then return end
   local c=car()
@@ -2092,107 +2098,118 @@ local function drawSpeedometer()
   local gear=gearString(tonumber(stateVal(c,'gear')) or 0)
   local limiter=tonumber(stateVal(c,'rpmLimiter')) or 8000
   if limiter<100 then limiter=8000 end
+
   local x,y,w,h,k=speedoRect()
   x,y=handleSpeedoDrag(x,y,w,h)
   if state.spdX<0 then state.spdX,state.spdY=x,y end
-  local alpha=clamp(state.hudOp or 90,40,100)/100
-  state.smoothSpeed=anim(state.smoothSpeed,speed,11,state.dt)
+
+  local opacity=clamp(state.hudOp or 90,40,100)/100
+  state.smoothSpeed=anim(state.smoothSpeed,speed,12,state.dt)
   state.smoothRpm=anim(state.smoothRpm,rpm,14,state.dt)
 
+  local ratio=clamp(state.smoothRpm/limiter,0,1)
   local fuel=tonumber(stateVal(c,'fuel'))
   local maxFuel=tonumber(stateVal(c,'maxFuel'))
   local fuelPerLap=tonumber(stateVal(c,'fuelPerLap'))
-  local hasKers=stateVal(c,'kersPresent')==true
-  local kersPct=hasKers and tonumber(stateVal(c,'kersCharge')) or nil
-  local resourcePct=nil
-  local resourceTitle='FUEL'
-  if kersPct and kersPct>=0 then
-    resourcePct=clamp(kersPct*100,0,100)
-    resourceTitle='ERS'
+  local battery=tonumber(stateVal(c,'kersCharge'))
+  local hasBattery=stateVal(c,'kersPresent')==true
+  local pct=nil
+  if hasBattery and battery and battery>=0 then
+    pct=clamp(battery<=1 and battery*100 or battery,0,100)
   elseif fuel and maxFuel and maxFuel>0 then
-    resourcePct=clamp(fuel/maxFuel*100,0,100)
+    pct=clamp(fuel/maxFuel*100,0,100)
   end
-  local rpmRatio=clamp(state.smoothRpm/limiter,0,1)
 
   withWindow('vx_speedo',vec2(x,y),vec2(w,h),function()
     local function v(px,py) return vec2(px*k,py*k) end
-    local function ink(c) return col(c,alpha) end
-    local function centered(text,size,cx,top,color)
-      local actual=ui.measureDWriteText(text,size*k,-1)
-      ui.dwriteDrawText(text,size*k,
-        v(cx,top)-vec2(actual.x/2,0),ink(color))
+    local function color(base,moreAlpha)
+      return col(base,opacity*(moreAlpha or 1))
     end
-    local function arc(center,radius,a,b,width,color)
+    local function textAt(value,px,py,size,paint)
+      ui.dwriteDrawText(tostring(value),size*k,v(px,py),color(paint))
+    end
+    local function centered(value,cx,cy,size,paint)
+      local valueString=tostring(value)
+      local ts=ui.measureDWriteText(valueString,size*k,-1)
+      ui.dwriteDrawText(valueString,size*k,
+        v(cx,cy)-vec2(ts.x*.5,ts.y*.5),color(paint))
+    end
+    local function ring(cx,cy,r,width,a,b,paint,fade)
       ui.pathClear()
-      ui.pathArcTo(center,radius*k,a,b,38)
-      ui.pathStroke(ink(color),false,width*k)
+      ui.pathArcTo(v(cx,cy),r*k,a,b,64)
+      ui.pathStroke(color(paint,fade),false,width*k)
     end
 
-    -- CMRT-like single slim panel with floating round left/right lenses.
-    ui.drawRectFilled(v(27,13),v(345,86),ink(C.glassDeep),31*k)
-    ui.drawRect(v(27,13),v(345,86),col(C.text,alpha*.15),
-      31*k,ui.CornerFlags.All,1*k)
-    ui.drawRectFilled(v(61,15),v(298,19),col(C.accent,alpha*.22),2*k)
-    local gearCenter=v(44,51)
-    ui.drawCircleFilled(gearCenter,37*k,ink(C.glassDeep),55)
-    ui.drawCircle(gearCenter,37*k,col(C.text,alpha*.25),55,4*k)
-    ui.drawCircle(gearCenter,31*k,col(C.text,alpha*.13),55,1.2*k)
-    if state.rpmBar then
-      arc(gearCenter,35,-.2,-.2+1.3*rpmRatio,4.4,C.accent)
-    end
-    centered(gear,33,44,32,C.text)
+    -- Identical silhouette principle to original GEARBOX_ERS capsule:
+    -- 435x100 body starting y=20, tangent round ends radius 50.
+    -- Deep transparent obsidian replaces CMRT's untinted asset.
+    ui.drawRectFilled(v(0,20),v(435,120),
+      rgbm(.015,.015,.021,opacity*.91),50*k)
+    ui.drawRect(v(1,21),v(434,119),
+      rgbm(.69,.68,.73,opacity*.17),49*k,ui.CornerFlags.All,1.25*k)
+    ui.drawRectFilled(v(43,30),v(392,112),
+      rgbm(.023,.021,.028,opacity*.56),38*k)
+    -- Soft internal highlight on the upper contour: CMRT texture feel.
+    ui.drawLine(v(54,23),v(380,23),
+      rgbm(.65,.64,.67,opacity*.075),1*k)
 
-    -- Progressive RPM LED row, contrasting dark idle dots and crimson shift.
-    local dots=19
-    for dot=1,dots do
-      local point=v(91+(dot-1)*10.2,26)
-      local limit=dot/dots
-      local lighted=state.rpmBar and rpmRatio>=limit
-      local tint=lighted and (rpmRatio>.97 and C.warn or C.accent)
-        or C.dim
-      ui.drawCircleFilled(point,2.5*k,
-        col(tint,alpha*(lighted and .98 or .29)),14)
-    end
-    ui.dwriteDrawText('KMH',10*k,v(104,36),ink(C.dim))
-    ui.dwriteDrawText(tostring(math.floor(state.smoothSpeed+.5)),
-      20*k,v(104,49),ink(C.text))
-    ui.dwriteDrawText('RPM',10*k,v(178,36),ink(C.dim))
-    ui.dwriteDrawText(tostring(math.floor(state.smoothRpm+5)/10*10),
-      20*k,v(178,49),ink(C.text))
+    -- LEFT GEAR: CMRT circle centered 50/70, ~46px radius and 6px rim.
+    local gcx,gcy=50,70
+    ui.drawCircleFilled(v(gcx,gcy),45*k,
+      rgbm(.021,.020,.027,opacity*.91),64)
+    ring(gcx,gcy,42,6,.10,.10+math.pi*1.94,C.dim,.29)
+    ring(gcx,gcy,42,6,.11,.11+math.pi*1.94*ratio,
+      ratio>.96 and C.warn or C.accent,.98)
+    ui.drawCircle(v(gcx,gcy),36*k,color(C.dim,.16),58,1.4*k)
+    centered(gear,gcx,gcy-1,46,C.text)
 
-    -- Right side mirrors CMRT's KERS charge dial; fuel % is a useful
-    -- fallback on regular road cars that do not have a KERS battery.
-    local resourceCenter=v(324,49)
-    ui.drawCircleFilled(resourceCenter,34*k,ink(C.glassDeep),55)
-    arc(resourceCenter,33,-math.pi*.5,math.pi*1.5,4.2,C.btnHover)
-    if resourcePct and resourcePct>.1 then
-      arc(resourceCenter,33,-math.pi*.5,
-        -math.pi*.5+math.pi*2*resourcePct/100,4.2,
-        resourcePct<15 and C.warn or C.accent)
+    -- EXACT CMRT dot quantity and 14px spacing, not the prior 19 LEDs.
+    for i=0,13 do
+      local active=state.rpmBar and ratio*14>=i+1
+      local hue=ratio>.95 and C.warn or C.accent
+      ui.drawCircleFilled(v(126+i*14,39),4.35*k,
+        color(active and hue or C.dim,active and .99 or .21),17)
     end
-    ui.drawCircle(resourceCenter,27*k,
-      col(C.accent,alpha*.33),55,1*k)
-    centered(resourcePct and tostring(math.floor(resourcePct+.5)) or '--',
-      16,324,39,C.text)
-    centered(resourceTitle,8,324,58,C.dim)
 
-    -- Lower glanceable fuel and estimated remaining laps capsule.
-    ui.drawRectFilled(v(76,86),v(277,106),
-      ink(C.glassDeep),10*k)
-    ui.drawRect(v(76,86),v(277,106),
-      col(C.text,alpha*.23),10*k,ui.CornerFlags.All,1*k)
-    ui.drawCircleFilled(v(86,96),3*k,
-      col(fuel and maxFuel and maxFuel>0 and fuel/maxFuel<.12 and C.warn or C.dim,
-        alpha*.82),12)
-    local fuelText=fuel and string.format('%.1f L',fuel) or '-- L'
+    -- SPEED + RPM occupy the same columns as the screenshot.
+    textAt('KMH',110,53,14,C.dim)
+    textAt(tostring(math.floor(state.smoothSpeed+.5)),
+      110,69,25,C.text)
+    textAt('RPM',200,53,14,C.dim)
+    textAt(tostring(math.floor(state.smoothRpm+.5)),
+      200,69,25,C.text)
+
+    -- RIGHT BATTERY/FUEL RING: same footprint as original CMRT
+    -- ~100px end-cap. Percent text only, no second label inside.
+    local rcx,rcy=385,70
+    ui.drawCircleFilled(v(rcx,rcy),47*k,
+      rgbm(.016,.016,.022,opacity*.97),64)
+    ring(rcx,rcy,42,6,-math.pi*.97,math.pi*.97,C.dim,.26)
+    if pct and pct>.05 then
+      ring(rcx,rcy,42,6,
+        -math.pi*.97,-math.pi*.97+math.pi*1.94*(pct/100),
+        pct<12 and C.warn or C.accent,1)
+    end
+    ui.drawCircle(v(rcx,rcy),35*k,color(C.dim,.13),60,1*k)
+    centered(pct and tostring(math.floor(pct+.5)) or '--',
+      rcx,rcy,23,C.text)
+
+    -- Original fuel capsule overlaps bottom edge, centered horizontally.
+    ui.drawRectFilled(v(85,106),v(319,126),
+      rgbm(.016,.016,.022,opacity*.92),10*k)
+    ui.drawRect(v(85,106),v(319,126),
+      color(C.dim,.35),10*k,ui.CornerFlags.All,2*k)
+    local fuelLow=fuel and maxFuel and maxFuel>0
+      and (fuel/maxFuel)<.10
+    ui.drawCircleFilled(v(97,116),4.1*k,
+      color(fuelLow and C.accent or C.dim,.82),18)
+    local fuelValue=fuel and string.format('%.1fL',fuel) or '--'
     local laps=(fuel and fuelPerLap and fuelPerLap>.01)
       and string.format('%.1f',fuel/fuelPerLap) or '--'
-    ui.dwriteDrawText('FUEL',9*k,v(94,90),ink(C.dim))
-    ui.dwriteDrawText(fuelText,10*k,v(122,90),ink(C.text))
-    ui.drawLine(v(182,90),v(182,101),col(C.text,alpha*.16),1*k)
-    ui.dwriteDrawText('EST.LAP',9*k,v(190,90),ink(C.dim))
-    ui.dwriteDrawText(laps,10*k,v(241,90),ink(C.text))
-    ui.dwriteDrawText('VENOM X',8*k,v(289,94),col(C.accentSoft,alpha*.72))
+    textAt('FUEL',109,109,13,C.dim)
+    textAt(fuelValue,155,109,14,C.text)
+    textAt('EST.LAP',219,109,13,C.dim)
+    textAt(laps,286,109,13,C.text)
   end,true,false,true)
 end
 
