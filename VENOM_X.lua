@@ -206,6 +206,7 @@ local state = {
   optionsRestore = nil,
   optionsStatus = 'NOT TESTED',
   lastControls = nil,
+  lastControlsAt = -1,
   lastCarPos = nil,
   lastCarSampleAt = nil,
   registeredJumpHook = false,
@@ -719,8 +720,12 @@ local function monitorExternalTeleports()
   end
   state.lastCarPos={x=pos.x,y=pos.y,z=pos.z}
   state.lastCarSampleAt=now
-  if not state.optionsRestore then
+  if not state.optionsRestore and
+      (state.lastControls==nil or now-state.lastControlsAt>=0.08) then
+    -- About 12Hz for option-state reads, avoiding 10+ Lua/CSP
+    -- cross-API reads every graphics frame.
     state.lastControls=snapshotCarOptions(me)
+    state.lastControlsAt=now
   end
 end
 
