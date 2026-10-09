@@ -1,3 +1,7 @@
+using System.Buffers.Binary;
+using System.Text;
+using AssettoServer.Commands;
+using AssettoServer.Network.ClientMessages;
 using AssettoServer.Network.Tcp;
 using AssettoServer.Server;
 using AssettoServer.Server.Configuration;
@@ -17,6 +21,7 @@ public sealed class VenomPersonalTimePlugin : IHostedService
     private readonly VenomPersonalTimeService _time;
     private readonly WeatherManager _weatherManager;
     private readonly EntryCarManager _entryCarManager;
+    private readonly ChatService _chatService;
     private readonly ACServerConfiguration _server;
     private volatile bool _enabled;
 
@@ -26,15 +31,23 @@ public sealed class VenomPersonalTimePlugin : IHostedService
         WeatherManager weatherManager,
         EntryCarManager entryCarManager,
         CSPClientMessageTypeManager messages,
+        ChatService chatService,
         ACServerConfiguration server)
     {
         _config = config;
         _time = time;
         _weatherManager = weatherManager;
         _entryCarManager = entryCarManager;
+        _chatService = chatService;
         _server = server;
 
+        // CSP Online Lua in this 0.0.54 deployment transports OnlineEvent
+        // as \t\t\t\t$CSP0:<base64> CHAT instead of Extended.ClientMessage.
+        // ChatService exposes a cancellable event before broadcasting it.
+        // Subscribe there as an additional transport, tightly scoped to
+        // VENOMX_SetTime only. Keep the native event registration too.
         messages.RegisterOnlineEvent<VenomTimeEvent>(OnTimeEvent);
+        _chatService.MessageReceived += OnChatMessage;
         _entryCarManager.ClientDisconnected += OnDisconnected;
     }
 
@@ -52,8 +65,64 @@ public sealed class VenomPersonalTimePlugin : IHostedService
         }
 
         _enabled = true;
-        Log.Information("[VENOM TIME] Started on AssettoServer 0.0.54 / per-client WeatherFX decorator");
+        Log.Information("[VENOM TIME] Started on AssettoServer 0.0.54 / per-client WeatherFX decorator, CSP0 chat bridge active. Event type=0x{PacketType:X8}",
+            VenomTimeEvent.PacketType);
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Decode CSP Online Lua's chat-encoded OnlineEvent transport. The
+    /// 2026-10-09 server log contains:
+    /// $CSP0:YOpFD5uQc2V0ADA -> uint16 60000, uint32 0x909B0F45,
+    /// mode 'set', seconds '0'. The stock 0.0.54 chat handler does not
+    /// automatically dispatch this packet to RegisterOnlineEvent.
+    /// </summary>
+    public static bool TryDecodeChatTime(string chat, out VenomTimeEvent message)
+    {
+        message = new VenomTimeEvent();
+        var marker = chat.IndexOf("$CSP0:", StringComparison.Ordinal);
+        if (marker < 0 || marker > 32 || !string.IsNullOrWhiteSpace(chat[..marker]))
+            return false;
+
+        var encoded = chat[(marker + 6)..].Trim();
+        if (encoded.Length is < 12 or > 40) return false;
+        try
+        {
+            var bytes = Convert.FromBase64String(encoded.PadRight((encoded.Length + 3) / 4 * 4, '='));
+            if (bytes.Length is < 11 or > 18) return false;
+            if (BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(0, 2)) != 60000)
+                return false;
+
+            var packetId = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(2, 4));
+            // Runtime hash is authoritative; the second value is the ID
+            // verified from this server's captured VENOM_X.lua v3.20.1.
+            if (packetId != VenomTimeEvent.PacketType && packetId != 0x909B0F45u)
+                return false;
+
+            var mode = Encoding.ASCII.GetString(bytes, 6, 4).TrimEnd('\0');
+            var seconds = Encoding.ASCII.GetString(bytes, 10, bytes.Length - 10).TrimEnd('\0');
+            if (mode is not ("set" or "sync")) return false;
+            if (seconds.Length is < 1 or > 8 || !seconds.All(char.IsAsciiDigit))
+                return false;
+
+            message.Mode = mode;
+            message.Seconds = seconds;
+            return true;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
+    private void OnChatMessage(ACTcpClient player, ChatEventArgs args)
+    {
+        if (!TryDecodeChatTime(args.Message, out var command)) return;
+        // Cancel forwarding this private VENOM command to all other players.
+        args.Cancel = true;
+        Log.Information("[VENOM TIME] CSP0 CHAT BRIDGE decoded {Mode} {Seconds} from session {Session}",
+            command.Mode, command.Seconds, player.SessionId);
+        OnTimeEvent(player, command);
     }
 
     private void OnTimeEvent(ACTcpClient player, VenomTimeEvent command)
@@ -127,6 +196,7 @@ public sealed class VenomPersonalTimePlugin : IHostedService
     public Task StopAsync(CancellationToken cancellationToken)
     {
         _enabled = false;
+        _chatService.MessageReceived -= OnChatMessage;
         _entryCarManager.ClientDisconnected -= OnDisconnected;
         return Task.CompletedTask;
     }
