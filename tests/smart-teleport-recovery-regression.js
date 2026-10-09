@@ -79,7 +79,7 @@ state.recovery.carKey=nil
 state.recovery.spot=nil
 state.recovery.captureAfter=40
 state.recovery.nextAt=40
-for _,t in ipairs({40,41.1,42.2}) do
+for _,t in ipairs({40,44,45.1,46.2}) do
  state.clock=t
  sampleRecoverySpot()
 end
@@ -90,18 +90,18 @@ print('PASS: stable, upright 20km/h car saves last good checkpoint')
 
 local saved=state.recovery.spot
 own.speedKmh=80
-state.clock=44
+state.clock=47.2
 sampleRecoverySpot()
 assert(state.recovery.spot==saved,'speeding should not overwrite checkpoint')
 own.speedKmh=0
 own.up.y=0
-state.clock=45
+state.clock=48.3
 sampleRecoverySpot()
 assert(state.recovery.spot==saved,'flipped car should not overwrite checkpoint')
 own.up.y=1
 traffic.position.x=10
 traffic.position.z=10
-state.clock=46
+state.clock=49.4
 sampleRecoverySpot()
 assert(state.recovery.spot==saved,'crowded car must not overwrite checkpoint')
 print('PASS: unsafe, inverted or fast positions cannot poison recovery cache')
