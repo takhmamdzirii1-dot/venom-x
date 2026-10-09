@@ -216,6 +216,7 @@ local state = {
   lastCarPos = nil,
   lastCarSampleAt = nil,
   registeredJumpHook = false,
+  carJumpSubscription = nil,
   time = {
     want=0,curOffset=0,mode='SERVER',nativeRejected=false,
     nativeAttempted=false,nativeApplied=false,nativeResult='NOT CALLED',
@@ -795,7 +796,8 @@ local function registerCarJumpProtection()
   state.registeredJumpHook=true
   if type(ac.onCarJumped)~='function' then return end
   local ok,err=pcall(function()
-    ac.onCarJumped(0,function()
+    -- Preserve Disposable: if it is GC'd, CSP might unsubscribe this callback.
+    state.carJumpSubscription=ac.onCarJumped(0,function()
       if not state.optionsRestore and (state.sessionOptions or state.lastControls) then
         beginOptionsRestoration(state.sessionOptions or state.lastControls)
         state.optionsStatus='CAR JUMP / RESTORING OPTIONS'
