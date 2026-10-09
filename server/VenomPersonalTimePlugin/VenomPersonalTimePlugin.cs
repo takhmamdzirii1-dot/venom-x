@@ -58,19 +58,68 @@ public sealed class VenomPersonalTimePlugin : IHostedService
 
     private void OnTimeEvent(ACTcpClient player, VenomTimeEvent command)
     {
-        if (!_enabled || !player.HasSentFirstUpdate) return;
-        if (command.Mode == "sync")
+        // Reply using the SAME OnlineEvent layout. AssettoServer 0.0.54 supports
+        // client.SendPacket(OnlineEvent), as used by FastTravelPlugin.
+        // ACK proves that this plugin processed the event and dispatched weather;
+        // it does not prove that the player's WeatherFX rendered the new sky.
+        if (!_enabled)
         {
-            _time.Clear(player.SessionId);
+            SendResponse(player, "err", "OFF");
+            return;
         }
-        else if (command.Mode == "set" && int.TryParse(command.Seconds, out var seconds))
+        if (!player.HasSentFirstUpdate)
         {
-            _time.Set(player.SessionId, seconds, _weatherManager.CurrentDateTime);
+            SendResponse(player, "err", "SPAWN");
+            return;
         }
-        else return;
 
-        _weatherManager.SendWeather(player); // dispatches through our decorator
-        Log.Debug("[VENOM TIME] Personal update for session {Session}, mode {Mode}", player.SessionId, command.Mode);
+        var replySeconds = "0";
+        try
+        {
+            if (command.Mode == "sync")
+            {
+                _time.Clear(player.SessionId);
+            }
+            else if (command.Mode == "set" &&
+                int.TryParse(command.Seconds, out var seconds) &&
+                seconds >= 0 && seconds < 86400)
+            {
+                _time.Set(player.SessionId, seconds, _weatherManager.CurrentDateTime);
+                replySeconds = seconds.ToString();
+            }
+            else
+            {
+                SendResponse(player, "err", "INPUT");
+                return;
+            }
+
+            _weatherManager.SendWeather(player);
+            Log.Information("[VENOM TIME] Received mode={Mode} requested={Seconds} session={Session} player={Player}; WeatherFX update dispatched",
+                command.Mode, replySeconds, player.SessionId, player.Name);
+            SendResponse(player, "ack", replySeconds);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[VENOM TIME] Could not dispatch weather for session {Session}", player.SessionId);
+            SendResponse(player, "err", "WEATHER");
+        }
+    }
+
+    private static void SendResponse(ACTcpClient player, string mode, string seconds)
+    {
+        try
+        {
+            player.SendPacket(new VenomTimeEvent
+            {
+                SessionId = 255, // CSP sender==nil indicates the server
+                Mode = mode,
+                Seconds = seconds
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[VENOM TIME] Failed sending diagnostic ACK to client session {Session}", player.SessionId);
+        }
     }
 
     private void OnDisconnected(ACTcpClient player, EventArgs _) => _time.Clear(player.SessionId);
