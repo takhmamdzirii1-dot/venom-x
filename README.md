@@ -394,15 +394,13 @@ is requested as a cached texture over HTTPS, not downloaded every frame.
 The width adapts to the player's UI viewport (155–252 units) with the
 original aspect ratio and a top margin of 2 units.
 
-**Required deployment asset:** upload the binary WebP file as
-`assets/venom_logo.webp` on this repository's `main` branch. The script
-points to the exact raw asset URL:
+**Deployed asset:** `assets/venom_logo.webp` is committed to
+the repository's `main` branch (39,700 bytes), matching the optimized
+logo's Git blob hash exactly. The script fetches the public raw image URL:
 
 `https://raw.githubusercontent.com/takhmamdzirii1-dot/venom-x/main/assets/venom_logo.webp`
 
-Until the image exists there, the script cannot render the actual
-emblem. The Lua code was deployed but this binary image upload still
-needs to be completed. This cannot be substituted with a sandbox link.
+No manual client files or server-file copies are necessary.
 
 The UI logo is anchored at the top center, not attached to Virtual
 Mirror's position or state. If a player's Virtual Mirror occupies the
