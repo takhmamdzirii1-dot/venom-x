@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.11.0'
+local VERSION = '3.11.1'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.11.0',
+  versionTag = 'v3.11.1',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -201,6 +201,8 @@ local state = {
   drawErrors = 0,
   emergency = false,
   pendingTeleport = nil,
+  optionsRestore = nil,
+  optionsStatus = 'NOT TESTED',
   time = {
     want=0,curOffset=0,mode='SERVER',nativeRejected=false,
     nativeAttempted=false,nativeApplied=false,nativeResult='NOT CALLED',
@@ -517,55 +519,131 @@ local function snapshotCarOptions(me)
   return snapshot
 end
 
+-- Preserve switch state without spamming controls if they never changed.
+-- Return actual observable mismatches; online CSP might forbid setters.
 local function restoreCarOptions(snapshot)
-  if not snapshot then return end
+  local result={missing=0,attempted=0,denied=0,unavailable=0,readable=0}
+  if not snapshot then return result end
   local me=car()
-  if not me then return end
-  if type(ac.setExtraSwitch)=='function' then
-    for i,key in ipairs({'extraA','extraB','extraC','extraD','extraE','extraF'}) do
-      local was=snapshot.extra[i]
-      local current=preserveFlag(stateVal(me,key))
-      if was~=nil and current~=nil and current~=was then
-        pcall(ac.setExtraSwitch,i-1,was)
+  if not me then return result end
+
+  local function restoreBool(field,was,setter)
+    local current=preserveFlag(stateVal(me,field))
+    if current==nil or was==nil then return end
+    result.readable=result.readable+1
+    if current==was then return end
+    result.missing=result.missing+1
+    if type(setter)~='function' then
+      result.unavailable=result.unavailable+1
+      return
+    end
+    local ok,ret=pcall(setter,was)
+    if ok and ret~=false then
+      result.attempted=result.attempted+1
+    else
+      result.denied=result.denied+1
+    end
+  end
+
+  for i,key in ipairs({'extraA','extraB','extraC','extraD','extraE','extraF'}) do
+    local wanted=snapshot.extra[i]
+    local current=preserveFlag(stateVal(me,key))
+    if wanted~=nil and current~=nil then
+      result.readable=result.readable+1
+      if wanted~=current then
+        result.missing=result.missing+1
+        if type(ac.setExtraSwitch)=='function' then
+          local ok,ret=pcall(ac.setExtraSwitch,i-1,wanted)
+          if ok and ret~=false then
+            result.attempted=result.attempted+1
+          else
+            result.denied=result.denied+1
+          end
+        else
+          result.unavailable=result.unavailable+1
+        end
       end
     end
   end
-  local active=preserveFlag(stateVal(me,'headlightsActive'))
-  if snapshot.headlights~=nil and active~=nil and active~=snapshot.headlights
-      and type(ac.setHeadlights)=='function' then
-    pcall(ac.setHeadlights,snapshot.headlights)
+  restoreBool('headlightsActive',snapshot.headlights,ac.setHeadlights)
+  restoreBool('highBeams',snapshot.highBeams,ac.setHighBeams)
+
+  local h=preserveFlag(stateVal(me,'hazardLights'))
+  local l=preserveFlag(stateVal(me,'turningLeftOnly'))
+  local r=preserveFlag(stateVal(me,'turningRightOnly'))
+  local wantedHazards=snapshot.hazards
+  local wantedLeft=snapshot.turnLeft
+  local wantedRight=snapshot.turnRight
+  local mismatch=false
+  if wantedHazards~=nil and h~=nil then
+    result.readable=result.readable+1
+    mismatch=mismatch or (h~=wantedHazards)
   end
-  local high=preserveFlag(stateVal(me,'highBeams'))
-  if snapshot.highBeams~=nil and high~=nil and high~=snapshot.highBeams
-      and type(ac.setHighBeams)=='function' then
-    pcall(ac.setHighBeams,snapshot.highBeams)
+  if wantedLeft~=nil and l~=nil then
+    result.readable=result.readable+1
+    mismatch=mismatch or (l~=wantedLeft)
   end
-  if type(ac.setTurningLights)=='function' and ac.TurningLights then
-    local h=preserveFlag(stateVal(me,'hazardLights'))
-    local l=preserveFlag(stateVal(me,'turningLeftOnly'))
-    local r=preserveFlag(stateVal(me,'turningRightOnly'))
-    if (snapshot.hazards~=nil and h~=nil and h~=snapshot.hazards)
-       or (snapshot.turnLeft~=nil and l~=nil and l~=snapshot.turnLeft)
-       or (snapshot.turnRight~=nil and r~=nil and r~=snapshot.turnRight) then
-      local desired=snapshot.hazards and ac.TurningLights.Hazards
-        or snapshot.turnLeft and ac.TurningLights.Left
-        or snapshot.turnRight and ac.TurningLights.Right
-        or ac.TurningLights.None
-      if desired~=nil then pcall(ac.setTurningLights,desired) end
+  if wantedRight~=nil and r~=nil then
+    result.readable=result.readable+1
+    mismatch=mismatch or (r~=wantedRight)
+  end
+  if mismatch then
+    result.missing=result.missing+1
+    local turns=ac.TurningLights
+    local desired=turns and (wantedHazards and turns.Hazards
+       or wantedLeft and turns.Left
+       or wantedRight and turns.Right
+       or turns.None)
+    if desired==nil or type(ac.setTurningLights)~='function' then
+      result.unavailable=result.unavailable+1
+    else
+      local ok,ret=pcall(ac.setTurningLights,desired)
+      if ok and ret~=false then
+        result.attempted=result.attempted+1
+      else
+        result.denied=result.denied+1
+      end
     end
   end
+  return result
 end
 
+-- Physics.setCarPosition can trigger a *later* car jump/reset in physics
+-- scripts. Keep preservation independent from pendingTeleport (which ends
+-- after 0.7s), and check up to 3.5s with bounded retry intervals.
 local function restoreTeleportOptions()
-  local pending=state.pendingTeleport
-  if not pending or not pending.options or
-    not pending.restoreAt or state.clock<pending.restoreAt then return end
-  restoreCarOptions(pending.options)
-  pending.restorePass=(pending.restorePass or 0)+1
-  if pending.restorePass<2 then
-    pending.restoreAt=state.clock+0.24
+  local task=state.optionsRestore
+  if not task or state.clock<task.nextAt then return end
+  local stats=restoreCarOptions(task.snapshot)
+  task.pass=task.pass+1
+  task.nextAt=state.clock+(task.pass<5 and 0.17 or 0.38)
+  task.last=stats
+  task.totalAttempts=task.totalAttempts+stats.attempted
+  task.denied=task.denied+stats.denied
+  task.unavailable=task.unavailable+stats.unavailable
+  if stats.missing==0 then
+    task.clean=task.clean+1
   else
-    pending.restoreAt=nil
+    task.clean=0
+  end
+  -- Hold on long enough for delayed post-jump resets but avoid fighting
+  -- intentional new driver input indefinitely.
+  if (state.clock-task.started)>=1.4 and task.clean>=3 then
+    state.optionsStatus=task.totalAttempts>0 and 'RESTORED / VERIFIED'
+       or stats.readable>0 and 'UNCHANGED' or 'NO READ ACCESS'
+    state.optionsRestore=nil
+  elseif state.clock>=task.deadline then
+    if stats.missing>0 then
+      state.optionsStatus=string.format('PARTIAL: %d MISMATCH / %d DENIED / %d NO API',
+        stats.missing,task.denied,task.unavailable)
+      pcall(ac.log,'VENOM X TP options: '..state.optionsStatus)
+    else
+      state.optionsStatus=stats.readable>0 and 'VERIFIED AFTER TP'
+        or 'NO READ ACCESS'
+    end
+    state.optionsRestore=nil
+  else
+    state.optionsStatus=string.format('CHECKING %d / MISSING %d',task.pass,stats.missing)
   end
 end
 
@@ -608,8 +686,17 @@ local function teleportToPlayer(p)
   -- use -look so that our resulting car.look matches the other driver's.
   -- See CSP Online-stuff/old-teleport/teleport-to-car.lua by Sahneisttoll.
   local destination=vec3(target.position.x-x*11,target.position.y+0.2,target.position.z-z*11)
+  -- Set up restoration *before* the CSP car-jump event can fire.
+  state.optionsRestore={
+    snapshot=originalOptions,started=state.clock,deadline=state.clock+3.5,
+    nextAt=state.clock+0.16,pass=0,clean=0,totalAttempts=0,
+    denied=0,unavailable=0
+  }
+  state.optionsStatus='TP / WAITING FOR CAR RESET'
   local ok,answer=pcall(physics.setCarPosition,0,destination,vec3(-x,0,-z))
   if not ok or answer==false then
+    state.optionsRestore=nil
+    state.optionsStatus='TELEPORT REJECTED'
     toast(L.teleportFailed,'warn')
     pcall(ac.log,'VENOM X teleport rejected: '..tostring(answer))
     return
@@ -623,8 +710,7 @@ local function teleportToPlayer(p)
   if type(physics.awakeCar)=='function' then pcall(physics.awakeCar,0) end
   state.pendingTeleport={
     dest=destination,name=p.name,at=state.clock+0.7,
-    lookX=x,lookZ=z,
-    options=originalOptions,restoreAt=state.clock+0.10,restorePass=0
+    lookX=x,lookZ=z
   }
   state.teleportCooldown=2.5
 end
@@ -1047,6 +1133,7 @@ local function drawPlayers()
     if not okp then error(errp, 0) end
   end
   ui.textDisabled(L.trafficHidden)
+  ui.textDisabled('CAR CONTROLS: '..tostring(state.optionsStatus))
   if state.teleportCooldown > 0.05 then
     ui.textColored(string.format(L.cooldown, state.teleportCooldown), C.warn)
   end
@@ -1490,6 +1577,7 @@ local function drawQuickPopup()
           ui.textDisabled(string.format('   %d m away',math.floor(p.dist+.5)))
         end
         ui.textDisabled('AI traffic excluded. Behind driver / same heading.')
+        ui.textDisabled('Car switches: '..tostring(state.optionsStatus))
       elseif mode=='TIME' then
         local tm=state.time
         ui.textColored(fmtSec(wrapDay(serverSec()+tm.want)),C.accentSoft)
@@ -1857,6 +1945,9 @@ local function timeControlUpdate(dt)
   if math.abs(tm.want-tm.curOffset)<1 then tm.curOffset=tm.want end
   tm.mode=type(ac.setWeatherTimeOffset)=='function' and
     not tm.nativeRejected and 'CSP NATIVE' or 'SERVER'
+  if tm.mode~='CSP NATIVE' and not tm.nativeRejected then
+    tm.nativeResult='UNAVAILABLE IN ONLINE SCRIPT'
+  end
   if state.clock-tm.skyProbeAt>1 then
     tm.skyProbeAt=state.clock
     local skyFn=type(ac.getSkyFeatureDirection)=='function' and ac.getSkyFeatureDirection
