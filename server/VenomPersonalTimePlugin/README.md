@@ -46,6 +46,31 @@ Enabled: true
    The key is `VENOMX_SetTime` with fields `mode: string(4)` and
    `seconds: string(8)`. `set` is personal time, `sync` restores server time.
 
+## Live diagnostic (v3.20.1)
+
+The updated DLL returns an `ack` OnlineEvent from the **server** using the
+`VENOMX_SetTime` event layout after it calls `WeatherManager.SendWeather(player)`.
+VENOM X v3.20.1 expects that ACK and reports an error if it does not arrive
+within 4 seconds. The outgoing reply uses `SessionId = 255` (server sender)
+and the same `mode: string(4)` / `seconds: string(8)` layout.
+
+Expected server logs:
+
+```
+[VENOM TIME] Started on AssettoServer 0.0.54 / per-client WeatherFX decorator
+[VENOM TIME] Received mode=set requested=0 session=... player=...; WeatherFX update dispatched
+```
+
+Interpretation:
+- No startup log: the plugin service was not started.
+- Startup log but no `Received mode=set`: old VENOM_X.lua, mismatched OnlineEvent ID,
+  or packets are not reaching this plugin. Try enabling `DebugClientMessages: true`
+  temporarily in extra_cfg.yml and inspect unknown CSP Lua messages.
+- `Received` log but `NO SERVER ACK`: server-to-client response may not be delivered.
+- `SERVER ACK` with unchanged actual sky: the event and backend executed; inspect
+  WeatherFX controller/Pure and the physical sun-height diagnostic. ACK alone does
+  not prove the sky rendered.
+
 ## Behavior
 
 - Handles player and admin identically. **Never** changes global server time.
