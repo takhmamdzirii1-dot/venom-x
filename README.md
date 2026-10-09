@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.21.0)
+# VENOM X — AssettoServer online HUD (v3.22.0)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -10,6 +10,41 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.22.0 — Smart teleport protection + Unstuck recovery
+
+- A successful VENOM teleport to a map destination, another player or
+  the pits starts a **temporary local-car collision shield**.
+  External CSP/map teleports are detected by jump callbacks or unusual
+  position changes and get the same shield when supported.
+- While the shield is active, calls
+  `physics.disableCarCollisions(0, true)` for this client and restores
+  `false` automatically. Minimum grace period: 3s; if any connected
+  car (players or AI) is within 12 metres, delays release, with a hard
+  14s deadline to avoid permanent no-collision mode.
+  This temporary shield does not alter the manual GHOST opt-in or remote
+  player collision state.
+- The new **UNSTUCK / RECOVER** action is available from HOME, the
+  TELEPORT page and the MAP quick menu. It returns the player's own
+  car to the last locally observed upright, low-speed (<=45 km/h),
+  non-crowded checkpoint after repeated stable samples. Captures pause
+  for 11s after teleport, avoid inverted cars and stop points close
+  to traffic. This is a heuristic checkpoint, NOT a guarantee that the
+  location is legal track/drivable pavement.
+- If a valid checkpoint is missing, the first click asks for confirmation
+  and the second click within 4s returns to configured pits instead.
+  If the player is moving over 30 km/h, recovering likewise requires
+  a second confirmation. Recovery has a 12s cooldown and preserves
+  the existing Extra A-J auto-restore.
+- If CSP does not expose the local collision API, the shield reports
+  UNAVAILABLE instead of pretending to protect the user. An observed
+  teleport can also fail in the game despite an accepted command:
+  actual in-game validation is still required. Never attempt to disable
+  collisions permanently or infer road surfaces from position alone.
+- Lua syntax tests and the existing car-options and Ghost tests all
+  passed; production Lua shield/recovery helpers are executed in a
+  separate regression suite covering min/max duration, nearby traffic,
+  checkpoint sampling, cooldown and confirmation.
 
 ### v3.21.0 — Opt-in GHOST MODE: player-vs-player collisions
 
