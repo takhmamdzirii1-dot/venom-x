@@ -1203,6 +1203,9 @@ local function initGhostEvent()
     g.event=evt
     g.lastStatus=g.enabled and 'GHOST ON / SERVER NOT CONFIRMED' or
       'GHOST OFF / SERVER NOT CONFIRMED'
+    -- On Lua hot reload, send even an OFF state so a previous ON on the
+    -- still-connected server session cannot linger.
+    g.queued=true
   else
     g.supported=false
     g.enabled=false
