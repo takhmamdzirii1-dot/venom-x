@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.14.0'
+local VERSION = '3.15.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.14.0',
+  versionTag = 'v3.15.0',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -1635,19 +1635,20 @@ end
 local function quickDockGeometry()
   local scr=getScreenSize()
   local count=#QUICK_ACTIONS
-  local gap,pad=5,9
-  -- All eight quick actions remain HORIZONTAL; compact tile size
-  -- instead of stacking them into a vertical/two-row menu.
-  local available=math.max(240,scr.x-ORB_SIZE-44)
-  local tileW=clamp(math.floor((available-pad*2-(count-1)*gap)/count),28,48)
-  local tileH=55
-  local w=count*tileW+(count-1)*gap+pad*2
-  local h=tileH+pad*2
-  local x=state.orbX+ORB_SIZE+10
-  if x+w>scr.x-8 then x=state.orbX-w-10 end
-  x=clamp(x,8,math.max(8,scr.x-w-8))
-  local y=clamp(state.orbY+math.floor((ORB_SIZE-h)*.5),45,math.max(45,scr.y-h-8))
-  return x,y,w,h,count,tileW,tileH,gap,pad
+  -- VENOM vertical quick rail: icon + readable label, always one column.
+  local gap,pad,headerH,footerH=4,9,30,9
+  local width=clamp(math.floor(scr.x*.12),126,152)
+  local maxHeight=math.max(210,scr.y-90)
+  local tileH=clamp(
+    math.floor((maxHeight-headerH-footerH-pad*2-(count-1)*gap)/count),
+    22,44)
+  local h=headerH+footerH+pad*2+tileH*count+gap*(count-1)
+  local x=state.orbX+ORB_SIZE+12
+  if x+width>scr.x-8 then x=state.orbX-width-12 end
+  x=clamp(x,8,math.max(8,scr.x-width-8))
+  local y=clamp(
+    state.orbY+ORB_SIZE*.5-h*.5,43,math.max(43,scr.y-h-8))
+  return x,y,width,h,count,width-pad*2,tileH,gap,pad,headerH
 end
 
 local function performQuickAction(key)
@@ -1673,26 +1674,36 @@ local function drawQuickDock()
   if state.panelOpen or state.openT>0.1 then return end
   local progress=clamp(state.dockProgress or 0,0,1)
   if progress<0.02 then return end
-  local x,y,w,h,columns,tileW,tileH,gap,pad=quickDockGeometry()
+  local x,y,w,h,count,tileW,tileH,gap,pad,headerH=quickDockGeometry()
   local mouse=ui.mousePos()
-  local near=mouse and inRect({x=x-65,y=y-55,w=w+130,h=h+110},mouse)
-  local hovering=state.quickMode~=nil or near
+  local proximity=mouse and inRect(
+    {x=x-36,y=y-30,w=w+72,h=h+60},mouse)
+  local hovering=state.quickMode~=nil or proximity
   state.dockHover=anim(state.dockHover,hovering and 1 or 0,10,state.dt)
   local reveal=clamp(state.dockHover,0,1)
-  local visibility=(.23+.77*reveal)*easeOutCubic(progress)
-  local dx=(1-easeOutCubic(progress))*18
-  x=x+dx
-  state.quickDockBounds={x=x,y=y,w=w,h=h}
+  local eased=easeOutCubic(progress)
+  local visibility=(.24+.76*reveal)*eased
+  -- Rail rises gently as it opens; the launcher X stays fixed.
+  y=y+(1-eased)*-16
+  state.quickDockBounds={
+    x=x,y=y,w=w,h=h,tileH=tileH,gap=gap,headerH=headerH,pad=pad
+  }
   withWindow('vx_quick_dock',vec2(x,y),vec2(w,h),function()
     ui.drawRectFilled(vec2(0,0),vec2(w,h),
-      col(C.glassDeep,visibility*(.20+.55*reveal)),15)
+      col(C.glassDeep,visibility*(.23+.62*reveal)),14)
     ui.drawRect(vec2(1,1),vec2(w-1,h-1),
-      col(C.accent,visibility*(.13+.26*reveal)),15,ui.CornerFlags.All,1)
-    ui.drawRectFilled(vec2(13,0),vec2(69,2),col(C.accent,visibility),1)
+      col(C.accent,visibility*(.20+.25*reveal)),
+      14,ui.CornerFlags.All,1)
+    ui.drawRectFilled(vec2(14,0),vec2(w-14,2),
+      col(C.accent,visibility),1)
+    ui.dwriteDrawText('VENOM / QUICK',10,vec2(pad+5,11),
+      col(C.text,visibility*(.65+.35*reveal)))
+    ui.drawLine(vec2(pad,headerH),vec2(w-pad,headerH),
+      col(C.accent,visibility*.26),1)
     local vehicle=car()
     for i,item in ipairs(QUICK_ACTIONS) do
-      local xx=pad+(i-1)*(tileW+gap)
-      local yy=pad
+      local xx=pad
+      local yy=headerH+pad+(i-1)*(tileH+gap)
       ui.setCursor(vec2(xx,yy))
       local click=false
       local hovered=false
@@ -1702,26 +1713,33 @@ local function drawQuickDock()
       else
         ui.dummy(vec2(tileW,tileH))
       end
-      local active=state.quickMode==item.key or
+      local selected=state.quickMode==item.key
+      local active=selected or
         (item.key=='HUD' and state.hudVisible) or
         (item.key=='LIGHT' and vehicle and vehicle.headlightsActive) or
         (item.key=='HAZARD' and vehicle and vehicle.hazardLights)
-      local color=item.key=='HAZARD' and C.warn or C.accent
+      local actionColor=item.key=='HAZARD' and C.warn or C.accent
       local bg=active and C.btnActive or hovered and C.btnHover or C.btnFlat
       ui.drawRectFilled(vec2(xx,yy),vec2(xx+tileW,yy+tileH),
-        col(bg,visibility*(.26+.49*reveal)),11)
+        col(bg,visibility*(active and .88 or hovered and .77 or .35)),9)
       ui.drawRect(vec2(xx,yy),vec2(xx+tileW,yy+tileH),
-        col(color,visibility*(active and .64 or hovered and .46 or .16)),
-        11,ui.CornerFlags.All,1)
+        col(actionColor,visibility*(active and .70 or hovered and .43 or .13)),
+        9,ui.CornerFlags.All,1)
       if active then
-        ui.drawRectFilled(vec2(xx+9,yy+tileH-3),
-          vec2(xx+tileW-9,yy+tileH-1),col(color,visibility),1)
+        ui.drawRectFilled(vec2(xx+1,yy+7),
+          vec2(xx+3,yy+tileH-7),col(actionColor,visibility),1)
       end
-      local ink=(active or hovered) and color or C.dim
-      quickGlyph(item.key,xx+tileW*.5,yy+18,col(ink,visibility))
-      local ts=ui.measureDWriteText(item.label,10,-1)
-      ui.dwriteDrawText(item.label,10,vec2(xx+(tileW-ts.x)*.5,yy+37),
+      local centerY=yy+tileH*.5
+      local iconPaint=(selected or hovered) and C.accentSoft or C.text
+      quickGlyph(item.key,xx+23,centerY,col(iconPaint,visibility))
+      ui.dwriteDrawText(item.label,11,
+        vec2(xx+45,centerY-8),
         col((active or hovered) and C.text or C.dim,visibility))
+      if tileW>115 then
+        ui.dwriteDrawText(string.format('%02d',i),9,
+          vec2(xx+tileW-21,centerY-7),
+          col(C.dim,visibility*.43))
+      end
       if hovered then ui.setTooltip(item.hint) end
       if click then performQuickAction(item.key) end
     end
@@ -1734,12 +1752,19 @@ local function drawQuickPopup()
   local b=state.quickDockBounds
   if not b then return end
   local scr=getScreenSize()
-  local w=302
+  local w=math.min(302,math.max(220,scr.x-16))
   local h=mode=='TIME' and 316 or mode=='PAINT' and 220 or 270
-  local x=clamp(b.x,8,math.max(8,scr.x-w-8))
-  local y=b.y+b.h+9
-  if y+h>scr.y-8 then y=b.y-h-9 end
-  y=clamp(y,43,math.max(43,scr.y-h-8))
+  h=math.min(h,math.max(160,scr.y-78))
+  -- Open flyouts beside the vertical rail, aligned to the selected icon.
+  local chosenRow=1
+  for i,item in ipairs(QUICK_ACTIONS) do
+    if item.key==mode then chosenRow=i break end
+  end
+  local x=b.x+b.w+11
+  if x+w>scr.x-8 then x=b.x-w-11 end
+  x=clamp(x,8,math.max(8,scr.x-w-8))
+  local rowY=b.y+b.headerH+b.pad+(chosenRow-1)*(b.tileH+b.gap)
+  local y=clamp(rowY-12,43,math.max(43,scr.y-h-8))
   withWindow('vx_quick_details',vec2(x,y),vec2(w,h),function()
     ui.drawRectFilled(vec2(0,0),vec2(w,h),C.glassDeep,15)
     ui.drawRect(vec2(1,1),vec2(w-1,h-1),col(C.accent,.32),15,ui.CornerFlags.All,1)
