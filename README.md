@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.14.0)
+# VENOM X — AssettoServer online HUD (v3.15.0)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -10,6 +10,36 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.15.0 — Animated vertical quick-action rail
+
+The eight-action horizontal strip is now a **single vertical column** with
+hand-drawn vector icons and clear labels (MAP, CREW, TIME, PAINT, LIGHT,
+HAZ, HUD, MENU), an obsidian translucent panel, a fine crimson top
+accent, a small active-state indicator, low idle opacity, and animated
+fade/slide entrance and hover emphasis.
+
+- Left-click VENOM X's **X** logo to expand/collapse the rail.
+- Right-click X or click **MENU** to access the large controls panel.
+- Quick time, teleport and color flyouts appear beside their selected
+  vertical action and flip to the other side near a screen edge.
+- Responsive rail width/row height adapts to the client's resolution.
+  The original native HUD, personalized TIME selector, A-J car cache,
+  saved light/hazard states and 11m-behind-player teleport are unchanged.
+- The rail remains open by default for new users; an existing local
+  hide/show preference remains respected.
+
+**Live server script refresh:** With CSP server-delivered Lua pointing at
+the repository raw URL and periodic script refresh enabled, UI changes
+may appear while a driver remains connected. Visual changes need no
+game restart after the new version is visible, but a disconnect/rejoin
+is recommended after logic changes (TIME hooks, Car Jump callbacks,
+per-session state) to avoid mixing initialized state from different
+script revisions. Users need not restart Assetto Corsa as a first step.
+
+**Validation:** GitHub source/README synchronization and static Lua
+structure checks were performed. In-game hover, layout and refresh
+behavior require a live CSP client test.
 
 ### v3.14.0 — Compact CMRT-inspired telemetry and session cache priority fix
 
