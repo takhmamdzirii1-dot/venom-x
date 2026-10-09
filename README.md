@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.11.0)
+# VENOM X — AssettoServer online HUD (v3.11.1)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -10,6 +10,28 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.11.1 — Late car control reset restoration
+
+Previous implementation tried restoring A-F, headlights, beams and hazards
+after only 0.10 and 0.34 seconds, then destroyed the pendingTeleport
+record around 0.7s. Car physics/scripts can reset options later, so
+the restore logic ended too early. This update separates `optionsRestore`
+from `pendingTeleport`, starts the snapshot before issuing a jump, and
+conditionally retries control mismatches for up to 3.5 seconds. It finishes
+early after multiple clean checks only after at least 1.4 seconds to
+avoid overriding subsequent driver input indefinitely.
+
+The actual outcome is now displayed as `CAR CONTROLS` on the PLAYERS tab
+and `Car switches` in the CREW popup, including mismatch counts, denied
+calls and unavailable APIs. CSP extra switch flags like HOLD_MODE or
+STATIONARY_ONLY, custom car scripts, and online permissions may still block
+full restoration; no claim of guaranteed extra persistence is made.
+
+TIME result now explicitly reads `UNAVAILABLE IN ONLINE SCRIPT` if
+`ac.setWeatherTimeOffset()` isn't available. Per-player clock presets
+still change a local interface selection, **not the actual sun** in
+this case. No global weather or server time changes are made.
 
 ### v3.11.0 — Native quick-action icon dock, no full menu required
 
