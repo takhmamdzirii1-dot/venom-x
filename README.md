@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.10.2)
+# VENOM X — AssettoServer online HUD (v3.10.3)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -7,9 +7,19 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 ### Functions
 - Draggable glass UI and X launcher, Ctrl+Shift+X toggle.
 - Teleport destination list and connected human player list; filters out Authentic AI and MNBA traffic.
-- Player teleport places your own car approximately **11 m behind** the target's current look direction (when stopped). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
+- Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.10.3 — Teleport while moving
+
+Removed the local driver's 5 km/h speed gate. Teleport behind a genuine
+human player now works from the menu regardless of the teleporter's
+current speed, subject to normal CSP permission/position checks.
+After moving, the script zeroes the car's previous velocity when that
+physics API is available. This prevents carrying high-speed momentum
+to the destination; car position and facing verification remain in place.
+Real two-player runtime verification is still required.
 
 ### v3.10.2 — Fix teleport facing the wrong way
 
@@ -50,7 +60,7 @@ Keep the original `[SCRIPT_...]` section in `cfg/csp_extra_options.ini`; do not 
 
 Set `EnableWeatherFx: true` in AssettoServer `extra_cfg.yml` to enable WeatherFX. Keep six human slots `CAR_0` through `CAR_5` with `AI=none`; place AI traffic cars after those slots with `AI=fixed`. The UI lists only human slots. WeatherFX does not automatically grant a per-client online-script sky override.
 
-For teleports, CSP must permit `physics.setCarPosition` in the script context, and the player must be stopped (<=5 km/h). A successful API call is not automatically treated as a successful teleport: the script verifies resulting position after about 0.7 seconds. Remote-player collision/road geometry or a server-side correction can still cause a teleport to fail.
+For teleports, CSP must permit `physics.setCarPosition` in the script context, and the player does not need to stop before teleporting. A successful API call is not automatically treated as a successful teleport: the script verifies resulting position after about 0.7 seconds. Remote-player collision/road geometry or a server-side correction can still cause a teleport to fail.
 
 ### Validation
 - GitHub source/static checks: passed in model-side inspection.
