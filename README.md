@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.20.3)
+# VENOM X — AssettoServer online HUD (v3.21.0)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -10,6 +10,32 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.21.0 — Opt-in GHOST MODE: player-vs-player collisions
+
+- New `GHOST` instant toggle in the quick dock and a clearly labelled
+  on/off button on the HOME page. OFF by default; user preference persists.
+- Uses CSP `physics.disableCarCollisions(remoteHuman.index, disabled)`
+  **only for connected real remote players**, never index 0 (own car)
+  or AI traffic. Local car still has physical traffic, environment and walls.
+- Uses client-to-client `ac.OnlineEvent({ key='VENOMX_Ghost_v1',
+  enabled=boolean })`; each player advertises only their own state.
+  On each client, a human remote collider is disabled whenever either
+  the local player OR the remote driver has ghost enabled.
+- A state heartbeat every 5 seconds synchronizes late joiners; the remote
+  state expires after 16 seconds if the peer stops advertising.
+- Requires CSP 0.2.8 (build 3424) or newer for remote-car collision API,
+  CSP client-message relay on server and all participating clients running
+  the current server-delivered VENOM X Online Lua. No added DLL or files
+  for players; TIME DLL continues to work unchanged.
+- Does not promise an authoritative server-side no-collision system for
+  older CSP clients or clients without the online script. Verify with
+  two online drivers that they can pass through without collision; the
+  automated checks only simulate physics calls and peer events.
+
+CI verifies real Lua syntax, preservation of TIME/teleports/extra options,
+and executes the ghost-mode Lua functions to test on/off, peer states,
+late joins, AI exclusion and minimum CSP version.
 
 ### v3.20.3 — Automatic car options persistence during teleport
 
