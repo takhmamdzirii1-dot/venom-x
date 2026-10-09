@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.18.1'
+local VERSION = '3.19.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.18.1',
+  versionTag = 'v3.19.0',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -1537,7 +1537,9 @@ local function drawTime()
   local nv=ui.slider('##vx_personal_time',tv,0,86399,'',1)
   if math.abs(nv-tv)>0.5 then
     tm.want=wrapOffset(nv-serverSec())
+    tm.visualEnabled=true
     tm.lastControl='SLIDER'
+    persist()
   end
   ui.dummy(vec2(0,5))
   local bw=math.max(95,(PANEL_W-56)/2)
@@ -1551,7 +1553,9 @@ local function drawTime()
   end
   if ui.button('RESET TO SERVER TIME##vx_time_reset',vec2(0,30)) then
     tm.want=0
+    tm.visualEnabled=false
     tm.lastControl='RESET'
+    persist()
     toast('TIME: SERVER CLOCK')
   end
 
@@ -1562,10 +1566,26 @@ local function drawTime()
     local label=string.format('%+d min',minutes)
     if ui.button(label..'##vx_fine_'..i,vec2(fineW,29)) then
       tm.want=wrapOffset(tm.want+minutes*60)
+      tm.visualEnabled=true
       tm.lastControl=label
+      persist()
     end
   end
 
+  ui.separator()
+  sectionLabel('PERSONAL VISUAL DAY / NIGHT')
+  if ui.button((tm.visualEnabled and 'VISUAL TIME: ON' or 'VISUAL TIME: OFF')..'##vx_visual_mode',vec2(0,30)) then
+    tm.visualEnabled=not tm.visualEnabled
+    persist()
+  end
+  ui.textDisabled('Scene tint strength:')
+  local power=ui.slider('##vx_visual_power',tm.visualStrength,0.35,1,'',0.05)
+  if math.abs(power-tm.visualStrength)>.005 then
+    tm.visualStrength=power
+    persist()
+  end
+  ui.textColored('LOCAL FILTER - NOT PHYSICAL WEATHER',C.accentSoft)
+  ui.textDisabled('Sun/moon and car lights remain server controlled.')
   ui.separator()
   ui.textDisabled('Server: '..fmtSec(wrapDay(serverSec())))
   ui.textDisabled('Last selection: '..tostring(tm.lastControl))
@@ -1904,7 +1924,7 @@ local function drawQuickPopup()
   if not b then return end
   local scr=getScreenSize()
   local w=math.min(302,math.max(220,scr.x-16))
-  local h=mode=='TIME' and 382 or mode=='PAINT' and 220 or 270
+  local h=mode=='TIME' and 418 or mode=='PAINT' and 220 or 270
   h=math.min(h,math.max(160,scr.y-78))
   -- Open flyouts beside the vertical rail, aligned to the selected icon.
   local chosenRow=1
@@ -1973,7 +1993,9 @@ local function drawQuickPopup()
         local selected=ui.slider('##vxq_clock',now,0,86399,'',1)
         if math.abs(selected-now)>.5 then
           tm.want=wrapOffset(selected-serverSec())
+          tm.visualEnabled=true
           tm.lastControl='QUICK SLIDER'
+          persist()
         end
         local bw=(w-55)/2
         for i,preset in ipairs(TIME_PRESETS) do
@@ -1985,8 +2007,15 @@ local function drawQuickPopup()
         end
         if ui.button('RESET TIME##vxqreset',vec2(w-50,28)) then
           tm.want=0
+          tm.visualEnabled=false
           tm.lastControl='RESET'
+          persist()
         end
+        if ui.button((tm.visualEnabled and 'VISUAL SKY ON' or 'VISUAL SKY OFF')..'##vxq_filter',vec2(w-50,28)) then
+          tm.visualEnabled=not tm.visualEnabled
+          persist()
+        end
+        ui.textDisabled('Scene tint only / personal to this player.')
         if tm.mode=='LEGACY COMPANION' then
           ui.textColored('ORIGINAL v2 TIME CHANNEL',C.accentSoft)
           ui.textDisabled(tostring(tm.legacyAck))
@@ -2148,28 +2177,36 @@ local function drawVenomPanel()
   end, true, true)
 end
 
+local function toastSafeTop(scr)
+  local lw=clamp(scr.x*.16,155,252)
+  local logoBottom=2+lw*(665/2048)
+  local target=math.max(210,scr.y*.23,logoBottom+22)
+  return math.min(target,math.max(logoBottom+14,scr.y-156))
+end
+
 local function drawToasts()
   if #state.toasts == 0 then return end
   local scr = getScreenSize()
   pushGlass()
   local okc = pcall(function()
-    ui.beginTransparentWindow('vx_toasts', vec2(0, 0), vec2(scr.x, 176), true, false)
+    local yStart=toastSafeTop(scr)
+    ui.beginTransparentWindow('vx_toasts', vec2(0, 0), vec2(scr.x, scr.y), true, false)
     for i, t in ipairs(state.toasts) do
       local aIn = clamp(t.t / 0.16, 0, 1)
       local aOut = clamp((t.dur - t.t) / 0.3, 0, 1)
       local a = easeOutCubic(aIn) * aOut
       if a > 0.02 then
-        local tsz = ui.measureDWriteText(t.text, 14, -1)
+        local tsz = ui.measureDWriteText(t.text, 15, -1)
         local w = math.max(240, tsz.x + 44)
         local h = 40
         local slide = (1 - easeOutCubic(aIn)) * -18
         local x = (scr.x - w) * 0.5
-        local y = 24 + (i - 1) * (h + 8) + slide
+        local y = yStart + (i - 1) * (h + 8) + slide
         ui.drawRectFilled(vec2(x, y), vec2(x + w, y + h), rgbm(0.045, 0.055, 0.090, 0.95 * a), 10)
         ui.drawRect(vec2(x, y), vec2(x + w, y + h), rgbm(C.accent.r, C.accent.g, C.accent.b, 0.35 * a), 10, ui.CornerFlags.All, 1)
         local barC = t.kind == 'warn' and C.warn or C.ok
         ui.drawRectFilled(vec2(x + 1, y + 8), vec2(x + 5, y + h - 8), rgbm(barC.r, barC.g, barC.b, a), 2)
-        ui.dwriteDrawText(t.text, 14, vec2(x + 18, y + (h - 18) * 0.5), rgbm(1, 1, 1, a))
+        ui.dwriteDrawText(t.text, 15, vec2(x + 18, y + (h - 19) * 0.5), rgbm(1, 1, 1, a))
       end
     end
     ui.endTransparentWindow()
@@ -2636,6 +2673,24 @@ end
 local VENOM_LOGO_URL =
   'https://raw.githubusercontent.com/takhmamdzirii1-dot/venom-x/main/assets/venom_logo.webp'
 
+local BRAND_FONT=nil
+do
+  local ok,ff=pcall(function()
+    if type(ui.DWriteFont)~='function' then return nil end
+    return ui.DWriteFont('Segoe UI'):weight(700)
+  end)
+  if ok then BRAND_FONT=ff end
+end
+local function withBrandFont(draw)
+  local pushed=false
+  if BRAND_FONT and type(ui.pushFont)=='function' then
+    pushed=pcall(ui.pushFont,BRAND_FONT)
+  end
+  local ok,err=pcall(draw)
+  if pushed then pcall(ui.popFont) end
+  if not ok then error(err) end
+end
+
 local function drawVenomOfficialLogo()
   local screen=getScreenSize()
   if not screen or type(ui.drawImage)~='function' then return end
@@ -2670,7 +2725,7 @@ function script.drawUI()
       toast(L.ready)
     end
   end
-  local launchOk, launchErr = pcall(drawVenomLauncher)
+  local launchOk, launchErr = pcall(function() withBrandFont(drawVenomLauncher) end)
   if launchOk then
     state.launcherErrors = 0
   else
@@ -2678,8 +2733,8 @@ function script.drawUI()
     if state.launcherErrors == 1 then pcall(ac.log, 'VENOM X launcher: ' .. tostring(launchErr)) end
   end
   local quickOk, quickErr=pcall(function()
-    drawQuickDock()
-    drawQuickPopup()
+    withBrandFont(drawQuickDock)
+    withBrandFont(drawQuickPopup)
   end)
   if not quickOk then
     state.quickErrors=(state.quickErrors or 0)+1
@@ -2712,12 +2767,12 @@ function script.drawUI()
       if began then pcall(ui.endTransparentWindow) end
     end
   end
-  if pcall(drawToasts) then
+  if pcall(function() withBrandFont(drawToasts) end) then
     state.toastErrors = 0
   else
     state.toastErrors = (state.toastErrors or 0) + 1
   end
-  local ok, panelErr = pcall(drawVenomPanelSafe)
+  local ok, panelErr = pcall(function() withBrandFont(drawVenomPanelSafe) end)
   if ok then
     state.drawErrors = 0
   else
