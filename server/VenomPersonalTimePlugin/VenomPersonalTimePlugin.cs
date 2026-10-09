@@ -1,4 +1,6 @@
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
+using System.Linq;
 using System.Text;
 using AssettoServer.Commands;
 using AssettoServer.Network.ClientMessages;
@@ -24,6 +26,7 @@ public sealed class VenomPersonalTimePlugin : IHostedService
     private readonly ChatService _chatService;
     private readonly ACServerConfiguration _server;
     private volatile bool _enabled;
+    private readonly ConcurrentDictionary<byte, bool> _ghostPlayers = new();
 
     public VenomPersonalTimePlugin(
         VenomPersonalTimeConfiguration config,
@@ -47,7 +50,9 @@ public sealed class VenomPersonalTimePlugin : IHostedService
         // Subscribe there as an additional transport, tightly scoped to
         // VENOMX_SetTime only. Keep the native event registration too.
         messages.RegisterOnlineEvent<VenomTimeEvent>(OnTimeEvent);
+        messages.RegisterOnlineEvent<VenomGhostEvent>(OnGhostEvent);
         _chatService.MessageReceived += OnChatMessage;
+        _entryCarManager.ClientConnected += OnClientConnected;
         _entryCarManager.ClientDisconnected += OnDisconnected;
     }
 
@@ -67,6 +72,8 @@ public sealed class VenomPersonalTimePlugin : IHostedService
         _enabled = true;
         Log.Information("[VENOM TIME] Started on AssettoServer 0.0.54 / per-client WeatherFX decorator, CSP0 chat bridge active. Event type=0x{PacketType:X8}",
             VenomTimeEvent.PacketType);
+        Log.Information("[VENOM GHOST] Relay enabled; ghost event=0x{PacketType:X8}, CSP0 chat and native messages supported",
+            VenomGhostEvent.PacketType);
         return Task.CompletedTask;
     }
 
@@ -115,14 +122,91 @@ public sealed class VenomPersonalTimePlugin : IHostedService
         }
     }
 
+    // AssettoServer 0.0.54 CSP Online Lua sends $CSP0:<base64> as CHAT,
+    // not as a registered extended message. Forward only validated opt-ins.
+    // Do NOT broadcast raw encoded chat: CSP needs an actual OnlineEvent packet.
+    public static bool TryDecodeChatGhost(string chat, out VenomGhostEvent message)
+    {
+        message = new VenomGhostEvent();
+        var marker = chat.IndexOf("$CSP0:", StringComparison.Ordinal);
+        if (marker < 0 || marker > 32 || !string.IsNullOrWhiteSpace(chat[..marker]))
+            return false;
+        var encoded = chat[(marker + 6)..].Trim();
+        if (encoded.Length is < 8 or > 28) return false;
+        try
+        {
+            var bytes = Convert.FromBase64String(encoded.PadRight((encoded.Length + 3) / 4 * 4, '='));
+            if (bytes.Length != 7 || BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(0, 2)) != 60000)
+                return false;
+            if (BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(2, 4)) != VenomGhostEvent.PacketType)
+                return false;
+            if (bytes[6] > 1) return false;
+            message.Enabled = bytes[6] == 1;
+            return true;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
     private void OnChatMessage(ACTcpClient player, ChatEventArgs args)
     {
-        if (!TryDecodeChatTime(args.Message, out var command)) return;
-        // Cancel forwarding this private VENOM command to all other players.
+        if (TryDecodeChatTime(args.Message, out var command))
+        {
+            args.Cancel = true;
+            Log.Information("[VENOM TIME] CSP0 CHAT BRIDGE decoded {Mode} {Seconds} from session {Session}",
+                command.Mode, command.Seconds, player.SessionId);
+            OnTimeEvent(player, command);
+            return;
+        }
+        if (!TryDecodeChatGhost(args.Message, out var ghost)) return;
         args.Cancel = true;
-        Log.Information("[VENOM TIME] CSP0 CHAT BRIDGE decoded {Mode} {Seconds} from session {Session}",
-            command.Mode, command.Seconds, player.SessionId);
-        OnTimeEvent(player, command);
+        OnGhostEvent(player, ghost);
+    }
+
+    private void OnGhostEvent(ACTcpClient player, VenomGhostEvent command)
+    {
+        if (!_enabled || !player.HasSentFirstUpdate || player.EntryCar.AiControlled) return;
+
+        // SessionId comes from the authenticated TCP connection, not the
+        // Lua payload. A player may ONLY advertise their own GHOST mode.
+        var session = player.SessionId;
+        var old = _ghostPlayers.TryGetValue(session, out var previous) && previous;
+        if (command.Enabled)
+            _ghostPlayers[session] = true;
+        else
+            _ghostPlayers.TryRemove(session, out _);
+
+        var response = new VenomGhostEvent { SessionId = 255, Enabled = command.Enabled };
+        player.SendPacket(response); // real server ACK; never fake it locally
+
+        foreach (var entry in _entryCarManager.EntryCars)
+        {
+            if (entry.Client is not { HasSentFirstUpdate: true } client || client == player)
+                continue;
+            client.SendPacket(new VenomGhostEvent
+            {
+                SessionId = session,
+                Enabled = command.Enabled
+            });
+        }
+        if (old != command.Enabled)
+            Log.Information("[VENOM GHOST] {Session} -> {Enabled}, sent to connected peers",
+                session, command.Enabled);
+    }
+
+    private void OnClientConnected(ACTcpClient player, EventArgs _)
+        => player.FirstUpdateSent += OnFirstUpdateSent;
+
+    private void OnFirstUpdateSent(ACTcpClient player, EventArgs _)
+    {
+        // Late joiners receive all active modes immediately (no 5s wait).
+        foreach (var (session, enabled) in _ghostPlayers)
+        {
+            if (!enabled || session == player.SessionId) continue;
+            player.SendPacket(new VenomGhostEvent { SessionId = session, Enabled = true });
+        }
     }
 
     private void OnTimeEvent(ACTcpClient player, VenomTimeEvent command)
@@ -191,13 +275,27 @@ public sealed class VenomPersonalTimePlugin : IHostedService
         }
     }
 
-    private void OnDisconnected(ACTcpClient player, EventArgs _) => _time.Clear(player.SessionId);
+    private void OnDisconnected(ACTcpClient player, EventArgs _)
+    {
+        _time.Clear(player.SessionId);
+        player.FirstUpdateSent -= OnFirstUpdateSent;
+        if (!_ghostPlayers.TryRemove(player.SessionId, out _)) return;
+        // Immediately release this player's ghost flag for remaining drivers.
+        foreach (var entry in _entryCarManager.EntryCars)
+        {
+            if (entry.Client is not { HasSentFirstUpdate: true } client || client == player)
+                continue;
+            client.SendPacket(new VenomGhostEvent { SessionId = player.SessionId, Enabled = false });
+        }
+    }
 
     public Task StopAsync(CancellationToken cancellationToken)
     {
         _enabled = false;
         _chatService.MessageReceived -= OnChatMessage;
+        _entryCarManager.ClientConnected -= OnClientConnected;
         _entryCarManager.ClientDisconnected -= OnDisconnected;
+        _ghostPlayers.Clear();
         return Task.CompletedTask;
     }
 }
