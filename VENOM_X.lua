@@ -2154,7 +2154,7 @@ local function drawSpeedometer()
     ui.drawRect(v(76,86),v(277,106),
       col(C.text,alpha*.23),10*k,ui.CornerFlags.All,1*k)
     ui.drawCircleFilled(v(86,96),3*k,
-      col(fuel and maxFuel and fuel/maxFuel<.12 and C.warn or C.dim,
+      col(fuel and maxFuel and maxFuel>0 and fuel/maxFuel<.12 and C.warn or C.dim,
         alpha*.82),12)
     local fuelText=fuel and string.format('%.1f L',fuel) or '-- L'
     local laps=(fuel and fuelPerLap and fuelPerLap>.01)
