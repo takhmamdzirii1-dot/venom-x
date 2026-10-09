@@ -35,7 +35,7 @@ jobs:
           if (remnants.length) throw Error('Legacy visual filters still present: '+remnants.join(', '));
           const preserved = [
             "ac.StructItem.key('VENOMX_SetTime')",
-            'queueServerSky(true)', 'queueServerSky(false)',
+            'queueServerSky(true,preset.sec)', 'queueServerSky(false)',
             '##vx_personal_time', '##vxq_clock',
             'local function teleportToPlayer(p)',
             'local function drawSpeedometer()',
