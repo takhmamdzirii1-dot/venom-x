@@ -1524,17 +1524,23 @@ local function timeControlUpdate(dt)
     not tm.nativeRejected and 'CSP NATIVE' or 'SERVER'
   if state.clock-tm.skyProbeAt>1 then
     tm.skyProbeAt=state.clock
-    local ok,sun,moon=pcall(function()
-      if type(ac.getSkyFeatureDirection)~='function' or not ac.SkyFeature then
-        return nil,nil
-      end
-      local a=ac.getSkyFeatureDirection(ac.SkyFeature.Sun)
-      local b=ac.getSkyFeatureDirection(ac.SkyFeature.Moon)
-      return a and tonumber(a.y) or nil,b and tonumber(b.y) or nil
+    local skyFn=type(ac.getSkyFeatureDirection)=='function' and ac.getSkyFeatureDirection
+    local sunType=ac.SkyFeature and ac.SkyFeature.Sun
+    local moonType=ac.SkyFeature and ac.SkyFeature.Moon
+    local okSun,sun=pcall(function()
+      if not skyFn or sunType==nil then return nil end
+      local v=skyFn(sunType)
+      return v and tonumber(v.y) or nil
     end)
-    tm.lastSunHeight=ok and sun or nil
-    tm.lastMoonHeight=ok and moon or nil
-    tm.skyProbeError=tm.lastSunHeight==nil and (ok and 'NOT AVAILABLE' or 'RESTRICTED') or nil
+    local okMoon,moon=pcall(function()
+      if not skyFn or moonType==nil then return nil end
+      local v=skyFn(moonType)
+      return v and tonumber(v.y) or nil
+    end)
+    tm.lastSunHeight=okSun and sun or nil
+    tm.lastMoonHeight=okMoon and moon or nil
+    tm.skyProbeError=tm.lastSunHeight==nil and
+      (okSun and 'NOT AVAILABLE' or 'RESTRICTED') or nil
   end
   if tm.mode=='CSP NATIVE' and state.clock-tm.lastNativeAt>0.20 and
       (math.abs(tm.curOffset-tm.lastNativeOffset)>1 or not tm.nativeAttempted) then
