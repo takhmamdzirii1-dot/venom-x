@@ -9,6 +9,36 @@ The technique follows the publicly available idea from HardBrain PersonalTimePlu
 `ACTcpClient.SendPacketUdp()`, which is internal in AssettoServer 0.0.54.
 Project is distributed under AGPL-3.0.
 
+## v3.24.0: Shared server DLL now relays GHOST (required for working online collisions)
+
+For AssettoServer 0.0.54.x, VENOM X's GHOST OnlineEvent
+(`VENOMX_Ghost_v1`, one Boolean named `enabled`) is transmitted as a CSP
+`$CSP0` chat packet. The older server DLL intercepted TIME only, and
+peer-side ghost flags were not reliably distributed.
+
+The updated server DLL:
+1. Registers `VenomGhostEvent` with the native CSP message manager and
+   recognizes the exact 7-byte ghost CSP0 chat packet (0x9BC418C2).
+2. Uses the actual TCP session ID to relay only the sender's own flag,
+   with proper native CSP `OnlineEvent` packets to all other drivers.
+3. Sends a native event back with SessionId=255 as the **real server ACK**
+   used by VENOM X v3.24.0; it also supports snapshots for late joiners
+   and immediate cleanup on disconnect.
+4. Shares the existing `VenomPersonalTimePlugin` folder/config. No new
+   `EnablePlugins` entry and no user-side downloads are needed.
+
+**Replace the server-side DLL** with the new `VENOM-Personal-Time-net8`
+GitHub Actions artifact at
+https://github.com/takhmamdzirii1-dot/venom-x/actions/runs/37955197006,
+then restart AssettoServer and reconnect with at least two human players.
+Only the owner installs the DLL. Leave TIME configuration untouched.
+Server startup must log `[VENOM GHOST] Relay enabled`; VENOM X home panel
+must show `GHOST ON / SERVER CONFIRMED` for a successful request.
+
+The .NET smoke tests passed for true/false chat decoding, normal TIME
+handling and event type hashing; client-side Lua regressions also pass.
+Actual real-world player-to-player physics remains to be validated live.
+
 ## Status
 
 Source is compiled successfully in GitHub Actions against the upstream
