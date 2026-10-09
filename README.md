@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.18.0)
+# VENOM X — AssettoServer online HUD (v3.18.1)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -382,6 +382,33 @@ Keep the original `[SCRIPT_...]` section in `cfg/csp_extra_options.ini`; do not 
 Set `EnableWeatherFx: true` in AssettoServer `extra_cfg.yml` to enable WeatherFX. Keep six human slots `CAR_0` through `CAR_5` with `AI=none`; place AI traffic cars after those slots with `AI=fixed`. The UI lists only human slots. WeatherFX does not automatically grant a per-client online-script sky override.
 
 For teleports, CSP must permit `physics.setCarPosition` in the script context, and the player does not need to stop before teleporting. A successful API call is not automatically treated as a successful teleport: the script verifies resulting position after about 0.7 seconds. Remote-player collision/road geometry or a server-side correction can still cause a teleport to fail.
+
+### v3.18.1 — Official server emblem above Virtual Mirror
+
+The original VENOM OFFICIAL SERVER graphic has been optimized into a
+transparent 720×234 WebP (approximately 39.7 KB).
+
+The server-delivered UI script now draws a persistent, top-center logo
+layer independently of the quick rail, menus and speedometer. The image
+is requested as a cached texture over HTTPS, not downloaded every frame.
+The width adapts to the player's UI viewport (155–252 units) with the
+original aspect ratio and a top margin of 2 units.
+
+**Required deployment asset:** upload the binary WebP file as
+`assets/venom_logo.webp` on this repository's `main` branch. The script
+points to the exact raw asset URL:
+
+`https://raw.githubusercontent.com/takhmamdzirii1-dot/venom-x/main/assets/venom_logo.webp`
+
+Until the image exists there, the script cannot render the actual
+emblem. The Lua code was deployed but this binary image upload still
+needs to be completed. This cannot be substituted with a sandbox link.
+
+The UI logo is anchored at the top center, not attached to Virtual
+Mirror's position or state. If a player's Virtual Mirror occupies the
+same topmost pixels, they may overlap and the mirror must be lowered
+using their own mirror positioning controls. Rendering of remote WebP
+depends on the player's CSP version; in-game verification is required.
 
 ### Validation
 - GitHub source/static checks: passed in model-side inspection.
