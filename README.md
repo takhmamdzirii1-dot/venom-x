@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.10.3)
+# VENOM X — AssettoServer online HUD (v3.10.4)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -11,6 +11,26 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
 
+### v3.10.4 — Keep controls and modifications after teleport
+
+Before teleport, capture the local vehicle's **Extra A-F switch states**,
+headlight state, high beams, turn signals and hazard lights. For up to two
+short post-teleport checks (roughly 0.1s and 0.34s), only restore a state
+**if the new state differs** and that CSP setter is available in this online
+script. Do not toggle these controls unconditionally; many cars use extras
+for custom modes, and one-shot controls might react to being set again.
+Preservation is best effort since some scripts can independently change
+these states or forbid write access from an online script.
+
+**No reset/repair calls are issued** by the teleport command. Existing body,
+tyre, suspension and engine damage should be left to the game and car
+physics. Targeted *only damaged part* repair is not implemented; the
+car-physics APIs and their permissions differ by vehicle/CSP build, and
+blindly applying a global repair could erase unrelated damage or toggles.
+
+All per-player TIME controls, HUD, color, genuine player filtering, and
+11m-behind/heading checks remain unchanged. In-game verification is still
+needed using a car with extras and hazards activated before teleport.
 ### v3.10.3 — Teleport while moving
 
 Removed the local driver's 5 km/h speed gate. Teleport behind a genuine
