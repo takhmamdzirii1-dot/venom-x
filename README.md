@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.20.2)
+# VENOM X — AssettoServer online HUD (v3.20.3)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -10,6 +10,29 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.20.3 — Automatic car options persistence during teleport
+
+- Fixes a Lua truthiness bug that silently discarded every readable `false`
+  switch value. Now captures and restores both `true` and `false`
+  for Extras A–J, headlights, beams, hazard lights and indicators.
+- Supports CSP switch properties returning numeric 0/1.
+- VENOM player teleport, map/destination teleport, chat-API teleport and
+  return to pits take a **fresh live snapshot before moving**. New changes
+  immediately before pressing TP take priority over stale cached settings.
+- Does not learn temporary reset values while a restore is already in progress.
+- Keeps automatic switch restoration active for at least five seconds after
+  moving, up to eleven seconds for mismatch recovery; a subsequent car-jump
+  callback extends the guard within a bounded deadline.
+- Preserves previously implemented external/map jump monitoring and 10-switch
+  diagnostic feedback; does not change the separately working server personal
+  TIME plugin or VENOM branding/other tools.
+
+Automated CI runs a Lua interpreter against the **actual source helpers** and
+passed tests for false/true preservation, 16-state cache roundtrips,
+last-minute driver changes, late-reset protection, and bounded stable release.
+This cannot prove a car mod accepts `ac.setExtraSwitch` online: validate in
+game using a modded car and inspect `CAR CONTROLS` diagnostics on any mismatch.
 
 ### v3.20.2 — Remove legacy visual sky filters
 
