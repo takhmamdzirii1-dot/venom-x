@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.22.0'
+local VERSION = '3.23.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.22.0',
+  versionTag = 'v3.23.0',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -247,6 +247,7 @@ local state = {
     serverSkyEvent=nil,serverSkyEventChecked=false,
     serverSkyAwaiting=false,serverSkyExpectedSeconds=nil,
     serverSkyAckAt=-999,
+    serverSkyTargetSeconds=nil,serverSkyTargetAt=0,
   },
 
 
@@ -405,6 +406,7 @@ local function loadStored()
       vx_ghost = false,
       vx_visual_offset = 0,
       vx_server_sky = false,
+      vx_server_target = -1,
       vx_extra_car = '',
       vx_extra_bits = '',
       vx_extra_frame = -1,
@@ -430,6 +432,11 @@ local function loadStored()
     if type(res.vx_server_sky) == 'boolean' then
       state.time.serverSkyEnabled=res.vx_server_sky
       state.time.serverSkyPending=res.vx_server_sky
+    end
+    if type(res.vx_server_target)=='number' and
+        res.vx_server_target>=0 and res.vx_server_target<86400 then
+      state.time.serverSkyTargetSeconds=math.floor(res.vx_server_target)
+      state.time.serverSkyTargetAt=state.clock
     end
     if type(res.vx_visual_offset) == 'number' and math.abs(res.vx_visual_offset)<=43200 then
       state.time.want=res.vx_visual_offset
@@ -458,6 +465,7 @@ local function persist()
   -- Old vx_visual_on/vx_visual_power settings are intentionally ignored.
   stored.vx_visual_offset = state.time.want
   stored.vx_server_sky = state.time.serverSkyEnabled
+  stored.vx_server_target = state.time.serverSkyTargetSeconds or -1
 end
 
 local function loadConfig()
@@ -1634,8 +1642,36 @@ local function openServerSkyEvent()
   end
 end
 
-local function queueServerSky(enabled)
+-- CSP's timeTotalSeconds can itself become PERSONAL after a WeatherFX update.
+-- Never recalculate a pressed preset from that mutable clock on a later frame.
+-- Store absolute target seconds at the instant the player chooses a time.
+local function shownTimeSeconds()
   local tm=state.time
+  if tm.serverSkyEnabled and type(tm.serverSkyTargetSeconds)=='number' then
+    return wrapDay(tm.serverSkyTargetSeconds+
+      math.max(0,state.clock-tm.serverSkyTargetAt))
+  end
+  return wrapDay(serverSec())
+end
+
+local function queueServerSky(enabled,exactSeconds)
+  local tm=state.time
+  if enabled then
+    -- A frozen absolute value prevents the time-shift/second-click bug.
+    local exact=tonumber(exactSeconds) or shownTimeSeconds()
+    tm.serverSkyTargetSeconds=math.floor(wrapDay(exact))
+    tm.serverSkyTargetAt=state.clock
+    -- Compatibility for the legacy v2 channel (not used in real-sky sending).
+    tm.want=wrapOffset(tm.serverSkyTargetSeconds-serverSec())
+    -- Preset clicks are not held behind a previous slider debounce.
+    tm.serverSkyLastAt=-999
+  else
+    tm.serverSkyTargetSeconds=nil
+    tm.serverSkyTargetAt=state.clock
+    tm.want=0
+    tm.serverSkyLastAt=-999
+  end
+  tm.curOffset=tm.want
   tm.serverSkyEnabled=enabled
   tm.serverSkyPending=true
   tm.serverSkyAwaiting=false
@@ -1650,7 +1686,13 @@ local function flushServerSky()
   tm.serverSkyLastAt=state.clock
   if not tm.serverSkyEvent then return end
   local action=tm.serverSkyEnabled and 'set' or 'sync'
-  local value=tostring(math.floor(wrapDay(serverSec()+tm.want)))
+  if action=='set' and tm.serverSkyTargetSeconds==nil then
+    -- Migration fallback for v3.22.0 saved preferences (once only).
+    tm.serverSkyTargetSeconds=math.floor(wrapDay(serverSec()+tm.want))
+    tm.serverSkyTargetAt=state.clock
+    persist()
+  end
+  local value=tostring(tm.serverSkyTargetSeconds or 0)
   local ok,err=pcall(tm.serverSkyEvent,{
     mode=action,seconds=action=='set' and value or '0'
   })
@@ -1672,8 +1714,7 @@ end
 -- not produce reliable per-client sun positions. Keep the path that previously
 -- worked, and provide fine adjustment around the local weather conditions.
 local function setTimePreset(preset, index)
-  state.time.want = wrapOffset(preset.sec - serverSec())
-  queueServerSky(true)
+  queueServerSky(true,preset.sec)
 end
 
 local function setPanelSize(idx)
@@ -2003,7 +2044,7 @@ local function drawTime()
   local p=ui.getCursor()
   ui.drawRectFilled(p,vec2(p.x+PANEL_W-35,p.y+80),C.cardSolid,12)
   ui.drawRect(p,vec2(p.x+PANEL_W-35,p.y+80),C.accentFaint,12,ui.CornerFlags.All,1)
-  ui.dwriteDrawText(fmtSec(wrapDay(serverSec()+tm.curOffset)),34,
+  ui.dwriteDrawText(fmtSec(shownTimeSeconds()),34,
     vec2(p.x+16,p.y+7),C.text)
   ui.dwriteDrawText('YOUR SELECTED TIME',11,vec2(p.x+16,p.y+56),C.accentSoft)
   ui.dummy(vec2(0,90))
@@ -2011,11 +2052,10 @@ local function drawTime()
   -- Controls must never disappear just because online CSP blocks global
   -- weather APIs. This is independent personal UI state for each player.
   sectionLabel('CHOOSE YOUR TIME')
-  local tv=wrapDay(serverSec()+tm.want)
+  local tv=shownTimeSeconds()
   local nv=ui.slider('##vx_personal_time',tv,0,86399,'',1)
   if math.abs(nv-tv)>0.5 then
-    tm.want=wrapOffset(nv-serverSec())
-    queueServerSky(true)
+    queueServerSky(true,nv)
     tm.lastControl='SLIDER'
   end
   ui.dummy(vec2(0,5))
@@ -2029,7 +2069,6 @@ local function drawTime()
     end
   end
   if ui.button('RESET TO SERVER TIME##vx_time_reset',vec2(0,30)) then
-    tm.want=0
     queueServerSky(false)
     tm.lastControl='RESET'
     toast('TIME: SERVER CLOCK')
@@ -2041,8 +2080,7 @@ local function drawTime()
     if i>1 then ui.sameLine() end
     local label=string.format('%+d min',minutes)
     if ui.button(label..'##vx_fine_'..i,vec2(fineW,29)) then
-      tm.want=wrapOffset(tm.want+minutes*60)
-      queueServerSky(true)
+      queueServerSky(true,shownTimeSeconds()+minutes*60)
       tm.lastControl=label
     end
   end
@@ -2467,13 +2505,12 @@ local function drawQuickPopup()
         ui.textColored(optionsReadout(),C.accentSoft)
       elseif mode=='TIME' then
         local tm=state.time
-        ui.textColored(fmtSec(wrapDay(serverSec()+tm.want)),C.accentSoft)
+        local now=shownTimeSeconds()
+        ui.textColored(fmtSec(now),C.accentSoft)
         ui.textColored('REAL SKY: '..tostring(tm.serverSkyStatus):sub(1,48),C.accentSoft)
-        local now=wrapDay(serverSec()+tm.want)
         local selected=ui.slider('##vxq_clock',now,0,86399,'',1)
         if math.abs(selected-now)>.5 then
-          tm.want=wrapOffset(selected-serverSec())
-          queueServerSky(true)
+          queueServerSky(true,selected)
           tm.lastControl='QUICK SLIDER'
         end
         local bw=(w-55)/2
@@ -2485,7 +2522,6 @@ local function drawQuickPopup()
           end
         end
         if ui.button('RESET TIME##vxqreset',vec2(w-50,28)) then
-          tm.want=0
           queueServerSky(false)
           tm.lastControl='RESET'
         end
