@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.15.0)
+# VENOM X — AssettoServer online HUD (v3.16.0)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -10,6 +10,30 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.16.0 — 1:1 CMRT gearbox proportions, recolored VENOM crimson
+
+The reference is the user's own CMRT Complete HUD archive and gearbox
+screenshot. Unlike v3.14's merely "CMRT-inspired" design, v3.16 uses
+the source gearbox's characteristic **435 × 100 KERS capsule silhouette**,
+original 50-unit radius ends, 14 dots separated by 14 units, left gear
+center (50,70), right resource dial center (385,70), text columns
+(KMH x=110 / RPM x=200), and bottom overlapping FUEL / EST.LAP pill.
+The on-screen reference is roughly 305px wide, so the display defaults to
+70% of these original logical proportions at 100% HUD Scale; HUD settings
+retain their independent 80–130% scaling, opacity, show/hide and drag.
+
+The former blue/teal rings are now **VENOM crimson**, with dark-gray
+inactive RPM dots, white gear/numeric text and smoky black capsule.
+Battery-equipped cars show battery percent; regular cars fall back to
+remaining fuel percent. The entire visual is hand-rendered in CSP Lua,
+without external CMRT textures, logo imagery or font installation.
+The version does not modify TIME, telemetry collection, quick rail,
+player teleport, car option cache or server weather.
+
+As with all previous versions, an actual CSP game render is needed for
+final pixel-level calibration. The server-delivered script may hot-refresh,
+but a reconnect is recommended if the overlay appears partially initialized.
 
 ### v3.15.0 — Animated vertical quick-action rail
 
