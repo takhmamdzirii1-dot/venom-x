@@ -248,6 +248,8 @@ local state = {
     serverSkyAwaiting=false,serverSkyExpectedSeconds=nil,
     serverSkyAckAt=-999,
     serverSkyTargetSeconds=nil,serverSkyTargetAt=0,
+    serverSkyPendingAt=0,serverSkyNextSendAt=0,
+    serverSkyRetryCount=0,
   },
 
 
@@ -1654,7 +1656,7 @@ local function shownTimeSeconds()
   return wrapDay(serverSec())
 end
 
-local function queueServerSky(enabled,exactSeconds)
+local function queueServerSky(enabled,exactSeconds,debounced)
   local tm=state.time
   if enabled then
     -- A frozen absolute value prevents the time-shift/second-click bug.
@@ -1663,27 +1665,27 @@ local function queueServerSky(enabled,exactSeconds)
     tm.serverSkyTargetAt=state.clock
     -- Compatibility for the legacy v2 channel (not used in real-sky sending).
     tm.want=wrapOffset(tm.serverSkyTargetSeconds-serverSec())
-    -- Preset clicks are not held behind a previous slider debounce.
-    tm.serverSkyLastAt=-999
   else
     tm.serverSkyTargetSeconds=nil
     tm.serverSkyTargetAt=state.clock
     tm.want=0
-    tm.serverSkyLastAt=-999
   end
   tm.curOffset=tm.want
   tm.serverSkyEnabled=enabled
   tm.serverSkyPending=true
   tm.serverSkyAwaiting=false
+  tm.serverSkyRetryCount=0
+  -- Slider changes coalesce; preset/reset clicks schedule immediately.
+  tm.serverSkyPendingAt=state.clock+(debounced and .34 or 0)
   tm.serverSkyStatus='TIME CHANGE QUEUED'
   persist()
 end
 
 local function flushServerSky()
   local tm=state.time
-  if not tm.serverSkyPending or state.clock-tm.serverSkyLastAt<.32 then return end
+  if not tm.serverSkyPending or state.clock<tm.serverSkyPendingAt or
+    state.clock<tm.serverSkyNextSendAt then return end
   openServerSkyEvent()
-  tm.serverSkyLastAt=state.clock
   if not tm.serverSkyEvent then return end
   local action=tm.serverSkyEnabled and 'set' or 'sync'
   if action=='set' and tm.serverSkyTargetSeconds==nil then
@@ -1697,6 +1699,10 @@ local function flushServerSky()
     mode=action,seconds=action=='set' and value or '0'
   })
   if ok then
+    tm.serverSkyLastAt=state.clock
+    -- Stock AssettoServer v0.0.54 discards CHAT events sent <1000ms apart.
+    -- Add margin for other CSP chat messages, not only consecutive TIME.
+    tm.serverSkyNextSendAt=state.clock+1.35
     tm.serverSkyPending=false
     tm.serverSkyAwaiting=true
     tm.serverSkyExpectedSeconds=action=='set' and value or '0'
@@ -2055,7 +2061,7 @@ local function drawTime()
   local tv=shownTimeSeconds()
   local nv=ui.slider('##vx_personal_time',tv,0,86399,'',1)
   if math.abs(nv-tv)>0.5 then
-    queueServerSky(true,nv)
+    queueServerSky(true,nv,true)
     tm.lastControl='SLIDER'
   end
   ui.dummy(vec2(0,5))
@@ -2510,7 +2516,7 @@ local function drawQuickPopup()
         ui.textColored('REAL SKY: '..tostring(tm.serverSkyStatus):sub(1,48),C.accentSoft)
         local selected=ui.slider('##vxq_clock',now,0,86399,'',1)
         if math.abs(selected-now)>.5 then
-          queueServerSky(true,selected)
+          queueServerSky(true,selected,true)
           tm.lastControl='QUICK SLIDER'
         end
         local bw=(w-55)/2
@@ -3063,11 +3069,20 @@ end
 
 local function timeControlUpdate(dt)
   local tm=state.time
-  flushServerSky()
-  if tm.serverSkyAwaiting and state.clock-tm.serverSkyLastAt>4 then
+  if tm.serverSkyAwaiting and state.clock-tm.serverSkyLastAt>2.1 then
     tm.serverSkyAwaiting=false
-    tm.serverSkyStatus='NO SERVER ACK / CHECK PLUGIN DLL AND LOGS'
+    if tm.serverSkyRetryCount<3 then
+      -- The server might have discarded CSP's chat packet during the 1s
+      -- rate-limit window. Retry THIS EXACT absolute time, no extra click.
+      tm.serverSkyRetryCount=tm.serverSkyRetryCount+1
+      tm.serverSkyPending=true
+      tm.serverSkyPendingAt=state.clock
+      tm.serverSkyStatus='RETRYING SERVER TIME '..tm.serverSkyRetryCount
+    else
+      tm.serverSkyStatus='NO SERVER ACK / CHECK PLUGIN DLL AND LOGS'
+    end
   end
+  flushServerSky()
   tm.curOffset=anim(tm.curOffset,tm.want,2.8,dt)
   if math.abs(tm.want-tm.curOffset)<1 then tm.curOffset=tm.want end
   -- First try the original v2.0 local companion channel. Pure is NOT required.
