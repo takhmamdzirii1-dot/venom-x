@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.10.1'
+local VERSION = '3.10.2'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.10.1',
+  versionTag = 'v3.10.2',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -515,13 +515,24 @@ local function teleportToPlayer(p)
   if not me or not me.position then toast(L.teleportFailed,'warn') return end
   if (tonumber(me.speedKmh) or 0)>5 then toast(L.stopCarFirst,'warn') return end
   local look=target.look
-  local x=look and tonumber(look.x) or 0
-  local z=look and tonumber(look.z) or -1
+  local x=look and tonumber(look.x)
+  local z=look and tonumber(look.z)
+  if not x or not z then
+    toast('TELEPORT: TARGET HEADING UNAVAILABLE','warn')
+    return
+  end
   local length=math.sqrt(x*x+z*z)
-  if length<0.01 then x,z,length=0,-1,1 end
+  if length<0.01 then
+    toast('TELEPORT: INVALID TARGET HEADING','warn')
+    return
+  end
   x,z=x/length,z/length
+  -- CSP setCarPosition expects the *opposite* of ac.getCar().look.
+  -- Position stays behind the target (-look * 11m), but orientation must
+  -- use -look so that our resulting car.look matches the other driver's.
+  -- See CSP Online-stuff/old-teleport/teleport-to-car.lua by Sahneisttoll.
   local destination=vec3(target.position.x-x*11,target.position.y+0.2,target.position.z-z*11)
-  local ok,answer=pcall(physics.setCarPosition,0,destination,vec3(x,0,z))
+  local ok,answer=pcall(physics.setCarPosition,0,destination,vec3(-x,0,-z))
   if not ok or answer==false then
     toast(L.teleportFailed,'warn')
     pcall(ac.log,'VENOM X teleport rejected: '..tostring(answer))
@@ -532,7 +543,10 @@ local function teleportToPlayer(p)
     pcall(physics.setCarVelocity,0,vec3(0,0,0))
   end
   if type(physics.awakeCar)=='function' then pcall(physics.awakeCar,0) end
-  state.pendingTeleport={dest=destination,name=p.name,at=state.clock+0.7}
+  state.pendingTeleport={
+    dest=destination,name=p.name,at=state.clock+0.7,
+    lookX=x,lookZ=z
+  }
   state.teleportCooldown=2.5
 end
 
@@ -547,11 +561,26 @@ local function verifyPlayerTeleport()
   end
   local dx=pos.x-pending.dest.x
   local dz=pos.z-pending.dest.z
-  if dx*dx+dz*dz<64 and math.abs(pos.y-pending.dest.y)<9 then
-    toast(string.format(L.teleportedToPlayer,pending.name))
-  else
+  if dx*dx+dz*dz>=64 or math.abs(pos.y-pending.dest.y)>=9 then
     toast('TELEPORT BLOCKED OR NOT UPDATED','warn')
+    return
   end
+  -- Confirm our physical car orientation matches the target's heading.
+  local lk=me.look
+  local mx=lk and tonumber(lk.x)
+  local mz=lk and tonumber(lk.z)
+  if mx and mz then
+    local norm=math.sqrt(mx*mx+mz*mz)
+    if norm>0.01 then
+      local facingDot=(mx*pending.lookX+mz*pending.lookZ)/norm
+      if facingDot<0.7 then
+        toast('TELEPORTED, BUT CAR FACING WRONG WAY','warn')
+        pcall(ac.log,string.format('VENOM X teleport heading mismatch: dot=%.3f',facingDot))
+        return
+      end
+    end
+  end
+  toast(string.format(L.teleportedToPlayer,pending.name))
 end
 
 local function isHumanCar(c, nm, mid, sid)
