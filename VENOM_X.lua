@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.10.4'
+local VERSION = '3.11.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.10.4',
+  versionTag = 'v3.11.0',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -169,6 +169,9 @@ local state = {
   orbPress = nil,
   spdPress = nil,
   orbHover = 0,
+  quickDockVisible = true,
+  quickMode = nil,
+  quickErrors = 0,
   dragging = nil,
   toasts = {},
   players = {},
@@ -358,6 +361,7 @@ local function loadStored()
       vx_pw = 370,
       vx_ph = 515,
       vx_sec = 'HOME',
+      vx_dock = true,
     })
   end)
   if ok and type(res) == 'table' then
@@ -374,6 +378,7 @@ local function loadStored()
     if type(res.vx_pw) == 'number' then state.panelW = clamp(res.vx_pw, 300, 560) end
     if type(res.vx_ph) == 'number' then state.panelH = clamp(res.vx_ph, 380, 680) end
     if type(res.vx_sec) == 'string' then state.section = res.vx_sec end
+    if type(res.vx_dock) == 'boolean' then state.quickDockVisible = res.vx_dock end
   end
 end
 
@@ -391,6 +396,7 @@ local function persist()
   stored.vx_pw = state.panelW
   stored.vx_ph = state.panelH
   stored.vx_sec = state.section
+  stored.vx_dock = state.quickDockVisible
 end
 
 local function loadConfig()
@@ -451,10 +457,8 @@ local function headingDir(heading)
 end
 
 local function teleportSelf(pos, dir, message)
-  local ok = pcall(function()
-    physics.setCarPosition(0, pos, dir)
-  end)
-  if ok then
+  local ok, result = pcall(physics.setCarPosition, 0, pos, dir)
+  if ok and result ~= false then
     if message then toast(message) end
     return true
   end
@@ -852,6 +856,7 @@ local function openPanel(key)
   end
   if key then setSection(key) end
   state.panelOpen = true
+  state.quickMode = nil
 end
 
 local function closePanel()
@@ -1121,7 +1126,7 @@ local function drawTime()
   -- Controls must never disappear just because online CSP blocks global
   -- weather APIs. This is independent personal UI state for each player.
   sectionLabel('CHOOSE YOUR TIME')
-  local tv=wrapDay(serverSec()+tm.curOffset)
+  local tv=wrapDay(serverSec()+tm.want)
   local nv=ui.slider('##vx_personal_time',tv,0,86399,'',1)
   if math.abs(nv-tv)>0.5 then
     tm.want=wrapOffset(nv-serverSec())
@@ -1247,6 +1252,13 @@ local function drawVenomLauncher()
     local hovered, active = ui.itemHovered(), ui.itemActive()
     local mouse = ui.mousePos()
 
+    if hovered and ui.mouseClicked(1) then
+      state.quickDockVisible = not state.quickDockVisible
+      state.quickMode = nil
+      persist()
+      toast(state.quickDockVisible and 'QUICK DOCK ON' or 'QUICK DOCK HIDDEN')
+    end
+    if hovered then ui.setTooltip('Click: menu  /  Right click: toggle quick dock') end
     if not state.orbPress and hovered and ui.mouseClicked(0) then
       state.orbPress = { mx = mouse.x, my = mouse.y, x = state.orbX, y = state.orbY, moved = false }
     end
@@ -1282,6 +1294,243 @@ local function drawVenomLauncher()
     local capSize = ui.measureDWriteText('VENOM', 9, -1)
     ui.dwriteDrawText('VENOM', 9, vec2((ORB_SIZE - capSize.x) * .5, 37), C.dim)
   end, true, true)
+end
+
+-- VENOM X QUICK DOCK: compact interactive native CSP tool windows.
+-- No external icons, fonts, installed plugins or fake input overlays.
+local QUICK_ACTIONS = {
+  { key='DEST', label='MAP', hint='Teleport to a location' },
+  { key='FRIEND', label='CREW', hint='Teleport behind a real player' },
+  { key='TIME', label='TIME', hint='Select a personal clock preset' },
+  { key='PAINT', label='PAINT', hint='Apply a color in one click' },
+  { key='LIGHT', label='LIGHT', hint='Toggle vehicle headlights' },
+  { key='HAZARD', label='HAZ', hint='Toggle vehicle hazard lights' },
+  { key='HUD', label='HUD', hint='Toggle speedometer display' },
+  { key='MENU', label='MENU', hint='Open complete VENOM X menu' },
+}
+
+local function toggleHazards()
+  local c=car()
+  if not c or not ac.TurningLights or type(ac.setTurningLights)~='function' then
+    toast('HAZARD CONTROL UNAVAILABLE','warn')
+    return
+  end
+  local mode=c.hazardLights and ac.TurningLights.None or ac.TurningLights.Hazards
+  if mode==nil then toast('HAZARD CONTROL UNAVAILABLE','warn') return end
+  local ok,result=pcall(ac.setTurningLights,mode)
+  if not ok or result==false then toast('HAZARD CONTROL REJECTED','warn') end
+end
+
+local function quickGlyph(kind,cx,cy,paint)
+  local v=function(x,y) return vec2(x,y) end
+  if kind=='DEST' then
+    ui.drawCircle(v(cx,cy-3),7,paint,24,1.6)
+    ui.drawCircleFilled(v(cx,cy-3),2.5,paint,12)
+    ui.drawLine(v(cx-5,cy+2),v(cx,cy+11),paint,1.7)
+    ui.drawLine(v(cx+5,cy+2),v(cx,cy+11),paint,1.7)
+  elseif kind=='FRIEND' then
+    ui.drawCircle(v(cx-4,cy-4),4,paint,18,1.5)
+    ui.drawCircle(v(cx+6,cy-3),3,paint,16,1.4)
+    ui.drawLine(v(cx-12,cy+9),v(cx-9,cy+4),paint,1.5)
+    ui.drawLine(v(cx-9,cy+4),v(cx+2,cy+4),paint,1.5)
+    ui.drawLine(v(cx+2,cy+4),v(cx+5,cy+9),paint,1.5)
+    ui.drawLine(v(cx+6,cy+4),v(cx+11,cy+5),paint,1.3)
+  elseif kind=='TIME' then
+    ui.drawCircle(v(cx,cy),9,paint,30,1.6)
+    ui.drawLine(v(cx,cy),v(cx,cy-6),paint,1.8)
+    ui.drawLine(v(cx,cy),v(cx+5,cy+2),paint,1.8)
+  elseif kind=='PAINT' then
+    ui.drawCircle(v(cx,cy),9,paint,28,1.5)
+    ui.drawCircleFilled(v(cx-4,cy-3),2,rgbm(1,.42,.42,1),12)
+    ui.drawCircleFilled(v(cx+3,cy-5),2,rgbm(.45,.8,1,1),12)
+    ui.drawCircleFilled(v(cx+4,cy+3),2,rgbm(.46,1,.7,1),12)
+  elseif kind=='LIGHT' then
+    ui.drawCircle(v(cx-3,cy),6,paint,22,1.7)
+    for i=-1,1 do ui.drawLine(v(cx+5,cy+i*6),v(cx+12,cy+i*6),paint,1.6) end
+  elseif kind=='HAZARD' then
+    ui.drawLine(v(cx,cy-10),v(cx-10,cy+8),paint,1.8)
+    ui.drawLine(v(cx-10,cy+8),v(cx+10,cy+8),paint,1.8)
+    ui.drawLine(v(cx+10,cy+8),v(cx,cy-10),paint,1.8)
+    ui.drawLine(v(cx,cy-4),v(cx,cy+3),paint,1.9)
+    ui.drawCircleFilled(v(cx,cy+6),1,paint,8)
+  elseif kind=='HUD' then
+    ui.drawCircle(v(cx,cy),10,paint,32,1.7)
+    ui.drawLine(v(cx,cy),v(cx+6,cy-7),paint,1.9)
+    ui.drawCircleFilled(v(cx,cy),2,paint,12)
+  else
+    for i=-1,1 do ui.drawLine(v(cx-10,cy+i*6),v(cx+10,cy+i*6),paint,1.8) end
+  end
+end
+
+local function quickDockGeometry()
+  local scr=getScreenSize()
+  local columns=scr.x<850 and 4 or 8
+  local rows=math.ceil(#QUICK_ACTIONS/columns)
+  local tileW,tileH,gap,pad=47,55,5,9
+  local w=columns*tileW+(columns-1)*gap+pad*2
+  local h=rows*tileH+(rows-1)*gap+pad*2
+  local x=state.orbX+ORB_SIZE+10
+  if x+w>scr.x-8 then x=state.orbX-w-10 end
+  x=clamp(x,8,math.max(8,scr.x-w-8))
+  local y=clamp(state.orbY+math.floor((ORB_SIZE-h)*.5),45,math.max(45,scr.y-h-8))
+  return x,y,w,h,columns,tileW,tileH,gap,pad
+end
+
+local function performQuickAction(key)
+  if key=='MENU' then openPanel(nil) return end
+  if key=='LIGHT' then toggleHeadlights() return end
+  if key=='HAZARD' then toggleHazards() return end
+  if key=='HUD' then
+    state.hudVisible=not state.hudVisible
+    persist()
+    toast(state.hudVisible and L.spdOn or L.spdOff)
+    return
+  end
+  if state.quickMode==key then
+    state.quickMode=nil
+  else
+    state.quickMode=key
+    if key=='FRIEND' then refreshPlayers(true) end
+    if key=='DEST' then refreshDestinations(true) end
+  end
+end
+
+local function drawQuickDock()
+  if not state.quickDockVisible or state.panelOpen or state.openT>0.1 then return end
+  local x,y,w,h,columns,tileW,tileH,gap,pad=quickDockGeometry()
+  state.quickDockBounds={x=x,y=y,w=w,h=h}
+  withWindow('vx_quick_dock',vec2(x,y),vec2(w,h),function()
+    ui.drawRectFilled(vec2(0,0),vec2(w,h),C.glassDeep,15)
+    ui.drawRect(vec2(1,1),vec2(w-1,h-1),col(C.accent,.29),15,ui.CornerFlags.All,1)
+    ui.drawRectFilled(vec2(13,0),vec2(69,2),C.accent,1)
+    local vehicle=car()
+    for i,item in ipairs(QUICK_ACTIONS) do
+      local colIndex=(i-1)%columns
+      local rowIndex=math.floor((i-1)/columns)
+      local xx=pad+colIndex*(tileW+gap)
+      local yy=pad+rowIndex*(tileH+gap)
+      ui.setCursor(vec2(xx,yy))
+      local click=ui.invisibleButton('##vxq_'..item.key,vec2(tileW,tileH))
+      local hovered=ui.itemHovered()
+      local active=state.quickMode==item.key or
+        (item.key=='HUD' and state.hudVisible) or
+        (item.key=='LIGHT' and vehicle and vehicle.headlightsActive) or
+        (item.key=='HAZARD' and vehicle and vehicle.hazardLights)
+      local color=item.key=='HAZARD' and C.warn or C.accent
+      local bg=active and C.btnActive or hovered and C.btnHover or C.btnFlat
+      ui.drawRectFilled(vec2(xx,yy),vec2(xx+tileW,yy+tileH),bg,11)
+      ui.drawRect(vec2(xx,yy),vec2(xx+tileW,yy+tileH),
+        col(color,active and .7 or hovered and .46 or .14),11,ui.CornerFlags.All,1)
+      if active then
+        ui.drawRectFilled(vec2(xx+13,yy+tileH-3),vec2(xx+tileW-13,yy+tileH-1),color,1)
+      end
+      quickGlyph(item.key,xx+tileW*.5,yy+19,active or hovered and color or C.dim)
+      local ts=ui.measureDWriteText(item.label,10,-1)
+      ui.dwriteDrawText(item.label,10,vec2(xx+(tileW-ts.x)*.5,yy+38),
+        active or hovered and C.text or C.dim)
+      if hovered then ui.setTooltip(item.hint) end
+      if click then performQuickAction(item.key) end
+    end
+  end,true,true)
+end
+
+local function drawQuickPopup()
+  local mode=state.quickMode
+  if not mode or state.panelOpen or not state.quickDockVisible or state.openT>0.1 then return end
+  local b=state.quickDockBounds
+  if not b then return end
+  local scr=getScreenSize()
+  local w=302
+  local h=mode=='TIME' and 316 or mode=='PAINT' and 220 or 270
+  local x=clamp(b.x,8,math.max(8,scr.x-w-8))
+  local y=b.y+b.h+9
+  if y+h>scr.y-8 then y=b.y-h-9 end
+  y=clamp(y,43,math.max(43,scr.y-h-8))
+  withWindow('vx_quick_details',vec2(x,y),vec2(w,h),function()
+    ui.drawRectFilled(vec2(0,0),vec2(w,h),C.glassDeep,15)
+    ui.drawRect(vec2(1,1),vec2(w-1,h-1),col(C.accent,.32),15,ui.CornerFlags.All,1)
+    ui.drawRectFilled(vec2(13,0),vec2(73,2),C.accent,1)
+    local heads={DEST='QUICK DESTINATIONS',FRIEND='TELEPORT TO CREW',
+      TIME='PERSONAL TIME',PAINT='QUICK CAR PAINT'}
+    ui.dwriteDrawText(heads[mode] or 'QUICK ACCESS',15,vec2(15,14),C.text)
+    ui.dwriteDrawText('VENOM X  /  INSTANT CONTROL',9,vec2(15,34),C.dim)
+    ui.setCursor(vec2(w-37,12))
+    if ui.button('X##vxqclose',vec2(25,24)) then state.quickMode=nil end
+    ui.drawLine(vec2(13,54),vec2(w-13,54),C.accentFaint,1)
+    ui.setCursor(vec2(13,63))
+    local opened=ui.beginChild('vx_quick_body',vec2(w-26,h-76),false,ui.WindowFlags.None)
+    if opened then
+      if mode=='DEST' then
+        if #state.destList==0 then
+          ui.textDisabled('No destinations configured on server.')
+        else
+          for i,d in ipairs(state.destList) do
+            if i>16 then break end
+            if ui.button(d.name..'##vxqd_'..i,vec2(w-50,31)) then
+              teleportDest(d)
+              state.quickMode=nil
+            end
+            if ui.itemHovered() then ui.setTooltip(d.group or 'Destination') end
+          end
+        end
+        ui.separator()
+        if ui.button('RETURN TO PITS##vxqpit',vec2(w-50,30)) then
+          returnToPits()
+          state.quickMode=nil
+        end
+      elseif mode=='FRIEND' then
+        refreshPlayers(false)
+        if #state.players==0 then ui.textDisabled('No other human drivers online.') end
+        for i,p in ipairs(state.players) do
+          if i>6 then break end
+          local name=#p.name>22 and p.name:sub(1,21)..'...' or p.name
+          if ui.button(name..'  /  TP##vxqfriend_'..i,vec2(w-50,34)) then
+            teleportToPlayer(p)
+            state.quickMode=nil
+          end
+          ui.textDisabled(string.format('   %d m away',math.floor(p.dist+.5)))
+        end
+        ui.textDisabled('AI traffic excluded. Behind driver / same heading.')
+      elseif mode=='TIME' then
+        local tm=state.time
+        ui.textColored(fmtSec(wrapDay(serverSec()+tm.want)),C.accentSoft)
+        local now=wrapDay(serverSec()+tm.want)
+        local selected=ui.slider('##vxq_clock',now,0,86399,'',1)
+        if math.abs(selected-now)>.5 then
+          tm.want=wrapOffset(selected-serverSec())
+          tm.lastControl='QUICK SLIDER'
+        end
+        local bw=(w-55)/2
+        for i,preset in ipairs(TIME_PRESETS) do
+          if i%2==0 then ui.sameLine() end
+          if ui.button(preset.label..'##vxqt_'..i,vec2(bw,31)) then
+            setTimePreset(preset,i)
+            tm.lastControl=preset.label
+          end
+        end
+        if ui.button('RESET TIME##vxqreset',vec2(w-50,28)) then
+          tm.want=0
+          tm.lastControl='RESET'
+        end
+        if tm.mode=='CSP NATIVE' then
+          ui.textDisabled('CSP local sky API detected (visual not confirmed).')
+        else
+          ui.textColored('SKY LOCKED / CLOCK PREVIEW ONLY',C.warn)
+        end
+      elseif mode=='PAINT' then
+        local ww=(w-68)/4
+        for i,preset in ipairs(PRESETS) do
+          if (i-1)%4~=0 then ui.sameLine() end
+          local click=ui.button(preset.label..'##vxqp_'..i,vec2(ww,30))
+          if click then applyColor(preset) end
+          if ui.itemHovered() then ui.setTooltip(preset.label..' - apply car color') end
+        end
+        if ui.button('ORIGINAL LIVERY##vxqoriginal',vec2(w-50,30)) then applyColor(nil) end
+        ui.textDisabled('Color sync depends on server permissions.')
+      end
+    end
+    ui.endChild()
+  end,true,true)
 end
 
 local function drawVenomPanel()
@@ -1678,7 +1927,7 @@ function script.update(dt)
   timeControlUpdate(state.dt)
   restoreTeleportOptions()
   verifyPlayerTeleport()
-  if state.panelOpen and state.section == 'PLAYERS' then
+  if (state.panelOpen and state.section == 'PLAYERS') or state.quickMode=='FRIEND' then
     refreshPlayers(false)
   end
 end
@@ -1697,6 +1946,18 @@ function script.drawUI()
   else
     state.launcherErrors = (state.launcherErrors or 0) + 1
     if state.launcherErrors == 1 then pcall(ac.log, 'VENOM X launcher: ' .. tostring(launchErr)) end
+  end
+  local quickOk, quickErr=pcall(function()
+    drawQuickDock()
+    drawQuickPopup()
+  end)
+  if not quickOk then
+    state.quickErrors=(state.quickErrors or 0)+1
+    if state.quickErrors==1 then
+      pcall(ac.log,'VENOM X quick dock: '..tostring(quickErr))
+    end
+  else
+    state.quickErrors=0
   end
   local speedOk, speedErr = pcall(drawSpeedometer)
   if speedOk then
