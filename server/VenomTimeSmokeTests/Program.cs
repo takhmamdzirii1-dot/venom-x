@@ -27,4 +27,28 @@ if (VenomTimeEvent.PacketType != 0x909B0F45u)
     throw new Exception($"OnlineEvent type mismatch: 0x{VenomTimeEvent.PacketType:X8}, observed 0x909B0F45");
 Console.WriteLine($"PASS: packet type hash 0x{VenomTimeEvent.PacketType:X8}");
 
-Console.WriteLine("VENOM TIME CHAT BRIDGE SMOKE TESTS ALL PASS");
+
+static string EncodeGhost(bool enabled)
+{
+    var bytes = new byte[7];
+    System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(0,2), 60000);
+    System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(2,4), VenomGhostEvent.PacketType);
+    bytes[6] = enabled ? (byte)1 : (byte)0;
+    return Convert.ToBase64String(bytes).TrimEnd('=');
+}
+
+foreach (var enabled in new[] { false, true })
+{
+    var packet = "\t\t\t\t$CSP0:" + EncodeGhost(enabled);
+    if (!VenomPersonalTimePlugin.VenomPersonalTimePlugin.TryDecodeChatGhost(packet, out var decoded)
+        || decoded.Enabled != enabled)
+        throw new Exception($"GHOST CSP0 decode failed for enabled={enabled}");
+    if (VenomPersonalTimePlugin.VenomPersonalTimePlugin.TryDecodeChatTime(packet, out _))
+        throw new Exception("GHOST event was incorrectly treated as a TIME event");
+}
+if (VenomPersonalTimePlugin.VenomPersonalTimePlugin.TryDecodeChatGhost(
+    "\t\t\t\t$CSP0:" + "YOpFD5uQc2V0ADA", out _))
+    throw new Exception("TIME packet should never decode as GHOST.");
+Console.WriteLine($"PASS: server ghost ON/OFF CSP0 packet type 0x{VenomGhostEvent.PacketType:X8}");
+
+Console.WriteLine("VENOM TIME & GHOST CHAT BRIDGE SMOKE TESTS ALL PASS");
