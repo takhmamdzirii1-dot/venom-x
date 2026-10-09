@@ -1134,7 +1134,10 @@ local function initGhostEvent()
   g.checked=true
   g.supported=ghostUsable()
   if not g.supported then
+    -- Never advertise a persisted ghost setting as active on older CSP.
+    g.enabled=false
     g.lastStatus='GHOST UNAVAILABLE / CSP 0.2.8+ REQUIRED'
+    persist()
     return
   end
   local ok,evt=pcall(function()
@@ -1159,7 +1162,9 @@ local function initGhostEvent()
     g.lastStatus=g.enabled and 'GHOST ON / SYNCING' or 'GHOST OFF / READY'
   else
     g.supported=false
+    g.enabled=false
     g.lastStatus='GHOST EVENT ERROR'
+    persist()
     pcall(ac.log,'VENOM X ghost event init: '..tostring(evt))
   end
 end
