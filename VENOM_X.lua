@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.12.0'
+local VERSION = '3.13.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.12.0',
+  versionTag = 'v3.13.0',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -79,24 +79,26 @@ local L = {
   footer = 'VENOM X %s - CSP Online Script',
 }
 
+-- VENOM signature: obsidian body, ivory eyes, crimson accent.
+-- Native DirectWrite text for consistently sharp fonts without local assets.
 local C = {
-  accent = rgbm(0.30, 0.78, 0.94, 1.00),
-  accentSoft = rgbm(0.48, 0.85, 0.97, 0.72),
-  accentFaint = rgbm(0.30, 0.78, 0.94, 0.19),
-  text = rgbm(0.94, 0.96, 1.00, 1.00),
-  dim = rgbm(0.56, 0.61, 0.71, 1.00),
-  glass = rgbm(0.035, 0.045, 0.070, 0.90),
-  glassDeep = rgbm(0.016, 0.024, 0.036, 0.94),
-  card = rgbm(0.075, 0.095, 0.140, 0.50),
-  cardSolid = rgbm(0.049, 0.067, 0.087, 0.77),
-  btn = rgbm(0.085, 0.105, 0.155, 0.90),
-  btnHover = rgbm(0.130, 0.180, 0.290, 0.96),
-  btnActive = rgbm(0.160, 0.260, 0.450, 0.98),
-  btnFlat = rgbm(0.095, 0.120, 0.175, 0.90),
-  bar = rgbm(1.00, 1.00, 1.00, 0.11),
-  ok = rgbm(0.36, 0.88, 0.55, 1.00),
-  warn = rgbm(1.00, 0.72, 0.30, 1.00),
-  danger = rgbm(1.00, 0.42, 0.42, 1.00),
+  accent = rgbm(0.94, 0.17, 0.25, 1.00),
+  accentSoft = rgbm(1.00, 0.59, 0.63, 1.00),
+  accentFaint = rgbm(0.92, 0.23, 0.29, 0.27),
+  text = rgbm(0.98, 0.97, 0.97, 1.00),
+  dim = rgbm(0.74, 0.74, 0.77, 1.00),
+  glass = rgbm(0.026, 0.027, 0.034, 0.89),
+  glassDeep = rgbm(0.015, 0.016, 0.022, 0.96),
+  card = rgbm(0.091, 0.082, 0.098, 0.63),
+  cardSolid = rgbm(0.064, 0.056, 0.074, 0.83),
+  btn = rgbm(0.091, 0.080, 0.101, 0.95),
+  btnHover = rgbm(0.175, 0.105, 0.132, 0.99),
+  btnActive = rgbm(0.35, 0.105, 0.150, 0.98),
+  btnFlat = rgbm(0.091, 0.088, 0.110, 0.96),
+  bar = rgbm(1.00, 1.00, 1.00, 0.15),
+  ok = rgbm(0.52, 0.94, 0.67, 1.00),
+  warn = rgbm(1.00, 0.76, 0.43, 1.00),
+  danger = rgbm(1.00, 0.36, 0.39, 1.00),
 }
 
 local NAV = {
@@ -1479,10 +1481,13 @@ local function drawVenomLauncher()
     if state.quickDockVisible then
       ui.drawRectFilled(vec2(8, ORB_SIZE - 5), vec2(ORB_SIZE - 8, ORB_SIZE - 3), C.accent, 1)
     end
-    local titleSize = ui.measureDWriteText('X', 28, -1)
-    ui.dwriteDrawText('X', 28, vec2((ORB_SIZE - titleSize.x) * .5, 2), C.accent)
-    local capSize = ui.measureDWriteText('VENOM', 9, -1)
-    ui.dwriteDrawText('VENOM', 9, vec2((ORB_SIZE - capSize.x) * .5, 37), C.dim)
+    local titleSize = ui.measureDWriteText('X', 30, -1)
+    ui.dwriteDrawText('X', 30, vec2((ORB_SIZE - titleSize.x) * .5, 0), C.text)
+    -- Two tiny red slashes reference the Venom emblem, without an image.
+    ui.drawLine(vec2(11,12),vec2(17,19),C.accent,1.6)
+    ui.drawLine(vec2(45,12),vec2(39,19),C.accent,1.6)
+    local capSize = ui.measureDWriteText('VENOM', 10, -1)
+    ui.dwriteDrawText('VENOM', 10, vec2((ORB_SIZE - capSize.x) * .5, 37), C.dim)
   end, true, true)
 end
 
@@ -1667,7 +1672,7 @@ local function drawQuickPopup()
     local heads={DEST='QUICK DESTINATIONS',FRIEND='TELEPORT TO CREW',
       TIME='PERSONAL TIME',PAINT='QUICK CAR PAINT'}
     ui.dwriteDrawText(heads[mode] or 'QUICK ACCESS',15,vec2(15,14),C.text)
-    ui.dwriteDrawText('VENOM X  /  INSTANT CONTROL',9,vec2(15,34),C.dim)
+    ui.dwriteDrawText('VENOM X  /  INSTANT CONTROL',11,vec2(15,34),C.dim)
     ui.setCursor(vec2(w-37,12))
     if ui.button('X##vxqclose',vec2(25,24)) then state.quickMode=nil end
     ui.drawLine(vec2(13,54),vec2(w-13,54),C.accentFaint,1)
@@ -1799,9 +1804,10 @@ local function drawVenomPanel()
         state.panelDrag = false
       end
     end
-    ui.dwriteDrawText('VENOM', 18, vec2(18, 12), C.text)
-    ui.dwriteDrawText('X', 18, vec2(93, 12), C.accent)
-    ui.dwriteDrawText('STUDIO CONTROL   /   LA CANYONS', 11, vec2(18, 38), C.dim)
+    ui.dwriteDrawText('VENOM', 21, vec2(18, 10), C.text)
+    ui.dwriteDrawText('X', 21, vec2(105, 10), C.accent)
+    ui.dwriteDrawText('CONTROL SYSTEM   /   LA CANYONS', 12, vec2(18, 39), C.dim)
+    ui.drawRectFilled(vec2(18,59),vec2(73,61),C.accent,1)
 
     ui.setCursor(vec2(PANEL_W - 46, 17))
     if ui.button('X##vx_panel_close', vec2(30, 28)) then closePanel() end
@@ -2017,7 +2023,7 @@ local function drawSpeedometer()
     local rp=ui.measureDWriteText(rpmText,14*k,-1)
     ui.dwriteDrawText(rpmText,14*k,v(237,122)-vec2(rp.x*.5,0),col(C.dim,opacity))
     ui.drawLine(v(14,153),v(316,153),col(C.accentFaint,opacity),1*k)
-    ui.dwriteDrawText('VENOM X',10*k,v(17,158),col(C.accentSoft,opacity))
+    ui.dwriteDrawText('VENOM X',11*k,v(17,158),col(C.accentSoft,opacity))
     ui.dwriteDrawText('LIVE TELEMETRY',10*k,v(217,158),col(C.dim,opacity))
   end)
 end
