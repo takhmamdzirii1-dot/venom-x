@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.17.0)
+# VENOM X — AssettoServer online HUD (v3.18.0)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -10,6 +10,59 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.18.0 — Extra state survives script hot reload; physical sky limitation
+
+**Why the extra cache was lost:** The server can specify a positive
+`REFRESH_PERIOD` for its GitHub-delivered online script. CSP may
+replace the script's Lua state mid-game, wiping ordinary Lua tables.
+VENOM X now automatically records the latest Extra A-J and light flags
+to CSP typed storage and recovers them only when the *same car model*
+is present, the simulation frame has not reset and the record is fresh
+(under 75 seconds). Changes are written automatically when controls
+change, and periodically while playing. No SAVE button is required.
+
+Car-jump reset can also temporarily make `car.extraA`…`extraJ`
+unreadable. v3.18 retries restoration for up to 10 seconds, with
+additional time for transient post-jump readback. The PLAYERS/CREW
+status is explicit when flags cannot be read or an attempted switch
+restoration is denied. A CSP call returning without error never
+proves a mod's animated wing/door stayed in place.
+
+**The preferred CSP-native fix for persistent car extras:**
+CSP **0.3.0-preview123 or newer** supports `KEEP_ON_RESET` for
+each switch defined in the *car's own* CSP extension config, e.g.:
+
+```ini
+[EXTRA_SWITCHES]
+SWITCH_A_FLAGS = KEEP_ON_RESET
+SWITCH_B_FLAGS = KEEP_ON_RESET
+SWITCH_C_FLAGS = KEEP_ON_RESET
+SWITCH_D_FLAGS = KEEP_ON_RESET
+SWITCH_E_FLAGS = KEEP_ON_RESET
+SWITCH_F_FLAGS = KEEP_ON_RESET
+```
+
+Add only flags that match switches present for a particular car; if a
+car already has other `SWITCH_X_FLAGS`, combine flags per that car's
+existing config rather than overwriting them. Car mods can define their
+own animation and control restrictions. CSP server online Lua does not
+have demonstrated permission to edit an arbitrary installed car's
+extension configuration. Therefore VENOM X cannot silently apply these
+flags to every third-party car with a server-only file.
+
+**TIME:** v2's shared-memory time controls required a separate local
+Companion process/app with a live heartbeat, and v3's experiment used a
+local weather bridge. On the reported client screenshot both were
+missing, and the server-loaded online script also lacked
+`ac.setWeatherTimeOffset`. The old TIME UI can select a personal clock
+preset but cannot force real sky changes with this permission set.
+For guaranteed real day/night from server only, use a **server-admin
+time control that changes everyone** (not applied automatically here).
+For **different skies per player**, a functioning client weather
+controller is needed; this can't be recreated merely by changing the
+GitHub-delivered online script. No global server time command is
+executed by VENOM X.
 
 ### v3.17.0 — Automatic extra/light tracking, no Save button
 
