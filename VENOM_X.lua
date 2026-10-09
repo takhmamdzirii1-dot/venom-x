@@ -1115,9 +1115,17 @@ end
 -- physics.disableCarCollisions(index, value) requires CSP with remote-car
 -- support (introduced in CSP 0.2.8). Both clients must run the online script.
 local function ghostUsable()
-  return type(physics)=='table' and
-    type(physics.disableCarCollisions)=='function' and
-    type(ac.OnlineEvent)=='function' and ac.StructItem~=nil
+  if type(physics)~='table' or
+    type(physics.disableCarCollisions)~='function' or
+    type(ac.OnlineEvent)~='function' or ac.StructItem==nil then
+    return false
+  end
+  -- CSP 0.2.8 (build 3424) introduced collision toggles for REMOTE cars.
+  if type(ac.getPatchVersionCode)=='function' then
+    local ok,version=pcall(ac.getPatchVersionCode)
+    if not ok or type(version)~='number' or version<3424 then return false end
+  end
+  return true
 end
 
 local function initGhostEvent()
