@@ -564,10 +564,10 @@ end
 local function returnToPits()
   local d = state.configById[0] or state.configList[1]
   if d then
-    teleportConfigDest(d)
-  else
-    toast(L.noDestinations, 'warn')
+    return teleportConfigDest(d)
   end
+  toast(L.noDestinations, 'warn')
+  return false
 end
 
 -- Snapshot ONLY client-visible control states before repositioning.
@@ -922,6 +922,7 @@ local function monitorExternalTeleports()
     -- Detect Content Manager or third-party map jumps too.
     if elapsed>0 and elapsed<.25 and dx*dx+dz*dz>900 then
       beginOptionsRestoration(state.sessionOptions)
+      if startTeleportShield then startTeleportShield() end
       state.optionsStatus='EXTERNAL MAP JUMP / AUTO RESTORE'
     end
   end
@@ -1390,7 +1391,9 @@ local function sampleRecoverySpot()
   local z=heading and tonumber(heading.z)
   local up=me.up and tonumber(me.up.y)
   local wheels=tonumber(stateVal(me,'wheelsOnGround'))
-  if not speed or speed>8 or not x or not z or x*x+z*z<0.5 or
+  -- Regular road driving under 45 km/h is a better emergency checkpoint
+  -- than saving only stopped cars (which can be stuck in place).
+  if not speed or speed>45 or not x or not z or x*x+z*z<0.5 or
      not tonumber(p.x) or not tonumber(p.y) or not tonumber(p.z) or
      (up and up<0.8) or (wheels and wheels<2) then
     recovery.stable=0
@@ -1405,7 +1408,7 @@ local function sampleRecoverySpot()
     carKey=key,at=state.clock
   }
   recovery.lastCaptureAt=state.clock
-  recovery.status='SAFE STOP SAVED'
+  recovery.status='RECOVERY CHECKPOINT SAVED'
 end
 
 tryRecoverCar=function()
@@ -1429,7 +1432,7 @@ tryRecoverCar=function()
     if state.clock>=recovery.confirmUntil then
       recovery.confirmUntil=state.clock+4
       toast(hasSpot and 'RECOVER WHILE MOVING? PRESS AGAIN TO CONFIRM' or
-        'NO SAFE STOP / PRESS AGAIN TO RETURN TO PITS','warn')
+        'NO CHECKPOINT / PRESS AGAIN TO RETURN TO PITS','warn')
       return false
     end
   end
@@ -1438,13 +1441,17 @@ tryRecoverCar=function()
   recovery.status='RECOVERY REQUESTED'
   if not hasSpot then
     -- Deliberate fallback; the second press confirms the pits destination.
-    returnToPits()
-    return true
+    local ok=returnToPits()
+    if not ok then
+      recovery.status='RECOVERY FAILED / NO PITS DESTINATION'
+      recovery.cooldownUntil=state.clock
+    end
+    return ok
   end
   -- Move exactly to a previously observed upright stationary position.
   -- Orientation is inverted to match physics.setCarPosition.
   local ok=teleportSelf(vec3(spot.x,spot.y+0.18,spot.z),
-    vec3(spot.dirX,0,spot.dirZ),'RECOVERED TO LAST SAFE STOP')
+    vec3(spot.dirX,0,spot.dirZ),'RECOVERED TO LAST CHECKPOINT')
   if not ok then
     recovery.status='RECOVERY FAILED'
     recovery.cooldownUntil=state.clock
@@ -1468,9 +1475,9 @@ local function recoveryStatusLine()
       math.max(0,shield.untilAt-state.clock))
   end
   if r.spot and state.clock-r.spot.at<1200 then
-    return 'RECOVERY READY  /  LAST SAFE STOP'
+    return 'RECOVERY READY  /  LAST STABLE CHECKPOINT'
   end
-  return 'RECOVERY: NO VERIFIED STOP / PITS FALLBACK'
+  return 'RECOVERY: NO CHECKPOINT / PITS FALLBACK'
 end
 
 local function refreshDestinations(force)
@@ -1818,7 +1825,7 @@ local function drawHome()
   if ui.button('RECOVER / LAST SAFE STOP##vxhomeRecover',vec2(0,33)) then
     tryRecoverCar()
   end
-  ui.textDisabled('Safe stop preferred; confirm twice for fallback to pits.')
+  ui.textDisabled('Last stable checkpoint; double-click to confirm fallback.')
   ui.separator()
   local me = car()
   if me then
