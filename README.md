@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.11.1)
+# VENOM X — AssettoServer online HUD (v3.11.2)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -10,6 +10,20 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.11.2 — All teleport types use preservation
+
+Friends, configured places, available server destinations and Pits now use
+the same optional car switch and lighting preservation logic. State is
+checked again over up to 4.5 seconds, with completion after repeated
+clean checks from at least 2.4 seconds.
+
+CSP may refuse some restoration APIs. The PLAYERS and CREW menus expose
+the state after teleporting.
+
+Individual sky time remains unavailable in an online script when the
+client CSP does not expose the required API. The selected interface
+clock does not imply the sun actually changed.
 
 ### v3.11.1 — Late car control reset restoration
 
