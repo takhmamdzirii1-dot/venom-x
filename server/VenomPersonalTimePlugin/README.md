@@ -46,6 +46,36 @@ Enabled: true
    The key is `VENOMX_SetTime` with fields `mode: string(4)` and
    `seconds: string(8)`. `set` is personal time, `sync` restores server time.
 
+## CSP0 chat transport fix for AssettoServer 0.0.54.26
+
+In the user's captured log, CSP v3.20.1 sent:
+```
+$CSP0:YOpFD5uQc2V0ADA
+```
+This is an OnlineEvent framed in a **chat packet**, with opcode 60000,
+packet type `0x909B0F45`, `mode=set`, `seconds=0`.
+Stock AssettoServer 0.0.54 handles such packets as CHAT but does not
+forward them to `CSPClientMessageTypeManager.RegisterOnlineEvent`.
+
+The corrected plugin attaches to the cancellable ChatService.MessageReceived,
+validates the exact event key and packet framing, decodes TIME commands,
+sets `Cancel=true` to prevent ordinary chat forwarding and uses its
+existing per-player WeatherFX override. Both the native event path and
+the chat transport path are supported.
+
+**Validation:** GitHub Actions builds the DLL against AssettoServer
+`v0.0.54` and runs a native .NET 8 smoke test which verifies the
+actual log's `set`/`sync` Base64 packets, ignores unrelated packets,
+and confirms the generated OnlineEvent type is `0x909B0F45`.
+These automated checks passed. Gameplay validation still pending.
+
+Expected after replacing the old DLL:
+```
+[VENOM TIME] Started ... CSP0 chat bridge active
+[VENOM TIME] CSP0 CHAT BRIDGE decoded set 0 ...
+[VENOM TIME] Received mode=set requested=0 ... WeatherFX update dispatched
+```
+
 ## Live diagnostic (v3.20.1)
 
 The updated DLL returns an `ack` OnlineEvent from the **server** using the
