@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.12.0)
+# VENOM X — AssettoServer online HUD (v3.13.0)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -10,6 +10,47 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Player teleport places your own car approximately **11 m behind** the target's current look direction (at any driving speed). CSP `physics.setCarPosition()` is used, and a delayed read-back checks whether the car actually arrived before showing the success toast.
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
+
+### v3.13.0 — VENOM visual identity, legacy v2 time compatibility, in-session option memory
+
+**Theme:** The entire panel, dock and speedometer now use a matched
+obsidian-black / ivory-white / crimson-red design inspired by VENOM:
+higher-contrast native DWrite labels, sharper branding, cleaner headings,
+red navigation indicators and matching hover colors. No external fonts
+or texture assets need to be installed.
+
+**TIME:** Git history confirms that original v2.0 used a shared-memory
+Companion with `ac.connect(..., ac.SharedNamespace.Shared)`, commands
+`cmdOffset/cmdInstant/cmdSeq`, a heartbeat `beat` and acknowledgements.
+The v3.x system later switched to `ac.store()` keys and a Pure bridge.
+v3.13 restores the original v2 protocol as **automatic optional
+backward compatibility**, using its exact field layout. The script uses
+the channel only when a fresh heartbeat from the already-running
+Companion is present and reports the command acknowledgement. If that
+Companion is missing or CSP disallows both the bridge and native setter,
+the personal slider remains a local clock preview: it cannot change the
+actual sky. **No Pure requirement, no extra download and no shared
+server clock adjustment.** Preset sunrise remains 07:15, sunset 18:00.
+
+**Extras / wing / doors:** The desired Extra A-J, headlights, beams,
+turn-signal and hazard flag values are now pinned as a **session-only
+snapshot** on teleport and used by both internal teleports and external
+map/Car Jump detectors. Restoration no longer stops after 4.5 seconds:
+a rate-limited check every 2.5 seconds retries observable flag mismatches
+throughout the game session. A long-lived CSP Car Jump event Disposable
+is held so that garbage collection doesn't silently unsubscribe it.
+The PLAYERS and CREW pages now have **SAVE CURRENT SETUP** controls:
+use these after intentionally changing wings/doors/extras once the
+cache is pinned, so it will preserve the new arrangement instead.
+Switch values are not saved across leaving the game, respawning with
+a different car model, or sessions.
+
+**Important limitation:** A car mod can implement wing/door animation
+using private Lua variables, geometry nodes or action-only button events.
+These internal mod states are not recoverable from `car.extraA..extraJ`
+flags alone. This is a best-effort generic preservation system, not a
+guarantee for every car. No wholesale car reset, repair or state wipe is
+added. Live in-game testing remains necessary.
 
 ### v3.12.0 — Horizontal frosted-glass quick dock and extra J preservation
 
