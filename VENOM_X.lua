@@ -218,6 +218,9 @@ local state = {
     nativeCalls=0,lastNativeAt=-999,lastNativeOffset=math.huge,
     lastControl='NONE',lastSunHeight=nil,lastMoonHeight=nil,
     skyProbeAt=-999,skyProbeError=nil,
+    legacyShared=nil,legacyConnected=false,legacyReady=false,
+    legacySeq=nil,legacyPendingAt=-999,legacyLastTarget=0,
+    legacyAck='NOT CONNECTED',legacyProbeAt=-999,
   },
 
 
@@ -1348,10 +1351,13 @@ local function drawTime()
   ui.separator()
   ui.textDisabled('Server: '..fmtSec(wrapDay(serverSec())))
   ui.textDisabled('Last selection: '..tostring(tm.lastControl))
-  if tm.mode=='CSP NATIVE' and tm.nativeApplied then
+  if tm.mode=='LEGACY COMPANION' then
+    ui.textColored('V2 COMPANION: '..tostring(tm.legacyAck),C.accentSoft)
+    ui.textDisabled('Actual sky must still be checked visually.')
+  elseif tm.mode=='CSP NATIVE' and tm.nativeApplied then
     ui.textColored('CSP time API called; sky effect not verified.',C.accentSoft)
   else
-    ui.textDisabled('Personal time selected. Sky remains server-controlled.')
+    ui.textDisabled('No local sky controller. Clock selection only.')
   end
   -- Sun and moon are read-only here. Never fabricate fake night exposure.
   if tm.lastSunHeight~=nil then
@@ -1732,8 +1738,11 @@ local function drawQuickPopup()
           tm.want=0
           tm.lastControl='RESET'
         end
-        if tm.mode=='CSP NATIVE' then
-          ui.textDisabled('CSP local sky API detected (visual not confirmed).')
+        if tm.mode=='LEGACY COMPANION' then
+          ui.textColored('ORIGINAL v2 TIME CHANNEL',C.accentSoft)
+          ui.textDisabled(tostring(tm.legacyAck))
+        elseif tm.mode=='CSP NATIVE' then
+          ui.textDisabled('CSP local sky API detected (not visually verified).')
         else
           ui.textColored('SKY LOCKED / CLOCK PREVIEW ONLY',C.warn)
         end
@@ -2073,13 +2082,112 @@ do
   if ok then state.menuShortcut = key end
 end
 
+-- Restored compatibility with the ORIGINAL v2.0 local time protocol.
+-- It only uses a running existing VENOM client Companion (no Pure or
+-- weather plugin installation prompted by this server script).
+-- Layout MUST match the 2026-10-08 v2.0 GitHub revision byte for byte.
+local LEGACY_TIME_FIELDS={
+  'beat','cmdSeq','cmdOffset','cmdInstant',
+  'ackSeq','ackResult','ackAt','ackErr'
+}
+
+local function openLegacyTimeCompanion()
+  local tm=state.time
+  if tm.legacyConnected then return end
+  tm.legacyConnected=true
+  if type(ac.connect)~='function' or
+      not ac.StructItem or not ac.SharedNamespace then
+    tm.legacyAck='LEGACY SHARED API NOT AVAILABLE'
+    return
+  end
+  local ok,shared=pcall(function()
+    local layout={
+      beat=ac.StructItem.int32(),
+      cmdSeq=ac.StructItem.int32(),
+      cmdOffset=ac.StructItem.float(),
+      cmdInstant=ac.StructItem.int32(),
+      ackSeq=ac.StructItem.int32(),
+      ackResult=ac.StructItem.int32(),
+      ackAt=ac.StructItem.int32(),
+      ackErr=ac.StructItem.string(96),
+    }
+    return ac.connect(layout,true,ac.SharedNamespace.Shared)
+  end)
+  if ok and shared then
+    tm.legacyShared=shared
+    tm.legacyAck='WAITING FOR ORIGINAL v2 COMPANION'
+  else
+    tm.legacyAck='LEGACY CONNECT NOT AVAILABLE'
+  end
+end
+
+local function updateLegacyTimeCompanion()
+  local tm=state.time
+  if not tm.legacyConnected then openLegacyTimeCompanion() end
+  local shared=tm.legacyShared
+  tm.legacyReady=false
+  if not shared then return end
+  local s=sim()
+  if not s then return end
+  local ready,frame=pcall(function()
+    return tonumber(s.frame) or -1
+  end)
+  if not ready then return end
+  local okBeat,beat=pcall(function() return tonumber(shared.beat) or -1 end)
+  if not okBeat or beat<=0 or frame<beat or frame-beat>=180 then
+    tm.legacyAck='ORIGINAL COMPANION NOT RUNNING'
+    return
+  end
+  tm.legacyReady=true
+
+  if tm.legacySeq~=nil then
+    local okAck,ackSeq,ackResult,ackErr=pcall(function()
+      return tonumber(shared.ackSeq),tonumber(shared.ackResult),
+        tostring(shared.ackErr or '')
+    end)
+    if okAck and ackSeq==tm.legacySeq then
+      if ackResult==2 then
+        tm.legacyAck='COMPANION ERROR: '..tostring(ackErr):sub(1,55)
+      else
+        tm.legacyAck='COMPANION ACK / CHECK SKY'
+      end
+      tm.legacySeq=nil
+    elseif state.clock-tm.legacyPendingAt>3.5 then
+      tm.legacyAck='COMPANION DID NOT ACK'
+      tm.legacySeq=nil
+    end
+  end
+  if tm.legacySeq~=nil then return end
+  if math.abs(wrapOffset(tm.want-tm.legacyLastTarget))<1 then return end
+  local okWrite,seq=pcall(function()
+    local n=(tonumber(shared.cmdSeq) or 0)+1
+    shared.cmdOffset=wrapOffset(tm.want)
+    shared.cmdInstant=1
+    shared.cmdSeq=n
+    return n
+  end)
+  if okWrite then
+    tm.legacySeq=seq
+    tm.legacyPendingAt=state.clock
+    tm.legacyLastTarget=tm.want
+    tm.legacyAck='SENT VIA ORIGINAL v2 COMPANION'
+  else
+    tm.legacyAck='COMPANION WRITE REJECTED'
+  end
+end
+
 local function timeControlUpdate(dt)
   local tm=state.time
   tm.curOffset=anim(tm.curOffset,tm.want,2.8,dt)
   if math.abs(tm.want-tm.curOffset)<1 then tm.curOffset=tm.want end
-  tm.mode=type(ac.setWeatherTimeOffset)=='function' and
-    not tm.nativeRejected and 'CSP NATIVE' or 'SERVER'
-  if tm.mode~='CSP NATIVE' and not tm.nativeRejected then
+  -- First try the original v2.0 local companion channel. Pure is NOT required.
+  updateLegacyTimeCompanion()
+  tm.mode=tm.legacyReady and 'LEGACY COMPANION' or
+    (type(ac.setWeatherTimeOffset)=='function' and
+      not tm.nativeRejected and 'CSP NATIVE' or 'SERVER')
+  if tm.mode=='LEGACY COMPANION' then
+    tm.nativeResult='LEGACY: '..tostring(tm.legacyAck)
+  elseif tm.mode~='CSP NATIVE' and not tm.nativeRejected then
     tm.nativeResult='UNAVAILABLE IN ONLINE SCRIPT'
   end
   if state.clock-tm.skyProbeAt>1 then
