@@ -207,6 +207,10 @@ local state = {
   pendingTeleport = nil,
   optionsRestore = nil,
   optionsStatus = 'NOT TESTED',
+  sessionOptions = nil,
+  sessionCarKey = nil,
+  sessionPinned = false,
+  sessionRetryAt = -999,
   lastControls = nil,
   lastControlsAt = -1,
   lastCarPos = nil,
@@ -544,16 +548,39 @@ end
 
 -- Preserve switch state without spamming controls if they never changed.
 -- Return actual observable mismatches; online CSP might forbid setters.
+local function saveCurrentVehicleSetup()
+  local own=car()
+  if not own then return end
+  state.sessionOptions=snapshotCarOptions(own)
+  state.sessionCarKey=tostring(stateVal(own,'id') or 'UNKNOWN')
+  state.sessionPinned=true
+  state.optionsRestore=nil
+  state.sessionRetryAt=state.clock+1.5
+  state.optionsStatus='SAVED A-J + LIGHTS FOR THIS SESSION'
+  toast('CAR SETUP SAVED FOR THIS SESSION')
+end
+
 beginOptionsRestoration=function(snapshot)
   local own=car()
   if not own then return false end
+  local carKey=tostring(stateVal(own,'id') or 'UNKNOWN')
+  if state.sessionCarKey~=carKey then
+    state.sessionOptions=nil
+    state.sessionPinned=false
+    state.sessionCarKey=carKey
+  end
+  -- Existing session setup must survive jumps and failed restorations.
+  local desired=snapshot or state.sessionOptions or snapshotCarOptions(own)
+  state.sessionOptions=desired
+  state.sessionPinned=true
+  state.sessionRetryAt=state.clock+5.0
   state.optionsRestore={
-    snapshot=snapshot or snapshotCarOptions(own),
+    snapshot=desired,
     started=state.clock,deadline=state.clock+4.5,
     nextAt=state.clock+0.16,pass=0,clean=0,totalAttempts=0,
     denied=0,unavailable=0
   }
-  state.optionsStatus='TP / WATCHING VEHICLE CONTROLS'
+  state.optionsStatus='TP / RESTORING PINNED SETUP'
   return true
 end
 
@@ -670,7 +697,22 @@ end
 -- after 0.7s), and check up to 3.5s with bounded retry intervals.
 local function restoreTeleportOptions()
   local task=state.optionsRestore
-  if not task or state.clock<task.nextAt then return end
+  if not task then
+    -- Keep cached extras until leaving this game, not only for 4.5s.
+    -- Bounded 1 check / 2.5s avoids heavy CSP calls on every frame.
+    if state.sessionPinned and state.sessionOptions
+        and state.clock>=state.sessionRetryAt then
+      state.sessionRetryAt=state.clock+2.5
+      local stats=restoreCarOptions(state.sessionOptions)
+      if stats.missing>0 then
+        state.optionsStatus=string.format(
+          'SESSION KEEP: %d MISMATCH / %d DENIED / %d NO API',
+          stats.missing,stats.denied,stats.unavailable)
+      end
+    end
+    return
+  end
+  if state.clock<task.nextAt then return end
   local stats=restoreCarOptions(task.snapshot)
   task.pass=task.pass+1
   task.nextAt=state.clock+(task.pass<5 and 0.17 or 0.38)
@@ -719,18 +761,32 @@ local function monitorExternalTeleports()
     -- 70 metres in under .25s is a teleport, not normal driving.
     if elapsed>0 and elapsed<0.25 and dx*dx+dz*dz>4900
        and state.lastControls then
-      beginOptionsRestoration(state.lastControls)
+      beginOptionsRestoration(state.sessionOptions or state.lastControls)
       state.optionsStatus='EXTERNAL MAP TP / RESTORING'
     end
   end
   state.lastCarPos={x=pos.x,y=pos.y,z=pos.z}
   state.lastCarSampleAt=now
+  local currentModel=tostring(stateVal(me,'id') or 'UNKNOWN')
+  if state.sessionCarKey and state.sessionCarKey~=currentModel then
+    -- Prevent applying extras from a different car to the new vehicle.
+    state.sessionCarKey=currentModel
+    state.sessionOptions=nil
+    state.sessionPinned=false
+    state.optionsRestore=nil
+    state.optionsStatus='NEW CAR / SETUP MEMORY CLEARED'
+  end
   if not state.optionsRestore and
       (state.lastControls==nil or now-state.lastControlsAt>=0.08) then
-    -- About 12Hz for option-state reads, avoiding 10+ Lua/CSP
-    -- cross-API reads every graphics frame.
-    state.lastControls=snapshotCarOptions(me)
+    -- Retain the last setup during a car-jump reset: never learn the
+    -- reset-to-OFF value as a desired option while protection is pinned.
+    local sample=snapshotCarOptions(me)
     state.lastControlsAt=now
+    if not state.sessionPinned then
+      state.lastControls=sample
+      state.sessionOptions=sample
+      state.sessionCarKey=currentModel
+    end
   end
 end
 
@@ -740,8 +796,8 @@ local function registerCarJumpProtection()
   if type(ac.onCarJumped)~='function' then return end
   local ok,err=pcall(function()
     ac.onCarJumped(0,function()
-      if not state.optionsRestore and state.lastControls then
-        beginOptionsRestoration(state.lastControls)
+      if not state.optionsRestore and (state.sessionOptions or state.lastControls) then
+        beginOptionsRestoration(state.sessionOptions or state.lastControls)
         state.optionsStatus='CAR JUMP / RESTORING OPTIONS'
       end
     end)
@@ -1237,6 +1293,13 @@ local function drawPlayers()
   end
   ui.textDisabled(L.trafficHidden)
   ui.textDisabled('CAR CONTROLS: '..tostring(state.optionsStatus))
+  if state.sessionPinned then
+    ui.textColored('OPTION CACHE ACTIVE / UNTIL SESSION ENDS',C.accentSoft)
+  end
+  if ui.button('SAVE CURRENT CAR SETUP (A-J + LIGHTS)##vx_saveextras',vec2(0,32)) then
+    saveCurrentVehicleSetup()
+  end
+  ui.textDisabled('Re-save when changing wings, doors or other extras.')
   if state.teleportCooldown > 0.05 then
     ui.textColored(string.format(L.cooldown, state.teleportCooldown), C.warn)
   end
@@ -1717,6 +1780,9 @@ local function drawQuickPopup()
         end
         ui.textDisabled('AI traffic excluded. Behind driver / same heading.')
         ui.textDisabled('Car switches: '..tostring(state.optionsStatus))
+        if ui.button('SAVE CURRENT SETUP##vx_qsaveextras',vec2(w-50,28)) then
+          saveCurrentVehicleSetup()
+        end
       elseif mode=='TIME' then
         local tm=state.time
         ui.textColored(fmtSec(wrapDay(serverSec()+tm.want)),C.accentSoft)
