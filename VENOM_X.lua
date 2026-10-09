@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.9.3'
+local VERSION = '3.10.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.9.3',
+  versionTag = 'v3.10.0',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -27,7 +27,7 @@ local L = {
   kmh = 'KM/H',
   gear = 'GEAR %s',
   rpmLabel = 'RPM %s',
-  teleportHint = 'Tap a driver to teleport 10 m behind them',
+  teleportHint = 'Teleport 11 m behind a real player (stop first)',
   cooldown = 'Teleport cooldown: %.1f s',
   pleaseWait = 'Please wait %d s',
   playerUnavailable = 'Player is no longer available',
@@ -149,11 +149,7 @@ local PANEL_H = 515
 local PANEL_SIZES = { { 318, 440 }, { 370, 515 }, { 438, 590 } }
 local OPEN_DUR = 0.24
 local DRAG_THRESHOLD = 6
-local STORE_ENABLED = 'venomx.time.enabled'
-local STORE_OFFSET = 'venomx.time.offsetHours'
-local STORE_BEAT = 'venomx.time.heartbeat'
-local STORE_STATUS = 'venomx.time.status'
-local STORE_APPLIED = 'venomx.time.applied'
+-- Standalone time control. No Pure bridge, shared time keys or client files.
 
 local state = {
   frames = 0,
@@ -211,30 +207,16 @@ local state = {
   readyFrames = 0,
   drawErrors = 0,
   emergency = false,
+  pendingTeleport = nil,
   time = {
-    helper = nil,
-    helperSeen = false,
-    applied = 'no',
-    want = 0,
-    curOffset = 0,
-    probeAt = -999,
-    mode = 'SERVER',
-    nativeRejected = false,
-    nativeAttempted = false,
-    nativeAvailable = false,
-    nativeApplied = false,
-    nativeResult = 'NOT CALLED',
-    nativeCalls = 0,
-    lastControl = 'NONE',
-    lastSunHeight = nil,
-    skyProbeAt = -999,
-    skyProbeError = nil,
-    lastNativeAt = -999,
-    lastNativeOffset = math.huge,
-    gingysSeen = false,
-    astronomical = false,
-    solarSamples = nil,
+    want=0,curOffset=0,mode='SERVER',nativeRejected=false,
+    nativeAttempted=false,nativeApplied=false,nativeResult='NOT CALLED',
+    nativeCalls=0,lastNativeAt=-999,lastNativeOffset=math.huge,
+    lastControl='NONE',lastSunHeight=nil,lastMoonHeight=nil,
+    skyProbeAt=-999,skyProbeError=nil,
   },
+
+
 }
 
 local config = {}
@@ -521,52 +503,63 @@ local function returnToPits()
 end
 
 local function teleportToPlayer(p)
-  if state.teleportCooldown > 0.05 then
-    toast(string.format(L.pleaseWait, math.ceil(state.teleportCooldown)), 'warn')
+  if state.teleportCooldown>0.05 or state.pendingTeleport then
+    toast(string.format(L.pleaseWait,math.ceil(math.max(state.teleportCooldown,1))),'warn')
     return
   end
   if not p then return end
-  local target = ac.getCar(p.index)
-  if not target or not target.isActive or not target.isConnected then
-    toast(L.playerUnavailable, 'warn')
+  local target=ac.getCar(p.index)
+  if not target or not target.isActive or not target.isConnected
+      or not target.position then
+    toast(L.playerUnavailable,'warn') return
+  end
+  local sid=stateVal(target,'sessionID')
+  local model=tostring(stateVal(target,'id') or ''):lower()
+  if type(sid)~='number' or not HUMAN_SESSION_IDS[sid]
+      or stateVal(target,'isAIControlled')
+      or model:find('traffic',1,true) or model:find('authentic_ai',1,true) then
+    toast(L.playerUnavailable,'warn') return
+  end
+  local me=car()
+  if not me or not me.position then toast(L.teleportFailed,'warn') return end
+  if (tonumber(me.speedKmh) or 0)>5 then toast(L.stopCarFirst,'warn') return end
+  local look=target.look
+  local x=look and tonumber(look.x) or 0
+  local z=look and tonumber(look.z) or -1
+  local length=math.sqrt(x*x+z*z)
+  if length<0.01 then x,z,length=0,-1,1 end
+  x,z=x/length,z/length
+  local destination=vec3(target.position.x-x*11,target.position.y+0.2,target.position.z-z*11)
+  local ok,answer=pcall(physics.setCarPosition,0,destination,vec3(x,0,z))
+  if not ok or answer==false then
+    toast(L.teleportFailed,'warn')
+    pcall(ac.log,'VENOM X teleport rejected: '..tostring(answer))
     return
   end
-  if stateVal(target, 'isAIControlled') then
-    toast(L.playerUnavailable, 'warn')
-    return
+  -- Optional helpers must not invalidate a successful position call.
+  if type(physics.setCarVelocity)=='function' then
+    pcall(physics.setCarVelocity,0,vec3(0,0,0))
   end
-  local me = car()
-  if not me then
-    toast(L.teleportFailed, 'warn')
-    return
+  if type(physics.awakeCar)=='function' then pcall(physics.awakeCar,0) end
+  state.pendingTeleport={dest=destination,name=p.name,at=state.clock+0.7}
+  state.teleportCooldown=2.5
+end
+
+local function verifyPlayerTeleport()
+  local pending=state.pendingTeleport
+  if not pending or state.clock<pending.at then return end
+  state.pendingTeleport=nil
+  local me=car()
+  local pos=me and me.position
+  if not pos then
+    toast('TELEPORT: POSITION NOT VERIFIED','warn') return
   end
-  if me.speedKmh > 5 then
-    toast(L.stopCarFirst, 'warn')
-    return
-  end
-  local lk = target.look
-  local lx, lz
-  if lk and type(lk.x) == 'number' and type(lk.z) == 'number' then
-    lx, lz = lk.x, lk.z
+  local dx=pos.x-pending.dest.x
+  local dz=pos.z-pending.dest.z
+  if dx*dx+dz*dz<64 and math.abs(pos.y-pending.dest.y)<9 then
+    toast(string.format(L.teleportedToPlayer,pending.name))
   else
-    lx, lz = 0, -1
-  end
-  local len = math.sqrt(lx * lx + lz * lz)
-  if len < 0.001 then
-    lx, lz, len = 0, -1, 1
-  end
-  lx, lz = lx / len, lz / len
-  local behind = vec3(target.position.x - lx * 11, target.position.y, target.position.z - lz * 11)
-  local ok = pcall(function()
-    physics.setCarPosition(0, behind, vec3(lx, 0, lz))
-    physics.setCarVelocity(0, vec3(0, 0, 0))
-    physics.awakeCar(0)
-  end)
-  if ok then
-    state.teleportCooldown = 2.5
-    toast(string.format(L.teleportedToPlayer, p.name))
-  else
-    toast(L.teleportFailed, 'warn')
+    toast('TELEPORT BLOCKED OR NOT UPDATED','warn')
   end
 end
 
@@ -1019,68 +1012,49 @@ local function drawColor()
 end
 
 local function drawTime()
-  local tm = state.time
-  sectionLabel('TIME & SKY  /  AUTO')
-  local hasBridge = tm.mode == 'PURE BRIDGE'
-  local capable = hasBridge or (tm.mode == 'CSP NATIVE')
-  local visibleSec = wrapDay(serverSec() + (capable and tm.curOffset or 0))
+  local tm=state.time
+  local usable=tm.mode=='CSP NATIVE'
+  sectionLabel('TIME / PERSONAL WEATHERFX')
   ui.dummy(vec2(0,7))
   local p=ui.getCursor()
   ui.drawRectFilled(p,vec2(p.x+PANEL_W-35,p.y+82),C.cardSolid,12)
   ui.drawRect(p,vec2(p.x+PANEL_W-35,p.y+82),C.accentFaint,12,ui.CornerFlags.All,1)
-  ui.dwriteDrawText(fmtSec(visibleSec),33,vec2(p.x+16,p.y+7),C.text)
-  ui.dwriteDrawText(capable and 'REQUESTED LOCAL TIME' or 'SERVER TIME',11,
+  ui.dwriteDrawText(fmtSec(wrapDay(serverSec()+tm.curOffset)),33,vec2(p.x+16,p.y+7),C.text)
+  ui.dwriteDrawText('PERSONAL REQUEST / SERVER CLOCK UNCHANGED',10,
     vec2(p.x+16,p.y+58),C.accentSoft)
   ui.dummy(vec2(0,96))
-
-  -- Only label an applied client override as verified when the Pure bridge
-  -- explicitly acknowledges it. Direct native API success is not sky validation.
-  if hasBridge then
-    ui.textColored(tm.applied == 'yes' and 'PURE BRIDGE / REPORTED APPLIED'
-      or 'PURE BRIDGE / WAITING FOR APPLICATION', tm.applied == 'yes' and C.ok or C.warn)
-    ui.textDisabled('Bridge state: ' .. tostring(tm.helper or 'UNKNOWN'))
-  elseif tm.mode == 'CSP NATIVE' then
-    ui.textColored('CSP WEATHERFX / LOCAL TIME', C.accentSoft)
-    ui.textDisabled('API result: ' .. tostring(tm.nativeResult))
-    ui.textDisabled('Calls made: ' .. tostring(tm.nativeCalls))
-  else
-    ui.textColored('AUTO / SERVER SKY',C.warn)
-    ui.textWrapped('Individual sky time requires a compatible client weather bridge. CSP online scripts cannot install that bridge automatically.')
-    ui.textDisabled('VENOM Pure hook: ' .. tostring(tm.helper or 'NOT DETECTED'))
-    ui.textDisabled('Gingys controller: ' .. (tm.gingysSeen and 'DETECTED (SEPARATE KEYS)' or 'NOT DETECTED'))
-    ui.textDisabled('CSP time API: unavailable or rejected on this client')
+  ui.textColored(usable and 'CSP LOCAL TIME / NO BRIDGE' or
+    'CSP LOCAL TIME UNAVAILABLE',usable and C.accentSoft or C.warn)
+  ui.textDisabled('API: '..tostring(tm.nativeResult))
+  if not usable then
+    ui.textWrapped('This CSP online-script context does not allow local sky time. No fake darkening or server-wide change is applied.')
   end
   ui.separator()
-  if capable then
-    sectionLabel('GOLDEN HOUR / CLOCK PRESETS')
+  sectionLabel('GOLDEN HOUR / SUN & MOON')
+  if usable then
     local tv=wrapDay(serverSec()+tm.curOffset)
-    local nv=ui.slider('##vx_real_sun_slider',tv,0,86399,'',1)
+    local nv=ui.slider('##vx_personal_time',tv,0,86399,'',1)
     if math.abs(nv-tv)>0.5 then
       tm.want=wrapOffset(nv-serverSec())
-      tm.astronomical=false
       tm.lastControl='SLIDER'
     end
     ui.dummy(vec2(0,6))
     local bw=math.max(95,(PANEL_W-56)/2)
     for i,preset in ipairs(TIME_PRESETS) do
-      if (i-1)%2 == 1 then ui.sameLine() end
+      if (i-1)%2==1 then ui.sameLine() end
       if ui.button(preset.label..'##vx_solar_'..i,vec2(bw,32)) then
         setTimePreset(preset,i)
         tm.lastControl=preset.label
-        toast('TIME REQUEST: ' .. preset.label)
+        toast('REQUESTED: '..preset.label)
       end
     end
-    if ui.button('SYNC TO SERVER##vx_sync_sun',vec2(0,30)) then
+    if ui.button('RESET / SERVER CLOCK##vx_time_reset',vec2(0,30)) then
       tm.want=0
-      tm.astronomical=false
-      tm.lastControl='SYNC SERVER'
-      toast('SERVER TIME REQUESTED')
+      tm.lastControl='RESET'
     end
-    ui.dummy(vec2(0, 5))
-    sectionLabel('FINE TUNE / SUN HEIGHT')
+    sectionLabel('FINE TUNE / GOLDEN COLORS')
     local fineW=math.max(56,(PANEL_W-57)/4)
-    local shifts={-15,-5,5,15}
-    for i,minutes in ipairs(shifts) do
+    for i,minutes in ipairs({-15,-5,5,15}) do
       if i>1 then ui.sameLine() end
       local label=string.format('%+d min',minutes)
       if ui.button(label..'##vx_fine_'..i,vec2(fineW,29)) then
@@ -1088,29 +1062,26 @@ local function drawTime()
         tm.lastControl=label
       end
     end
-    ui.textDisabled('Adjust if the track date changes the golden hour.')
   else
-    ui.textDisabled('Sun position follows the server weather.')
+    ui.textDisabled('Time presets need a supported CSP local sky API.')
   end
   ui.separator()
-  sectionLabel('LIVE DIAGNOSTICS')
-  ui.textDisabled('Last input: ' .. tostring(tm.lastControl))
-  ui.textDisabled('Target clock: ' .. fmtSec(wrapDay(serverSec()+tm.want)))
-  if tm.lastSunHeight ~= nil then
-    ui.textDisabled(string.format('Actual sun Y: %.3f',tm.lastSunHeight))
-    if tm.lastSunHeight > 0 then
-      ui.textDisabled('Sun currently ABOVE horizon.')
-    else
-      ui.textDisabled('Sun currently BELOW horizon.')
-    end
+  sectionLabel('REAL SKY STATUS')
+  ui.textDisabled('Last input: '..tostring(tm.lastControl))
+  ui.textDisabled('Requested: '..fmtSec(wrapDay(serverSec()+tm.want)))
+  if tm.lastSunHeight~=nil then
+    ui.textDisabled(string.format('Sun Y: %.3f (%s)',tm.lastSunHeight,
+      tm.lastSunHeight<0 and 'BELOW HORIZON' or 'ABOVE HORIZON'))
   else
-    ui.textDisabled('Sun direction API: ' .. tostring(tm.skyProbeError or 'NOT AVAILABLE'))
+    ui.textDisabled('Sun Y: '..tostring(tm.skyProbeError or 'UNKNOWN'))
   end
-  ui.textDisabled('Status: ' .. tostring(tm.mode))
-  ui.separator()
-  sectionLabel('CLOUDS & LIGHTING')
-  ui.textWrapped('Automatic: the active weather controller owns sky, exposure, reflections and cloud cover. No brightness overlay or artificial night filter.')
-  ui.textDisabled('Server WeatherFX must be enabled for CSP weather.')
+  if tm.lastMoonHeight~=nil then
+    ui.textDisabled(string.format('Moon Y: %.3f (%s)',tm.lastMoonHeight,
+      tm.lastMoonHeight>0 and 'ABOVE HORIZON' or 'BELOW HORIZON'))
+  else
+    ui.textDisabled('Moon Y: NOT AVAILABLE')
+  end
+  ui.textWrapped('Night sunlight, cloud colors and visible moon depend on real CSP weather, moon phase and date. No artificial lights or fake moon.')
 end
 
 local function drawHud()
@@ -1545,87 +1516,43 @@ do
   if ok then state.menuShortcut = key end
 end
 
-local function probeTimeController()
-  local tm=state.time
-  local status, applied
-  local stOK, st=pcall(ac.load, STORE_STATUS)
-  if stOK then status=st end
-  local aOK, ack=pcall(ac.load, STORE_APPLIED)
-  if aOK then applied=ack end
-  tm.helper=status
-  -- Merely seeing a Pure loader message is not proof that the sky hook works.
-  -- Accept only runtime offset stages; reject explicit hook and direction errors.
-  tm.helperSeen=type(status)=='string' and status:find('^offset%-')~=nil and
-    status:find('error',1,true)==nil and
-    status:find('no-direction',1,true)==nil
-  tm.applied=applied=='yes' and 'yes' or 'no'
-
-  -- Detect the existing Gingys installation passively. Its bridge is controlled
-  -- by its own app; never overwrite its storage and fight its user settings.
-  local gok,gstatus=pcall(ac.load,'GingysClientTime.PureBridge.Status')
-  tm.gingysSeen=gok and type(gstatus)=='string' and gstatus~=''
-  -- Restore the user-tested native CSP route from v3.9.0. The v3.9.1
-  -- online-race guard incorrectly disabled this route in live sessions.
-  -- Only show API-request status: do not claim the sky has visually changed.
-  local native=type(ac.setWeatherTimeOffset)=='function' and not tm.nativeRejected
-  tm.nativeAvailable=native
-  if tm.helperSeen then
-    tm.mode='PURE BRIDGE'
-  elseif native then
-    tm.mode='CSP NATIVE'
-  else
-    tm.mode='SERVER'
-  end
-end
-
-local function timeBridgeUpdate(dt)
+local function timeControlUpdate(dt)
   local tm=state.time
   tm.curOffset=anim(tm.curOffset,tm.want,2.8,dt)
   if math.abs(tm.want-tm.curOffset)<1 then tm.curOffset=tm.want end
-
-  -- Frequent status updates are cheap; querying once per 30 frames avoids
-  -- repeatedly probing unsupported CSP APIs on old clients.
-  if tm.probeAt < 0 or (state.frames-tm.probeAt)>30 then
-    tm.probeAt=state.frames
-    probeTimeController()
-  end
-  -- Sun altitude is sampled read-only, independently of the requested clock,
-  -- to determine whether a local weather controller is actually responsive.
+  tm.mode=type(ac.setWeatherTimeOffset)=='function' and
+    not tm.nativeRejected and 'CSP NATIVE' or 'SERVER'
   if state.clock-tm.skyProbeAt>1 then
     tm.skyProbeAt=state.clock
-    local ok,y=pcall(function()
-      if type(ac.getSkyFeatureDirection)~='function' or not ac.SkyFeature then return nil end
-      local v=ac.getSkyFeatureDirection(ac.SkyFeature.Sun)
-      return v and tonumber(v.y) or nil
+    local ok,sun,moon=pcall(function()
+      if type(ac.getSkyFeatureDirection)~='function' or not ac.SkyFeature then
+        return nil,nil
+      end
+      local a=ac.getSkyFeatureDirection(ac.SkyFeature.Sun)
+      local b=ac.getSkyFeatureDirection(ac.SkyFeature.Moon)
+      return a and tonumber(a.y) or nil,b and tonumber(b.y) or nil
     end)
-    tm.lastSunHeight=ok and y or nil
-    tm.skyProbeError=tm.lastSunHeight==nil and (ok and 'NO READ API' or 'RESTRICTED') or nil
+    tm.lastSunHeight=ok and sun or nil
+    tm.lastMoonHeight=ok and moon or nil
+    tm.skyProbeError=tm.lastSunHeight==nil and (ok and 'NOT AVAILABLE' or 'RESTRICTED') or nil
   end
-  pcall(function()
-    ac.store(STORE_ENABLED, true)
-    ac.store(STORE_OFFSET,tm.curOffset/3600)
-    ac.store(STORE_BEAT,os.clock())
-  end)
-
-  -- CSP can expose a native weather-time function to some Lua script modes.
-  -- Try it only when available and no active Pure bridge owns sun/moon; never
-  -- touch real weather quality knobs (reflections, exposure, sky materials).
-  if tm.mode=='CSP NATIVE' and (state.clock-tm.lastNativeAt)>.20 and
-    (math.abs(tm.curOffset-tm.lastNativeOffset)>1 or not tm.nativeAttempted) then
+  if tm.mode=='CSP NATIVE' and state.clock-tm.lastNativeAt>0.20 and
+      (math.abs(tm.curOffset-tm.lastNativeOffset)>1 or not tm.nativeAttempted) then
     tm.lastNativeAt=state.clock
     tm.nativeAttempted=true
     tm.nativeCalls=tm.nativeCalls+1
-    local ok,ret=pcall(ac.setWeatherTimeOffset,tm.curOffset,true)
-    if ok and ret~=false then
+    local ok,result=pcall(ac.setWeatherTimeOffset,tm.curOffset,true)
+    if ok and result~=false then
       tm.nativeApplied=true
-      tm.nativeResult=ret==nil and 'CALLED (NO CONFIRMATION)' or 'CALLED (RETURNED '..tostring(ret)..')'
+      tm.nativeResult=result==nil and 'CALLED (NOT CONFIRMED)'
+        or 'CALLED ('..tostring(result)..')'
       tm.lastNativeOffset=tm.curOffset
     else
       tm.nativeRejected=true
       tm.nativeApplied=false
-      tm.nativeResult=ok and 'RETURNED FALSE' or ('ERROR: '..tostring(ret):sub(1,85))
+      tm.nativeResult=ok and 'REJECTED' or ('ERROR: '..tostring(result):sub(1,95))
       tm.mode='SERVER'
-      pcall(ac.log,'VENOM X native time rejected: '..tostring(ret))
+      pcall(ac.log,'VENOM X local time rejected: '..tostring(result))
     end
   end
 end
@@ -1655,7 +1582,8 @@ function script.update(dt)
   if state.sectT < 1 then
     state.sectT = math.min(1, state.sectT + state.dt * 7)
   end
-  timeBridgeUpdate(state.dt)
+  timeControlUpdate(state.dt)
+  verifyPlayerTeleport()
   if state.panelOpen and state.section == 'PLAYERS' then
     refreshPlayers(false)
   end
