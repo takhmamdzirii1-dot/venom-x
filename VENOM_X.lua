@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.10.3'
+local VERSION = '3.10.4'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.10.3',
+  versionTag = 'v3.10.4',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -492,6 +492,79 @@ local function returnToPits()
   end
 end
 
+-- Snapshot ONLY client-visible control states before repositioning.
+-- Some modded cars use extras A-F as latching modes or one-shot actions:
+-- never fire setters unconditionally, only restore a proven mismatch shortly
+-- after teleport. Unsupported CSP online APIs are safely ignored.
+local function preserveFlag(v)
+  return type(v)=='boolean' and v or nil
+end
+
+local function snapshotCarOptions(me)
+  local snapshot={extra={}}
+  for i,key in ipairs({'extraA','extraB','extraC','extraD','extraE','extraF'}) do
+    snapshot.extra[i]=preserveFlag(stateVal(me,key))
+  end
+  snapshot.headlights=preserveFlag(stateVal(me,'headlightsActive'))
+  snapshot.highBeams=preserveFlag(stateVal(me,'highBeams'))
+  snapshot.hazards=preserveFlag(stateVal(me,'hazardLights'))
+  snapshot.turnLeft=preserveFlag(stateVal(me,'turningLeftOnly'))
+  snapshot.turnRight=preserveFlag(stateVal(me,'turningRightOnly'))
+  return snapshot
+end
+
+local function restoreCarOptions(snapshot)
+  if not snapshot then return end
+  local me=car()
+  if not me then return end
+  if type(ac.setExtraSwitch)=='function' then
+    for i,key in ipairs({'extraA','extraB','extraC','extraD','extraE','extraF'}) do
+      local was=snapshot.extra[i]
+      local current=preserveFlag(stateVal(me,key))
+      if was~=nil and current~=nil and current~=was then
+        pcall(ac.setExtraSwitch,i-1,was)
+      end
+    end
+  end
+  local active=preserveFlag(stateVal(me,'headlightsActive'))
+  if snapshot.headlights~=nil and active~=nil and active~=snapshot.headlights
+      and type(ac.setHeadlights)=='function' then
+    pcall(ac.setHeadlights,snapshot.headlights)
+  end
+  local high=preserveFlag(stateVal(me,'highBeams'))
+  if snapshot.highBeams~=nil and high~=nil and high~=snapshot.highBeams
+      and type(ac.setHighBeams)=='function' then
+    pcall(ac.setHighBeams,snapshot.highBeams)
+  end
+  if type(ac.setTurningLights)=='function' and ac.TurningLights then
+    local h=preserveFlag(stateVal(me,'hazardLights'))
+    local l=preserveFlag(stateVal(me,'turningLeftOnly'))
+    local r=preserveFlag(stateVal(me,'turningRightOnly'))
+    if (snapshot.hazards~=nil and h~=nil and h~=snapshot.hazards)
+       or (snapshot.turnLeft~=nil and l~=nil and l~=snapshot.turnLeft)
+       or (snapshot.turnRight~=nil and r~=nil and r~=snapshot.turnRight) then
+      local desired=snapshot.hazards and ac.TurningLights.Hazards
+        or snapshot.turnLeft and ac.TurningLights.Left
+        or snapshot.turnRight and ac.TurningLights.Right
+        or ac.TurningLights.None
+      if desired~=nil then pcall(ac.setTurningLights,desired) end
+    end
+  end
+end
+
+local function restoreTeleportOptions()
+  local pending=state.pendingTeleport
+  if not pending or not pending.options or
+    not pending.restoreAt or state.clock<pending.restoreAt then return end
+  restoreCarOptions(pending.options)
+  pending.restorePass=(pending.restorePass or 0)+1
+  if pending.restorePass<2 then
+    pending.restoreAt=state.clock+0.24
+  else
+    pending.restoreAt=nil
+  end
+end
+
 local function teleportToPlayer(p)
   if state.teleportCooldown>0.05 or state.pendingTeleport then
     toast(string.format(L.pleaseWait,math.ceil(math.max(state.teleportCooldown,1))),'warn')
@@ -512,6 +585,7 @@ local function teleportToPlayer(p)
   end
   local me=car()
   if not me or not me.position then toast(L.teleportFailed,'warn') return end
+  local originalOptions=snapshotCarOptions(me)
   local look=target.look
   local x=look and tonumber(look.x)
   local z=look and tonumber(look.z)
@@ -545,7 +619,8 @@ local function teleportToPlayer(p)
   if type(physics.awakeCar)=='function' then pcall(physics.awakeCar,0) end
   state.pendingTeleport={
     dest=destination,name=p.name,at=state.clock+0.7,
-    lookX=x,lookZ=z
+    lookX=x,lookZ=z,
+    options=originalOptions,restoreAt=state.clock+0.10,restorePass=0
   }
   state.teleportCooldown=2.5
 end
@@ -1601,6 +1676,7 @@ function script.update(dt)
     state.sectT = math.min(1, state.sectT + state.dt * 7)
   end
   timeControlUpdate(state.dt)
+  restoreTeleportOptions()
   verifyPlayerTeleport()
   if state.panelOpen and state.section == 'PLAYERS' then
     refreshPlayers(false)
