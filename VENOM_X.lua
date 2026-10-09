@@ -571,7 +571,11 @@ beginOptionsRestoration=function(snapshot)
     state.sessionCarKey=carKey
   end
   -- Existing session setup must survive jumps and failed restorations.
-  local desired=snapshot or state.sessionOptions or snapshotCarOptions(own)
+  -- A later teleport must NEVER overwrite pinned wing/door/light settings
+  -- with a car state already reset by a mod or Content Manager.
+  -- Only SAVE CURRENT SETUP may intentionally replace this session cache.
+  local desired=(state.sessionPinned and state.sessionOptions)
+    or snapshot or snapshotCarOptions(own)
   state.sessionOptions=desired
   state.sessionPinned=true
   state.sessionRetryAt=state.clock+5.0
