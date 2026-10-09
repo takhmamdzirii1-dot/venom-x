@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.18.0'
+local VERSION = '3.18.1'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.18.0',
+  versionTag = 'v3.18.1',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -2553,7 +2553,34 @@ function script.update(dt)
   end
 end
 
+-- Always-on official VENOM banner, centered against the full UI viewport.
+-- Place optimized image at assets/venom_logo.webp in this GitHub repository.
+-- Loaded over HTTPS and cached by CSP; no per-frame downloads or client mods.
+local VENOM_LOGO_URL =
+  'https://raw.githubusercontent.com/takhmamdzirii1-dot/venom-x/main/assets/venom_logo.webp'
+
+local function drawVenomOfficialLogo()
+  local screen=getScreenSize()
+  if not screen or type(ui.drawImage)~='function' then return end
+  -- Compact, independent of the main menu, quick dock, and movable tachometer.
+  -- Anchor to the upper edge of the screen, ABOVE the typical virtual mirror.
+  local width=clamp(screen.x*.16,155,252)
+  local height=width*(665/2048)
+  local left=math.floor((screen.x-width)*.5)
+  local top=2
+  ui.beginTransparentWindow('vx_official_logo',
+    vec2(left,top),vec2(width,height+1),true,false)
+  ui.drawImage(VENOM_LOGO_URL,vec2(0,0),
+    vec2(width,height),rgbm(1,1,1,.97))
+  ui.endTransparentWindow()
+end
+
 function script.drawUI()
+  local logoOk,logoErr=pcall(drawVenomOfficialLogo)
+  if not logoOk and not state.logoErrorReported then
+    state.logoErrorReported=true
+    pcall(ac.log,'VENOM X official logo: '..tostring(logoErr))
+  end
   if not state.readyDone then
     state.readyFrames = state.readyFrames + 1
     if state.readyFrames >= 90 then
