@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.13.0'
+local VERSION = '3.14.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.13.0',
+  versionTag = 'v3.14.0',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -1996,7 +1996,7 @@ end
 speedoRect = function()
   local scr = getScreenSize()
   local k = clamp(state.hudScale or 100, 80, 130) / 100
-  local w, h = math.floor(332*k), math.floor(174*k)
+  local w, h = math.floor(369*k), math.floor(110*k)
   local x, y = state.spdX, state.spdY
   if type(x) ~= 'number' or x < 0 then x,y = scr.x-w-26,scr.y-h-70 end
   if type(y) ~= 'number' or y < 0 then y = scr.y-h-70 end
@@ -2047,62 +2047,121 @@ end
 
 -- Original CMRT-inspired circular tachometer: pure CSP vector drawing,
 -- no fonts, textures or CMRT modules must be installed by players.
+-- Independent compact CMRT-style telemetry, redrawn from scratch with
+-- native CSP vector primitives. No imported font/image or third-party code.
+-- Geometry: long thin pill, gear ring, RPM shift dots, speed, KERS/fuel
+-- circular percentage, and a slim fuel/estimated-laps footer.
 local function drawSpeedometer()
   if not state.hudVisible then return end
-  local c = car()
+  local c=car()
   if not c then return end
-  local speed = math.max(0, tonumber(c.speedKmh) or 0)
-  local rpm = math.max(0, tonumber(c.rpm) or 0)
-  local gear = gearString(tonumber(c.gear) or 0)
-  local limiter = tonumber(c.rpmLimiter) or 8000
-  if limiter < 100 then limiter = 8000 end
-  local x,y,w,h,k = speedoRect()
-  x,y = handleSpeedoDrag(x,y,w,h)
-  if state.spdX < 0 then state.spdX,state.spdY = x,y end
-  local opacity = clamp(state.hudOp or 90,40,100)/100
+  local speed=math.max(0,tonumber(stateVal(c,'speedKmh')) or 0)
+  local rpm=math.max(0,tonumber(stateVal(c,'rpm')) or 0)
+  local gear=gearString(tonumber(stateVal(c,'gear')) or 0)
+  local limiter=tonumber(stateVal(c,'rpmLimiter')) or 8000
+  if limiter<100 then limiter=8000 end
+  local x,y,w,h,k=speedoRect()
+  x,y=handleSpeedoDrag(x,y,w,h)
+  if state.spdX<0 then state.spdX,state.spdY=x,y end
+  local alpha=clamp(state.hudOp or 90,40,100)/100
+  state.smoothSpeed=anim(state.smoothSpeed,speed,11,state.dt)
+  state.smoothRpm=anim(state.smoothRpm,rpm,14,state.dt)
+
+  local fuel=tonumber(stateVal(c,'fuel'))
+  local maxFuel=tonumber(stateVal(c,'maxFuel'))
+  local fuelPerLap=tonumber(stateVal(c,'fuelPerLap'))
+  local hasKers=stateVal(c,'kersPresent')==true
+  local kersPct=hasKers and tonumber(stateVal(c,'kersCharge')) or nil
+  local resourcePct=nil
+  local resourceTitle='FUEL'
+  if kersPct and kersPct>=0 then
+    resourcePct=clamp(kersPct*100,0,100)
+    resourceTitle='ERS'
+  elseif fuel and maxFuel and maxFuel>0 then
+    resourcePct=clamp(fuel/maxFuel*100,0,100)
+  end
+  local rpmRatio=clamp(state.smoothRpm/limiter,0,1)
+
   withWindow('vx_speedo',vec2(x,y),vec2(w,h),function()
-    local function v(a,b) return vec2(a*k,b*k) end
-    ui.drawRectFilled(v(0,0),vec2(w,h),col(C.glassDeep,opacity),15)
-    ui.drawRect(v(1,1),v(331,173),col(C.accentFaint,opacity),15,ui.CornerFlags.All,1.2)
-    ui.drawRectFilled(v(16,14),v(53,16),col(C.accent,opacity),1)
-    state.smoothSpeed=anim(state.smoothSpeed,speed,10,state.dt)
-    state.smoothRpm=anim(state.smoothRpm,rpm,12,state.dt)
-    local f=clamp(state.smoothRpm/limiter,0,1)
-    local center=v(84,85)
-    local radius=59*k
-    local from=math.pi*.75
-    local sweep=math.pi*1.5
-    if state.rpmBar then
-      ui.pathClear()
-      ui.pathArcTo(center,radius,from,from+sweep,55)
-      ui.pathStroke(col(C.bar,opacity),false,9*k)
-      if f > .001 then
-        local tint=f>.96 and C.danger or (f>.85 and C.warn or C.accent)
-        ui.pathClear()
-        ui.pathArcTo(center,radius,from,from+sweep*f,55)
-        ui.pathStroke(col(tint,opacity),false,9*k)
-      end
+    local function v(px,py) return vec2(px*k,py*k) end
+    local function ink(c) return col(c,alpha) end
+    local function centered(text,size,cx,top,color)
+      local actual=ui.measureDWriteText(text,size*k,-1)
+      ui.dwriteDrawText(text,size*k,
+        v(cx,top)-vec2(actual.x/2,0),ink(color))
     end
-    ui.drawCircleFilled(center,43*k,col(C.cardSolid,opacity),48)
-    ui.drawCircle(center,43*k,col(C.accentFaint,opacity),48,1*k)
-    local gearSize=41*k
-    local gs=ui.measureDWriteText(gear,gearSize,-1)
-    ui.dwriteDrawText(gear,gearSize,vec2(center.x-gs.x*.5,center.y-gs.y*.63),col(C.text,opacity))
-    local lbl=ui.measureDWriteText('GEAR',11*k,-1)
-    ui.dwriteDrawText('GEAR',11*k,vec2(center.x-lbl.x*.5,center.y+25*k),col(C.accentSoft,opacity))
-    ui.drawLine(v(160,19),v(160,147),col(C.accentFaint,opacity),1*k)
-    local speedText=tostring(math.floor(state.smoothSpeed+.5))
-    local st=ui.measureDWriteText(speedText,52*k,-1)
-    ui.dwriteDrawText(speedText,52*k,v(237,36)-vec2(st.x*.5,0),col(C.text,opacity))
-    local unit=ui.measureDWriteText('KM/H',13*k,-1)
-    ui.dwriteDrawText('KM/H',13*k,v(237,100)-vec2(unit.x*.5,0),col(C.accentSoft,opacity))
-    local rpmText=string.format('%d RPM',math.floor(state.smoothRpm/10)*10)
-    local rp=ui.measureDWriteText(rpmText,14*k,-1)
-    ui.dwriteDrawText(rpmText,14*k,v(237,122)-vec2(rp.x*.5,0),col(C.dim,opacity))
-    ui.drawLine(v(14,153),v(316,153),col(C.accentFaint,opacity),1*k)
-    ui.dwriteDrawText('VENOM X',11*k,v(17,158),col(C.accentSoft,opacity))
-    ui.dwriteDrawText('LIVE TELEMETRY',10*k,v(217,158),col(C.dim,opacity))
-  end)
+    local function arc(center,radius,a,b,width,color)
+      ui.pathClear()
+      ui.pathArcTo(center,radius*k,a,b,38)
+      ui.pathStroke(ink(color),false,width*k)
+    end
+
+    -- CMRT-like single slim panel with floating round left/right lenses.
+    ui.drawRectFilled(v(27,13),v(345,86),ink(C.glassDeep),31*k)
+    ui.drawRect(v(27,13),v(345,86),col(C.text,alpha*.15),
+      31*k,ui.CornerFlags.All,1*k)
+    ui.drawRectFilled(v(61,15),v(298,19),col(C.accent,alpha*.22),2*k)
+    local gearCenter=v(44,51)
+    ui.drawCircleFilled(gearCenter,37*k,ink(C.glassDeep),55)
+    ui.drawCircle(gearCenter,37*k,col(C.text,alpha*.25),55,4*k)
+    ui.drawCircle(gearCenter,31*k,col(C.text,alpha*.13),55,1.2*k)
+    if state.rpmBar then
+      arc(gearCenter,35,-.2,-.2+1.3*rpmRatio,4.4,C.accent)
+    end
+    centered(gear,33,44,32,C.text)
+
+    -- Progressive RPM LED row, contrasting dark idle dots and crimson shift.
+    local dots=19
+    for dot=1,dots do
+      local point=v(91+(dot-1)*10.2,26)
+      local limit=dot/dots
+      local lighted=state.rpmBar and rpmRatio>=limit
+      local tint=lighted and (rpmRatio>.97 and C.warn or C.accent)
+        or C.dim
+      ui.drawCircleFilled(point,2.5*k,
+        col(tint,alpha*(lighted and .98 or .29)),14)
+    end
+    ui.dwriteDrawText('KMH',10*k,v(104,36),ink(C.dim))
+    ui.dwriteDrawText(tostring(math.floor(state.smoothSpeed+.5)),
+      20*k,v(104,49),ink(C.text))
+    ui.dwriteDrawText('RPM',10*k,v(178,36),ink(C.dim))
+    ui.dwriteDrawText(tostring(math.floor(state.smoothRpm+5)/10*10),
+      20*k,v(178,49),ink(C.text))
+
+    -- Right side mirrors CMRT's KERS charge dial; fuel % is a useful
+    -- fallback on regular road cars that do not have a KERS battery.
+    local resourceCenter=v(324,49)
+    ui.drawCircleFilled(resourceCenter,34*k,ink(C.glassDeep),55)
+    arc(resourceCenter,33,-math.pi*.5,math.pi*1.5,4.2,C.btnHover)
+    if resourcePct and resourcePct>.1 then
+      arc(resourceCenter,33,-math.pi*.5,
+        -math.pi*.5+math.pi*2*resourcePct/100,4.2,
+        resourcePct<15 and C.warn or C.accent)
+    end
+    ui.drawCircle(resourceCenter,27*k,
+      col(C.accent,alpha*.33),55,1*k)
+    centered(resourcePct and tostring(math.floor(resourcePct+.5)) or '--',
+      16,324,39,C.text)
+    centered(resourceTitle,8,324,58,C.dim)
+
+    -- Lower glanceable fuel and estimated remaining laps capsule.
+    ui.drawRectFilled(v(76,86),v(277,106),
+      ink(C.glassDeep),10*k)
+    ui.drawRect(v(76,86),v(277,106),
+      col(C.text,alpha*.23),10*k,ui.CornerFlags.All,1*k)
+    ui.drawCircleFilled(v(86,96),3*k,
+      col(fuel and maxFuel and fuel/maxFuel<.12 and C.warn or C.dim,
+        alpha*.82),12)
+    local fuelText=fuel and string.format('%.1f L',fuel) or '-- L'
+    local laps=(fuel and fuelPerLap and fuelPerLap>.01)
+      and string.format('%.1f',fuel/fuelPerLap) or '--'
+    ui.dwriteDrawText('FUEL',9*k,v(94,90),ink(C.dim))
+    ui.dwriteDrawText(fuelText,10*k,v(122,90),ink(C.text))
+    ui.drawLine(v(182,90),v(182,101),col(C.text,alpha*.16),1*k)
+    ui.dwriteDrawText('EST.LAP',9*k,v(190,90),ink(C.dim))
+    ui.dwriteDrawText(laps,10*k,v(241,90),ink(C.text))
+    ui.dwriteDrawText('VENOM X',8*k,v(289,94),col(C.accentSoft,alpha*.72))
+  end,true,false,true)
 end
 
 local function drawVenomPanelSafe()
