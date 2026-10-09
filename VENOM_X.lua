@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.20.1'
+local VERSION = '3.20.2'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.20.1',
+  versionTag = 'v3.20.2',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -133,58 +133,6 @@ local TIME_PRESETS = {
   { label = L.presetNight, sec = 0 },
 }
 
--- Per-player scene tint only. Does not move the physical sun or alter weather.
--- Format: local hour, filter opacity, filter RGB. Midnight wraps smoothly.
-local VISUAL_TIME_STOPS = {
-  {0.00, 0.88, 0.008, 0.015, 0.050},
-  {4.70, 0.88, 0.008, 0.015, 0.050},
-  {5.80, 0.70, 0.035, 0.025, 0.064},
-  {7.25, 0.29, 0.46, 0.20, 0.085},
-  {8.60, 0.08, 0.52, 0.34, 0.27},
-  {10.0, 0.00, 0.05, 0.05, 0.06},
-  {16.5, 0.00, 0.05, 0.05, 0.06},
-  {18.0, 0.34, 0.42, 0.14, 0.10},
-  {18.67,0.62, 0.035,0.050,0.14},
-  {20.0, 0.82, 0.010,0.022,0.067},
-  {24.0, 0.88, 0.008,0.015,0.050},
-}
-local function visualTimeProfile(sec)
-  local h=(sec % 86400)/3600
-  for i=1,#VISUAL_TIME_STOPS-1 do
-    local a,b=VISUAL_TIME_STOPS[i],VISUAL_TIME_STOPS[i+1]
-    if h<=b[1] then
-      local t=(h-a[1])/(b[1]-a[1])
-      t=t*t*(3-2*t)
-      return a[3]+(b[3]-a[3])*t,
-        a[4]+(b[4]-a[4])*t,
-        a[5]+(b[5]-a[5])*t,
-        a[2]+(b[2]-a[2])*t
-    end
-  end
-  return 0.008,0.015,0.050,0.88
-end
-
--- Local client-side scene color multipliers (hour, red, green, blue).
-local SCENE_LIGHT_STOPS={
- {0,.20,.27,.40},{5,.20,.27,.40},{5.8,.37,.31,.37},
- {7.25,.89,.62,.49},{9,.95,.85,.75},{11,1,1,1},
- {16.5,1,1,1},{18,.84,.51,.42},{18.67,.41,.43,.61},
- {20,.21,.30,.44},{24,.20,.27,.40},
-}
-local function sceneLightProfile(sec)
- local hours=(sec%86400)/3600
- for i=1,#SCENE_LIGHT_STOPS-1 do
-  local a,b=SCENE_LIGHT_STOPS[i],SCENE_LIGHT_STOPS[i+1]
-  if hours<=b[1] then
-   local t=(hours-a[1])/(b[1]-a[1])
-   t=t*t*(3-2*t)
-   return a[2]+(b[2]-a[2])*t,a[3]+(b[3]-a[3])*t,
-     a[4]+(b[4]-a[4])*t
-  end
- end
- return .20,.27,.40
-end
-
 local HUMAN_SESSION_IDS = { [0] = true, [1] = true, [2] = true, [3] = true, [4] = true, [5] = true }
 
 local ORB_SIZE = 56
@@ -283,9 +231,6 @@ local state = {
     legacyShared=nil,legacyConnected=false,legacyReady=false,
     legacySeq=nil,legacyPendingAt=-999,legacyLastTarget=0,
     legacyAck='NOT CONNECTED',legacyProbeAt=-999,
-    visualEnabled=false,visualStrength=1.0,
-    visualR=1,visualG=1,visualB=1,visualOpacity=0,
-    ccChecked=false,ccHandle=nil,ccStatus='WAITING FOR TIME SELECT',
     serverSkyEnabled=false,serverSkyPending=false,
     serverSkyLastAt=-999,serverSkyStatus='NOT REQUESTED',
     serverSkyEvent=nil,serverSkyEventChecked=false,
@@ -446,8 +391,6 @@ local function loadStored()
       vx_ph = 515,
       vx_sec = 'HOME',
       vx_dock_v2 = true,
-      vx_visual_on = false,
-      vx_visual_power = 1.0,
       vx_visual_offset = 0,
       vx_server_sky = false,
       vx_extra_car = '',
@@ -471,14 +414,9 @@ local function loadStored()
     if type(res.vx_ph) == 'number' then state.panelH = clamp(res.vx_ph, 380, 680) end
     if type(res.vx_sec) == 'string' then state.section = res.vx_sec end
     if type(res.vx_dock_v2) == 'boolean' then state.quickDockVisible = res.vx_dock_v2 end
-    if type(res.vx_visual_on) == 'boolean' then state.time.visualEnabled = res.vx_visual_on end
     if type(res.vx_server_sky) == 'boolean' then
       state.time.serverSkyEnabled=res.vx_server_sky
       state.time.serverSkyPending=res.vx_server_sky
-      if res.vx_server_sky then state.time.visualEnabled=false end
-    end
-    if type(res.vx_visual_power) == 'number' then
-      state.time.visualStrength=clamp(res.vx_visual_power,0.35,1)
     end
     if type(res.vx_visual_offset) == 'number' and math.abs(res.vx_visual_offset)<=43200 then
       state.time.want=res.vx_visual_offset
@@ -502,8 +440,8 @@ local function persist()
   stored.vx_ph = state.panelH
   stored.vx_sec = state.section
   stored.vx_dock_v2 = state.quickDockVisible
-  stored.vx_visual_on = state.time.visualEnabled
-  stored.vx_visual_power = state.time.visualStrength
+  -- Backwards-compatible storage key: holds the REAL SKY time offset.
+  -- Old vx_visual_on/vx_visual_power settings are intentionally ignored.
   stored.vx_visual_offset = state.time.want
   stored.vx_server_sky = state.time.serverSkyEnabled
 end
@@ -1296,8 +1234,6 @@ local function queueServerSky(enabled)
   tm.serverSkyPending=true
   tm.serverSkyAwaiting=false
   tm.serverSkyStatus='TIME CHANGE QUEUED'
-  -- Avoid double-darkening when the server has a real time override.
-  if enabled then tm.visualEnabled=false end
   persist()
 end
 
@@ -1667,7 +1603,6 @@ local function drawTime()
   end
   if ui.button('RESET TO SERVER TIME##vx_time_reset',vec2(0,30)) then
     tm.want=0
-    tm.visualEnabled=false
     queueServerSky(false)
     tm.lastControl='RESET'
     toast('TIME: SERVER CLOCK')
@@ -1685,20 +1620,6 @@ local function drawTime()
     end
   end
 
-  ui.separator()
-  sectionLabel('OPTIONAL VISUAL FILTER / FALLBACK')
-  if ui.button((tm.visualEnabled and 'VISUAL TIME: ON' or 'VISUAL TIME: OFF')..'##vx_visual_mode',vec2(0,30)) then
-    tm.visualEnabled=not tm.visualEnabled
-    persist()
-  end
-  ui.textDisabled('Scene tint strength:')
-  local power=ui.slider('##vx_visual_power',tm.visualStrength,0.35,1,'',0.05)
-  if math.abs(power-tm.visualStrength)>.005 then
-    tm.visualStrength=power
-    persist()
-  end
-  ui.textColored('LOCAL FILTER - NOT PHYSICAL WEATHER',C.accentSoft)
-  ui.textDisabled('Leave OFF if the real-sky server plugin is installed.')
   ui.separator()
   ui.textDisabled('Server: '..fmtSec(wrapDay(serverSec())))
   ui.textDisabled('Last selection: '..tostring(tm.lastControl))
@@ -2122,15 +2043,9 @@ local function drawQuickPopup()
         end
         if ui.button('RESET TIME##vxqreset',vec2(w-50,28)) then
           tm.want=0
-          tm.visualEnabled=false
           queueServerSky(false)
           tm.lastControl='RESET'
         end
-        if ui.button((tm.visualEnabled and 'VISUAL SKY ON' or 'VISUAL SKY OFF')..'##vxq_filter',vec2(w-50,28)) then
-          tm.visualEnabled=not tm.visualEnabled
-          persist()
-        end
-        ui.textDisabled('Scene tint only / personal to this player.')
         if tm.serverSkyEnabled then
           ui.textColored('REAL SKY / SERVER WEATHERFX REQUESTED',C.accentSoft)
           ui.textDisabled('Requires VENOM Personal Time server plugin.')
@@ -2667,47 +2582,6 @@ local function updateLegacyTimeCompanion()
   end
 end
 
--- The CSP Online Lua SDK includes color corrections for the game scene.
-local function ensureSceneColorCorrection(tm)
- if tm.ccChecked or not tm.visualEnabled then return end
- tm.ccChecked=true
- if type(ac.ColorCorrectionModulationRgb)~='function'
-    or type(ac.addColorCorrection)~='function' then
-  tm.ccStatus='COLOR API NOT AVAILABLE - HUD FALLBACK'
-  return
- end
- local ok,result=pcall(function()
-  local cc=ac.ColorCorrectionModulationRgb({color=rgb(1,1,1)})
-  if ac.addColorCorrection(cc)==false then
-   error('CSP REFUSED COLOR CORRECTION')
-  end
-  return cc
- end)
- if ok and result then
-  tm.ccHandle=result
-  tm.ccStatus='SCENE FILTER REGISTERED - CHECK VISUALLY'
- else
-  tm.ccStatus='SCENE FILTER ERROR: '..tostring(result):sub(1,65)
-  pcall(ac.log,'VENOM X scene correction: '..tostring(result))
- end
-end
-
-local function updateSceneColorCorrection(tm)
- if not tm.ccHandle then return false end
- local ok,err=pcall(function()
-  tm.ccHandle.color=rgb(tm.visualR,tm.visualG,tm.visualB)
- end)
- if not ok then
-  tm.ccStatus='SCENE COLOR WRITE ERROR: '..tostring(err):sub(1,60)
-  if type(ac.removeColorCorrection)=='function' then
-   pcall(ac.removeColorCorrection,tm.ccHandle)
-  end
-  tm.ccHandle=nil
-  return false
- end
- return true
-end
-
 local function timeControlUpdate(dt)
   local tm=state.time
   flushServerSky()
@@ -2728,18 +2602,6 @@ local function timeControlUpdate(dt)
   elseif tm.mode~='CSP NATIVE' and not tm.nativeRejected then
     tm.nativeResult='UNAVAILABLE IN ONLINE SCRIPT'
   end
-  -- Change the actual rendered scene colors, no time or weather sync.
-  ensureSceneColorCorrection(tm)
-  local r,g,b=sceneLightProfile(serverSec()+tm.curOffset)
-  local power=tm.visualEnabled and tm.visualStrength or 0
-  tm.visualR=anim(tm.visualR,1+(r-1)*power,6,dt)
-  tm.visualG=anim(tm.visualG,1+(g-1)*power,6,dt)
-  tm.visualB=anim(tm.visualB,1+(b-1)*power,6,dt)
-  local registered=updateSceneColorCorrection(tm)
-  local _,_,_,alpha=visualTimeProfile(serverSec()+tm.curOffset)
-  tm.visualOpacity=anim(tm.visualOpacity,
-    (tm.visualEnabled and not registered) and
-      alpha*tm.visualStrength or 0,6,dt)
   if state.clock-tm.skyProbeAt>1 then
     tm.skyProbeAt=state.clock
     local skyFn=type(ac.getSkyFeatureDirection)=='function' and ac.getSkyFeatureDirection
@@ -2821,27 +2683,6 @@ function script.update(dt)
   end
 end
 
--- Local night/day exposure is one non-interactive full-screen fill.
--- Draw before the branded HUD, toasts and speedometer so those stay sharp.
-local function drawVisualSky()
-  local tm=state.time
-  if (tm.visualOpacity or 0)<.004 then return end
-  local scr=getScreenSize()
-  if not scr or type(ui.drawRectFilled)~='function' then return end
-  local began=false
-  local ok,err=pcall(function()
-    ui.beginTransparentWindow('vx_visual_time_filter',vec2(0,0),
-      vec2(scr.x,scr.y),true,false)
-    began=true
-    ui.drawRectFilled(vec2(0,0),vec2(scr.x,scr.y),
-      rgbm(tm.visualR,tm.visualG,tm.visualB,tm.visualOpacity),0)
-    ui.endTransparentWindow()
-    began=false
-  end)
-  if began then pcall(ui.endTransparentWindow) end
-  if not ok then error(err) end
-end
-
 -- Always-on official VENOM banner, centered against the full UI viewport.
 -- Place optimized image at assets/venom_logo.webp in this GitHub repository.
 -- Loaded over HTTPS and cached by CSP; no per-frame downloads or client mods.
@@ -2883,11 +2724,6 @@ local function drawVenomOfficialLogo()
 end
 
 function script.drawUI()
-  local gradeOk,gradeErr=pcall(drawVisualSky)
-  if not gradeOk and not state.visualErrorReported then
-    state.visualErrorReported=true
-    pcall(ac.log,'VENOM X local visual time: '..tostring(gradeErr))
-  end
   local logoOk,logoErr=pcall(drawVenomOfficialLogo)
   if not logoOk and not state.logoErrorReported then
     state.logoErrorReported=true
