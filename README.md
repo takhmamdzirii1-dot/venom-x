@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.10.0)
+# VENOM X — AssettoServer online HUD (v3.10.1)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -11,6 +11,17 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
 
+### v3.10.1 — Restore personal TIME menu controls
+
+TIME slider, Sunrise/Day/Sunset/Blue Hour/Night presets, minute calibration
+and Reset to Server are always interactive for **each player independently**.
+Selecting a time updates the player's local VENOM X clock display even when
+the CSP online Lua API cannot change the visible weather sky. The server clock
+is never changed. This is UI selection, **not proof of individual astronomical
+sunlight control**, which still depends on runtime CSP permissions.
+
+Presets: sunrise 07:15; midday 12:00; sunset 18:00; blue hour 18:40;
+night 00:00. Fine-tune by -15/-5/+5/+15 minutes.
 ### TIME — no Pure bridge or extra files
 
 This version removes all `venomx.time.*` shared-state hooks, Pure bridge detection, and local helper dependencies. TIME attempts CSP's own `ac.setWeatherTimeOffset()` only, scoped to the local player's weather view. The server clock is **never** modified.
