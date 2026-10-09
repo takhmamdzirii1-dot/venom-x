@@ -170,6 +170,8 @@ local state = {
   spdPress = nil,
   orbHover = 0,
   quickDockVisible = true,
+  dockProgress = 0,
+  dockHover = 0,
   quickMode = nil,
   quickErrors = 0,
   dragging = nil,
@@ -367,7 +369,7 @@ local function loadStored()
       vx_pw = 370,
       vx_ph = 515,
       vx_sec = 'HOME',
-      vx_dock = true,
+      vx_dock_v2 = true,
     })
   end)
   if ok and type(res) == 'table' then
@@ -384,7 +386,7 @@ local function loadStored()
     if type(res.vx_pw) == 'number' then state.panelW = clamp(res.vx_pw, 300, 560) end
     if type(res.vx_ph) == 'number' then state.panelH = clamp(res.vx_ph, 380, 680) end
     if type(res.vx_sec) == 'string' then state.section = res.vx_sec end
-    if type(res.vx_dock) == 'boolean' then state.quickDockVisible = res.vx_dock end
+    if type(res.vx_dock_v2) == 'boolean' then state.quickDockVisible = res.vx_dock_v2 end
   end
 end
 
@@ -402,7 +404,7 @@ local function persist()
   stored.vx_pw = state.panelW
   stored.vx_ph = state.panelH
   stored.vx_sec = state.section
-  stored.vx_dock = state.quickDockVisible
+  stored.vx_dock_v2 = state.quickDockVisible
 end
 
 local function loadConfig()
@@ -1062,8 +1064,11 @@ local function popGlass()
   ui.popStyleVar(5)
 end
 
-local function withWindow(id, pos, size, content, noPad, interactiveTool)
+local function withWindow(id, pos, size, content, noPad, interactiveTool, clearBackground)
   pushGlass()
+  if clearBackground then
+    ui.pushStyleColor(ui.StyleColor.WindowBg,rgbm(0,0,0,0))
+  end
   local begun = false
   local ok, err = pcall(function()
     if interactiveTool then
@@ -1081,6 +1086,7 @@ local function withWindow(id, pos, size, content, noPad, interactiveTool)
     end)
     if not endOK and ok then ok, err = false, endErr end
   end
+  if clearBackground then ui.popStyleColor() end
   popGlass()
   if not ok then error('VENOM X [' .. tostring(id) .. '] ' .. tostring(err), 0) end
 end
@@ -1410,6 +1416,17 @@ local function clampPos(x, y, sw, sh)
   return x, y
 end
 
+local function toggleQuickDockFromLogo()
+  if state.panelOpen then
+    closePanel()
+    state.quickDockVisible=true
+  else
+    state.quickDockVisible=not state.quickDockVisible
+  end
+  if not state.quickDockVisible then state.quickMode=nil end
+  persist()
+end
+
 local function drawVenomLauncher()
   local scr = getScreenSize()
   if state.orbY < 0 or state.orbX < 0 or state.orbY > scr.y - ORB_SIZE or state.orbX > scr.x - ORB_SIZE then
@@ -1425,13 +1442,8 @@ local function drawVenomLauncher()
     local hovered, active = ui.itemHovered(), ui.itemActive()
     local mouse = ui.mousePos()
 
-    if hovered and ui.mouseClicked(1) then
-      state.quickDockVisible = not state.quickDockVisible
-      state.quickMode = nil
-      persist()
-      toast(state.quickDockVisible and 'QUICK DOCK ON' or 'QUICK DOCK HIDDEN')
-    end
-    if hovered then ui.setTooltip('Click: menu  /  Right click: toggle quick dock') end
+    if hovered and ui.mouseClicked(1) then openPanel(nil) end
+    if hovered then ui.setTooltip('Click: show/hide shortcuts  /  Right click: full menu') end
     if not state.orbPress and hovered and ui.mouseClicked(0) then
       state.orbPress = { mx = mouse.x, my = mouse.y, x = state.orbX, y = state.orbY, moved = false }
     end
@@ -1447,19 +1459,19 @@ local function drawVenomLauncher()
         if press.moved then
           persist()
         elseif clicked or hovered then
-          if state.panelOpen then closePanel() else openPanel(nil) end
+          toggleQuickDockFromLogo()
         end
         state.orbPress = nil
       end
     elseif clicked and not state.dragging then
-      if state.panelOpen then closePanel() else openPanel(nil) end
+      toggleQuickDockFromLogo()
     end
 
     state.orbHover = anim(state.orbHover, hovered and 1 or 0, 12, state.dt)
     local glow = (0.33 + state.orbHover * 0.30 + (active and 0.12 or 0))
     ui.drawRectFilled(vec2(0, 0), vec2(ORB_SIZE, ORB_SIZE), C.glassDeep, 15)
     ui.drawRect(vec2(1, 1), vec2(ORB_SIZE - 1, ORB_SIZE - 1), col(C.accent, glow), 14, ui.CornerFlags.All, 1.7)
-    if state.panelOpen then
+    if state.quickDockVisible then
       ui.drawRectFilled(vec2(8, ORB_SIZE - 5), vec2(ORB_SIZE - 8, ORB_SIZE - 3), C.accent, 1)
     end
     local titleSize = ui.measureDWriteText('X', 28, -1)
@@ -1537,16 +1549,20 @@ end
 
 local function quickDockGeometry()
   local scr=getScreenSize()
-  local columns=scr.x<850 and 4 or 8
-  local rows=math.ceil(#QUICK_ACTIONS/columns)
-  local tileW,tileH,gap,pad=47,55,5,9
-  local w=columns*tileW+(columns-1)*gap+pad*2
-  local h=rows*tileH+(rows-1)*gap+pad*2
+  local count=#QUICK_ACTIONS
+  local gap,pad=5,9
+  -- All eight quick actions remain HORIZONTAL; compact tile size
+  -- instead of stacking them into a vertical/two-row menu.
+  local available=math.max(240,scr.x-ORB_SIZE-44)
+  local tileW=clamp(math.floor((available-pad*2-(count-1)*gap)/count),28,48)
+  local tileH=55
+  local w=count*tileW+(count-1)*gap+pad*2
+  local h=tileH+pad*2
   local x=state.orbX+ORB_SIZE+10
   if x+w>scr.x-8 then x=state.orbX-w-10 end
   x=clamp(x,8,math.max(8,scr.x-w-8))
   local y=clamp(state.orbY+math.floor((ORB_SIZE-h)*.5),45,math.max(45,scr.y-h-8))
-  return x,y,w,h,columns,tileW,tileH,gap,pad
+  return x,y,w,h,count,tileW,tileH,gap,pad
 end
 
 local function performQuickAction(key)
@@ -1569,42 +1585,62 @@ local function performQuickAction(key)
 end
 
 local function drawQuickDock()
-  if not state.quickDockVisible or state.panelOpen or state.openT>0.1 then return end
+  if state.panelOpen or state.openT>0.1 then return end
+  local progress=clamp(state.dockProgress or 0,0,1)
+  if progress<0.02 then return end
   local x,y,w,h,columns,tileW,tileH,gap,pad=quickDockGeometry()
+  local mouse=ui.mousePos()
+  local near=mouse and inRect({x=x-65,y=y-55,w=w+130,h=h+110},mouse)
+  local hovering=state.quickMode~=nil or near
+  state.dockHover=anim(state.dockHover,hovering and 1 or 0,10,state.dt)
+  local reveal=clamp(state.dockHover,0,1)
+  local visibility=(.23+.77*reveal)*easeOutCubic(progress)
+  local dx=(1-easeOutCubic(progress))*18
+  x=x+dx
   state.quickDockBounds={x=x,y=y,w=w,h=h}
   withWindow('vx_quick_dock',vec2(x,y),vec2(w,h),function()
-    ui.drawRectFilled(vec2(0,0),vec2(w,h),C.glassDeep,15)
-    ui.drawRect(vec2(1,1),vec2(w-1,h-1),col(C.accent,.29),15,ui.CornerFlags.All,1)
-    ui.drawRectFilled(vec2(13,0),vec2(69,2),C.accent,1)
+    ui.drawRectFilled(vec2(0,0),vec2(w,h),
+      col(C.glassDeep,visibility*(.20+.55*reveal)),15)
+    ui.drawRect(vec2(1,1),vec2(w-1,h-1),
+      col(C.accent,visibility*(.13+.26*reveal)),15,ui.CornerFlags.All,1)
+    ui.drawRectFilled(vec2(13,0),vec2(69,2),col(C.accent,visibility),1)
     local vehicle=car()
     for i,item in ipairs(QUICK_ACTIONS) do
-      local colIndex=(i-1)%columns
-      local rowIndex=math.floor((i-1)/columns)
-      local xx=pad+colIndex*(tileW+gap)
-      local yy=pad+rowIndex*(tileH+gap)
+      local xx=pad+(i-1)*(tileW+gap)
+      local yy=pad
       ui.setCursor(vec2(xx,yy))
-      local click=ui.invisibleButton('##vxq_'..item.key,vec2(tileW,tileH))
-      local hovered=ui.itemHovered()
+      local click=false
+      local hovered=false
+      if progress>.88 then
+        click=ui.invisibleButton('##vxq_'..item.key,vec2(tileW,tileH))
+        hovered=ui.itemHovered()
+      else
+        ui.dummy(vec2(tileW,tileH))
+      end
       local active=state.quickMode==item.key or
         (item.key=='HUD' and state.hudVisible) or
         (item.key=='LIGHT' and vehicle and vehicle.headlightsActive) or
         (item.key=='HAZARD' and vehicle and vehicle.hazardLights)
       local color=item.key=='HAZARD' and C.warn or C.accent
       local bg=active and C.btnActive or hovered and C.btnHover or C.btnFlat
-      ui.drawRectFilled(vec2(xx,yy),vec2(xx+tileW,yy+tileH),bg,11)
+      ui.drawRectFilled(vec2(xx,yy),vec2(xx+tileW,yy+tileH),
+        col(bg,visibility*(.26+.49*reveal)),11)
       ui.drawRect(vec2(xx,yy),vec2(xx+tileW,yy+tileH),
-        col(color,active and .7 or hovered and .46 or .14),11,ui.CornerFlags.All,1)
+        col(color,visibility*(active and .64 or hovered and .46 or .16)),
+        11,ui.CornerFlags.All,1)
       if active then
-        ui.drawRectFilled(vec2(xx+13,yy+tileH-3),vec2(xx+tileW-13,yy+tileH-1),color,1)
+        ui.drawRectFilled(vec2(xx+9,yy+tileH-3),
+          vec2(xx+tileW-9,yy+tileH-1),col(color,visibility),1)
       end
-      quickGlyph(item.key,xx+tileW*.5,yy+19,(active or hovered) and color or C.dim)
-      local ts=ui.measureDWriteText(item.label,10,-1)
-      ui.dwriteDrawText(item.label,10,vec2(xx+(tileW-ts.x)*.5,yy+38),
-        (active or hovered) and C.text or C.dim)
+      local ink=(active or hovered) and color or C.dim
+      quickGlyph(item.key,xx+tileW*.5,yy+18,col(ink,visibility))
+      local ts=ui.measureDWriteText(item.label,9,-1)
+      ui.dwriteDrawText(item.label,9,vec2(xx+(tileW-ts.x)*.5,yy+38),
+        col((active or hovered) and C.text or C.dim,visibility))
       if hovered then ui.setTooltip(item.hint) end
       if click then performQuickAction(item.key) end
     end
-  end,true,true)
+  end,true,true,true)
 end
 
 local function drawQuickPopup()
@@ -2091,6 +2127,12 @@ function script.update(dt)
   state.toasts = alive
   if state.menuShortcut and state.menuShortcut:pressed() then
     if state.panelOpen then closePanel() else openPanel(nil) end
+  end
+  -- Persist only the target state, animate expansion independently.
+  state.dockProgress=anim(state.dockProgress,
+    state.quickDockVisible and 1 or 0,11,state.dt)
+  if math.abs(state.dockProgress-(state.quickDockVisible and 1 or 0))<.006 then
+    state.dockProgress=state.quickDockVisible and 1 or 0
   end
   local speed = (1 / OPEN_DUR)
   if state.panelOpen then
