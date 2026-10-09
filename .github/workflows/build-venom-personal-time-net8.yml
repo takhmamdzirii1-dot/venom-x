@@ -17,6 +17,7 @@ jobs:
         with:
           repository: compujuckel/AssettoServer
           ref: v0.0.54
+          fetch-depth: 0
           path: upstream
       - name: Set up .NET SDK 8
         uses: actions/setup-dotnet@v4
