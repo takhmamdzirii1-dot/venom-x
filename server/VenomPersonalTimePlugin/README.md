@@ -11,8 +11,9 @@ Project is distributed under AGPL-3.0.
 
 ## Status
 
-Source prepared for the `v0.0.54` API. A working compiler build and LIVE server
-validation are **required** before calling it functional. The user's exact
+Source is compiled successfully in GitHub Actions against the upstream
+AssettoServer `v0.0.54` sources using .NET 8. **Live server validation on
+0.0.54.26 is still required.** The user's exact
 `0.0.54.26` binary may have additional downstream differences.
 
 ## Installation (after CI succeeds)
@@ -40,9 +41,10 @@ Enabled: true
 ```
 
 5. Restart AssettoServer and ask players to reconnect.
-6. The VENOM X online script must send matching `ac.OnlineEvent` packets
-   with key `VENOMX_SetTime` and fields `mode: string(4)`,
-   `seconds: string(8)` — `set` for personal time, `sync` to restore server time.
+6. VENOM X `v3.20.0` now sends matching `ac.OnlineEvent` packets
+   automatically when TIME sliders/presets change.
+   The key is `VENOMX_SetTime` with fields `mode: string(4)` and
+   `seconds: string(8)`. `set` is personal time, `sync` restores server time.
 
 ## Behavior
 
