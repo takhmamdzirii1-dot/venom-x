@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.23.0'
+local VERSION = '3.24.0'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.23.0',
+  versionTag = 'v3.24.0',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -225,8 +225,11 @@ local state = {
   -- Per-player ghost collisions: only disable OTHER human car colliders.
   ghost = {
     enabled=false, peers={}, applied={}, event=nil, checked=false,
-    supported=false, nextSync=0, nextScan=0, lastStatus='OFF'
+    supported=false, nextSync=0, nextScan=0, lastStatus='OFF',
+    confirmed=false,waiting=false,queued=false,sendAt=-999,retries=0
   },
+  -- CSP0 OnlineEvents use CHAT transport. Throttle TIME and GHOST together.
+  cspChatNextAt=0,
   -- Temporary collision protection is separate from the persistent ghost mode.
   tpShield = {active=false,untilAt=0,minUntil=0,status='READY',
     nextCheck=0,started=0},
@@ -1171,7 +1174,20 @@ local function initGhostEvent()
       ac.StructItem.key('VENOMX_Ghost_v1'),
       enabled=ac.StructItem.boolean()
     },function(sender,message)
-      if not sender or not message or sender.index==0 then return end
+      if not message then return end
+      if sender==nil then
+        -- AssettoServer bridge uses sender=server (nil in CSP) for ACK.
+        if message.enabled==g.enabled then
+          g.confirmed=true
+          g.waiting=false
+          g.queued=false
+          g.retries=0
+          g.lastStatus=g.enabled and
+            'GHOST ON / SERVER CONFIRMED' or 'GHOST OFF / SERVER CONFIRMED'
+        end
+        return
+      end
+      if sender.index==0 then return end
       local sid=stateVal(sender,'sessionID')
       if type(sid)~='number' or not HUMAN_SESSION_IDS[sid] or
          not isHumanCar(sender,
@@ -1185,7 +1201,8 @@ local function initGhostEvent()
   end)
   if ok and evt then
     g.event=evt
-    g.lastStatus=g.enabled and 'GHOST ON / SYNCING' or 'GHOST OFF / READY'
+    g.lastStatus=g.enabled and 'GHOST ON / SERVER NOT CONFIRMED' or
+      'GHOST OFF / SERVER NOT CONFIRMED'
   else
     g.supported=false
     g.enabled=false
@@ -1246,9 +1263,25 @@ end
 local function sendGhostState()
   local g=state.ghost
   if not g.event then return false end
+  if state.clock<(state.cspChatNextAt or 0) then
+    g.queued=true
+    return false
+  end
   local ok,ret=pcall(g.event,{enabled=g.enabled})
-  if ok and ret~=false then return true end
-  g.lastStatus='GHOST SYNC FAILED'
+  if ok and ret~=false then
+    g.sendAt=state.clock
+    g.waiting=true
+    g.queued=false
+    -- Stock v0.0.54 discards chat messages sent less than 1s apart.
+    state.cspChatNextAt=state.clock+1.35
+    if state.time then
+      state.time.serverSkyNextSendAt=math.max(
+        state.time.serverSkyNextSendAt or 0,state.cspChatNextAt)
+    end
+    return true
+  end
+  g.queued=true
+  g.lastStatus='GHOST SEND FAILED / CHECK CSP'
   pcall(ac.log,'VENOM X ghost network send: '..tostring(ret))
   return false
 end
@@ -1262,13 +1295,17 @@ local function setGhostEnabled(enabled)
   end
   g.enabled=enabled==true
   persist()
-  g.lastStatus=g.enabled and 'GHOST ON / PLAYERS ONLY' or
-    'GHOST OFF / NORMAL COLLISIONS'
-  -- Immediate local update; status broadcast must reach other clients too.
+  g.confirmed=false
+  g.waiting=false
+  g.queued=true
+  g.retries=0
+  g.lastStatus='GHOST REQUESTED / WAITING FOR SERVER ACK'
+  -- Local collider change alone is insufficient for peer-to-peer ghost.
   scanGhostCollisions()
   sendGhostState()
-  g.nextSync=state.clock+5
-  toast(g.enabled and 'GHOST MODE: ON' or 'GHOST MODE: OFF')
+  g.nextSync=state.clock+6
+  toast(g.enabled and 'GHOST ON REQUESTED / WAIT FOR SERVER' or
+    'GHOST OFF REQUESTED / WAIT FOR SERVER')
   return true
 end
 
@@ -1284,11 +1321,28 @@ local function ghostUpdate()
     g.nextScan=state.clock+0.75
     scanGhostCollisions()
   end
-  if state.clock>=g.nextSync then
-    g.nextSync=state.clock+5
-    -- Periodic state allows a driver joining late to discover existing ghosts
-    -- without adding a new server DLL or installing a client-side mod.
+  if g.waiting and state.clock-g.sendAt>2.2 then
+    g.waiting=false
+    g.retries=g.retries+1
+    if g.retries<=3 then
+      g.queued=true
+      g.lastStatus='GHOST RETRY '..g.retries..' / SERVER ACK PENDING'
+    else
+      g.confirmed=false
+      g.lastStatus='GHOST NOT ACTIVE / UPDATE SERVER PLUGIN DLL'
+    end
+  end
+  if g.queued and g.retries<=3 and not g.waiting then
     sendGhostState()
+  end
+  if state.clock>=g.nextSync then
+    -- Once confirmed, keep active modes fresh for late joiners; the server
+    -- also sends cached ghost states as soon as a new driver finishes loading.
+    g.nextSync=state.clock+(g.enabled and 8 or 25)
+    if g.confirmed or (not g.waiting and g.retries>3) then
+      g.retries=0
+      g.queued=true
+    end
   end
 end
 
@@ -1684,7 +1738,8 @@ end
 local function flushServerSky()
   local tm=state.time
   if not tm.serverSkyPending or state.clock<tm.serverSkyPendingAt or
-    state.clock<tm.serverSkyNextSendAt then return end
+    state.clock<tm.serverSkyNextSendAt or
+    state.clock<(state.cspChatNextAt or 0) then return end
   openServerSkyEvent()
   if not tm.serverSkyEvent then return end
   local action=tm.serverSkyEnabled and 'set' or 'sync'
@@ -1703,6 +1758,7 @@ local function flushServerSky()
     -- Stock AssettoServer v0.0.54 discards CHAT events sent <1000ms apart.
     -- Add margin for other CSP chat messages, not only consecutive TIME.
     tm.serverSkyNextSendAt=state.clock+1.35
+    state.cspChatNextAt=tm.serverSkyNextSendAt
     tm.serverSkyPending=false
     tm.serverSkyAwaiting=true
     tm.serverSkyExpectedSeconds=action=='set' and value or '0'
@@ -1866,7 +1922,9 @@ local function drawHome()
     toggleGhostMode()
   end
   ui.textDisabled(tostring(ghost.lastStatus))
-  ui.textDisabled('No player collisions. Traffic and walls remain physical.')
+  ui.textDisabled(ghost.confirmed and
+    'Players only / server sync confirmed.' or
+    'Player ghost is NOT verified until server ACK. Update DLL if needed.')
   ui.separator()
   sectionLabel('SMART TP PROTECTION / UNSTUCK')
   ui.textDisabled(recoveryStatusLine())
