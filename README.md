@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.10.4)
+# VENOM X — AssettoServer online HUD (v3.11.0)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -11,6 +11,35 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 - Custom car colors, player/traffic filtering, independently draggable tachometer + speedometer.
 - TIME presets: golden sunrise 07:15, daytime 12:00, golden sunset 18:00, blue hour 18:40, night 00:00. Fine tune +/-5 and +/-15 minutes.
 
+### v3.11.0 — Native quick-action icon dock, no full menu required
+
+The launcher X now has a premium dark-glass contextual quick dock with
+eight hand-drawn vector icons and real clickable hitboxes:
+
+- MAP opens a compact destination chooser with Return to Pits.
+- CREW shows up to six real drivers and teleports behind a selected one.
+- TIME exposes a personal clock slider and all five presets.
+- PAINT provides 12 one-click car colors plus original livery.
+- LIGHT toggles headlights; HAZ toggles hazards directly.
+- HUD toggles the speedometer directly; MENU opens the full app.
+
+The bar uses one row on desktops and two rows on narrow screens. It is
+anchored to the draggable X, hides when the main menu is open, and can
+be toggled with **right-click on X**. Its visibility persists locally.
+All flyouts are native CSP tool windows with no extra installation.
+
+The TIME slider now reads the requested target rather than a lagging
+animation intermediate (avoids tug-of-war while dragging). Preset values
+are unchanged: sunrise 07:15, midday 12:00, sunset 18:00, blue 18:40,
+night 00:00. Critical limitation: CSP online Lua does not expose the
+weather-time setter on all clients, and a clock preview cannot force
+the actual personal sun position. When blocked, the quick TIME flyout
+explicitly says **SKY LOCKED / CLOCK PREVIEW ONLY**.
+
+Also checks for a false return from the teleport-to-position API.
+Existing car switch preservation, steering alignment, 11 m positioning
+and velocity reset are retained. In-game verification is still required
+for visual quick-toolbar interaction and live physics.
 ### v3.10.4 — Keep controls and modifications after teleport
 
 Before teleport, capture the local vehicle's **Extra A-F switch states**,
