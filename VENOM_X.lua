@@ -1758,7 +1758,10 @@ local function drawQuickPopup()
   -- Open flyouts beside the vertical rail, aligned to the selected icon.
   local chosenRow=1
   for i,item in ipairs(QUICK_ACTIONS) do
-    if item.key==mode then chosenRow=i break end
+    if item.key==mode then
+      chosenRow=i
+      break
+    end
   end
   local x=b.x+b.w+11
   if x+w>scr.x-8 then x=b.x-w-11 end
