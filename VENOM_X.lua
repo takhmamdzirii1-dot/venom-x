@@ -1941,14 +1941,18 @@ local function withAlpha(a, fn)
 end
 
 local function sectionLabel(text)
+  ui.pushFont(ui.Font.Title)
   ui.textColored(text, C.accentSoft)
+  ui.popFont()
 end
 
 -- A single subdued wrapping style avoids clipping long diagnostic lines.
 local function uiHint(message)
+  ui.pushFont(ui.Font.Title)
   ui.pushStyleColor(ui.StyleColor.Text, C.dim)
   ui.textWrapped(tostring(message))
   ui.popStyleColor()
+  ui.popFont()
 end
 
 -- Clear English buttons with native larger Title font; Arabic hover explanations.
@@ -2110,7 +2114,7 @@ end
 
 local function drawPlayers()
   refreshPlayers(false)
-  ui.textColored(string.format('%d لاعبون متصلون', #state.players), C.accentSoft)
+  ui.textColored(string.format('%d PLAYERS ONLINE', #state.players), C.accentSoft)
   ui.textDisabled(L.teleportHint)
   if #state.players == 0 then
     ui.textDisabled(L.noPlayers)
@@ -2125,7 +2129,8 @@ local function drawPlayers()
         ui.dwriteDrawText(title, 14, ui.cursorScreenPos(), C.text)
         ui.dummy(vec2(0, 18))
         ui.textDisabled(string.format('%s - %d m', prettyModel(pl.model), math.floor(pl.dist + 0.5)))
-        if ui.button('انتقال##pl' .. pl.index, vec2(0, 24)) then
+        if actionButton('TELEPORT##pl' .. pl.index,vec2(0,33),
+          'انتقل خلف هذا اللاعب بمسافة 11 متر في اتجاه قيادته.') then
           teleportToPlayer(pl)
         end
       end
@@ -2159,7 +2164,7 @@ local function drawColor()
   local prev = hasCustom and cc or state.picker
   ui.drawRectFilled(p, vec2(p.x + 34, p.y + 34), rgbm(prev.r, prev.g, prev.b, 1), 8)
   ui.drawRect(p, vec2(p.x + 34, p.y + 34), rgbm(1, 1, 1, 0.4), 8, ui.CornerFlags.All, 1)
-  ui.dwriteDrawText(hasCustom and 'اللون الحالي' or 'اللون الأصلي', 13, vec2(p.x + 44, p.y + 2), C.dim)
+  ui.dwriteDrawText(hasCustom and 'CURRENT COLOR' or 'ORIGINAL', 14, vec2(p.x + 44, p.y + 2), C.dim)
   ui.dwriteDrawText(string.format('%d %d %d', math.floor(prev.r * 255 + 0.5), math.floor(prev.g * 255 + 0.5), math.floor(prev.b * 255 + 0.5)), 12, vec2(p.x + 44, p.y + 18), C.text)
   ui.dummy(vec2(0, 40))
   if not state.chatEx then
@@ -2180,14 +2185,16 @@ local function drawColor()
       state.picker.b = pr.b
       applyColor(c)
     end
-    if ui.itemHovered() then ui.setTooltip(pr.label) end
+    if ui.itemHovered() then ui.setTooltip('طبّق اللون: '..(COLOR_HELP[pr.label] or pr.label)) end
   end
   ui.dummy(vec2(0, 8))
-  if ui.button(L.colorApply, vec2((PANEL_W - 44) / 2, 30)) then
+  if actionButton(L.colorApply,vec2((PANEL_W-44)/2,36),
+    'طبّق اللون المختار على سيارتك.') then
     applyColor(state.picker)
   end
   ui.sameLine()
-  if ui.button(L.colorReset, vec2((PANEL_W - 44) / 2, 30)) then
+  if actionButton(L.colorReset,vec2((PANEL_W-44)/2,36),
+    'أعد اللون الأصلي الذي كانت عليه السيارة.') then
     applyColor(nil)
   end
   local pickerFlags = bit.bor(ui.ColorPickerFlags.NoAlpha, ui.ColorPickerFlags.PickerHueBar, ui.ColorPickerFlags.NoSidePreview)
@@ -2204,7 +2211,7 @@ end
 
 local function drawTime()
   local tm=state.time
-  sectionLabel('الوقت الخاص / لكل لاعب')
+  sectionLabel('PERSONAL TIME / YOUR SKY')
   ui.textColored(timeLabel(),C.accentSoft)
   if ui.itemHovered() then ui.setTooltip(tostring(tm.serverSkyStatus)) end
   uiHint('تغيير السماء يتطلب WeatherFX. تأكيد السيرفر لا يعني تحقق التأثير بصريا.')
@@ -2214,12 +2221,12 @@ local function drawTime()
   ui.drawRect(p,vec2(p.x+PANEL_W-35,p.y+80),C.accentFaint,12,ui.CornerFlags.All,1)
   ui.dwriteDrawText(fmtSec(shownTimeSeconds()),34,
     vec2(p.x+16,p.y+7),C.text)
-  ui.dwriteDrawText('الوقت الذي اخترته',13,vec2(p.x+16,p.y+56),C.accentSoft)
+  ui.dwriteDrawText('YOUR SELECTED TIME',14,vec2(p.x+16,p.y+56),C.accentSoft)
   ui.dummy(vec2(0,90))
 
   -- Controls must never disappear just because online CSP blocks global
   -- weather APIs. This is independent personal UI state for each player.
-  sectionLabel('اختر وقتك')
+  sectionLabel('CHOOSE YOUR TIME')
   local tv=shownTimeSeconds()
   local nv=ui.slider('##vx_personal_time',tv,0,86399,'',1)
   if math.abs(nv-tv)>0.5 then
@@ -2230,24 +2237,27 @@ local function drawTime()
   local bw=math.max(95,(PANEL_W-56)/2)
   for i,preset in ipairs(TIME_PRESETS) do
     if (i-1)%2==1 then ui.sameLine() end
-    if ui.button(preset.label..'##vx_solar_'..i,vec2(bw,32)) then
+    if actionButton(preset.label..'##vx_solar_'..i,vec2(bw,38),
+      'غيّر وقت السماء عندك إلى '..preset.label..' فقط، دون التأثير على الآخرين.') then
       setTimePreset(preset,i)
       tm.lastControl=preset.label
       toast('TIME | تم اختيار '..preset.label)
     end
   end
-  if ui.button('العودة لوقت السيرفر##vx_time_reset',vec2(0,30)) then
+  if actionButton('RESET TO SERVER TIME##vx_time_reset',vec2(0,37),
+    'الغِ الوقت الخاص بك وارجع إلى توقيت السيرفر الأصلي.') then
     queueServerSky(false)
     tm.lastControl='RESET'
     toast('TIME | تمت العودة لوقت السيرفر')
   end
 
-  sectionLabel('ضبط الوقت بدقة')
+  sectionLabel('FINE TUNE / MINUTES')
   local fineW=math.max(56,(PANEL_W-57)/4)
   for i,minutes in ipairs({-15,-5,5,15}) do
     if i>1 then ui.sameLine() end
     local label=string.format('%+d min',minutes)
-    if ui.button(label..'##vx_fine_'..i,vec2(fineW,29)) then
+    if actionButton(label..'##vx_fine_'..i,vec2(fineW,36),
+      'زد أو انقص الوقت الخاص بك بمقدار '..math.abs(minutes)..' دقيقة.') then
       queueServerSky(true,shownTimeSeconds()+minutes*60)
       tm.lastControl=label
     end
