@@ -1,11 +1,11 @@
 script = script or {}
 
-local VERSION = '3.24.0'
+local VERSION = '3.24.1'
 
 local L = {
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.24.0',
+  versionTag = 'v3.24.1',
   ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
   emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
   navHome = 'HOME',
@@ -1176,7 +1176,9 @@ local function initGhostEvent()
     },function(sender,message)
       if not message then return end
       if sender==nil then
-        -- AssettoServer bridge uses sender=server (nil in CSP) for ACK.
+        -- A server-generated event confirms reception; log for live diagnosis.
+        pcall(ac.log,'VENOM X GHOST server event ACK received, enabled='..
+          tostring(message.enabled)..', wanted='..tostring(g.enabled))
         if message.enabled==g.enabled then
           g.confirmed=true
           g.waiting=false
@@ -1275,6 +1277,10 @@ local function sendGhostState()
     g.sendAt=state.clock
     g.waiting=true
     g.queued=false
+    if g.retries==0 then
+      pcall(ac.log,'VENOM X GHOST client event sent, wanted='..
+        tostring(g.enabled)..'; awaiting server reply')
+    end
     -- Stock v0.0.54 discards chat messages sent less than 1s apart.
     state.cspChatNextAt=state.clock+1.35
     if state.time then
@@ -1332,7 +1338,7 @@ local function ghostUpdate()
       g.lastStatus='GHOST RETRY '..g.retries..' / SERVER ACK PENDING'
     else
       g.confirmed=false
-      g.lastStatus='GHOST NOT ACTIVE / UPDATE SERVER PLUGIN DLL'
+      g.lastStatus='GHOST ACK TIMEOUT / CHECK CSP CLIENT LOG'
     end
   end
   if g.queued and g.retries<=3 and not g.waiting then
