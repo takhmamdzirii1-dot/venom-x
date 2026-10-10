@@ -6,6 +6,7 @@ on:
       - 'VENOM_X.lua'
       - 'tests/car-options-regression.js'
       - 'tests/ghost-mode-regression.js'
+      - 'tests/arabic-ui-regression.js'
       - 'tests/smart-teleport-recovery-regression.js'
       - 'tests/one-click-time-regression.js'
       - '.github/workflows/check-venom-lua.yml'
@@ -45,6 +46,8 @@ jobs:
           if (missing.length) throw Error('Required VENOM functionality missing: '+missing.join(', '));
           console.log('VENOM X Lua syntax + real sky/no-filter regression checks passed ('+source.length+' bytes)');
           NODE
+      - name: Validate Arabic typography and UI regression
+        run: node tests/arabic-ui-regression.js
       - name: Run live-Lua car options regression tests
         run: node tests/car-options-regression.js
       - name: Run peer ghost collisions regression tests
