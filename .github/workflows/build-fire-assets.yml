@@ -1,8 +1,9 @@
-name: Build flame assets RGBA + animated WebP
+name: Build fire animation assets
 on:
   push:
     paths:
       - "scripts/build_fire_assets.py"
+      - "scripts/build_burning_logo_v5.py"
       - ".github/workflows/build-fire-assets.yml"
   workflow_dispatch:
 permissions:
@@ -20,11 +21,13 @@ jobs:
       - run: pip install --disable-pip-version-check pillow==11.3.0
       - name: Convert source sprite atlas into native CSP renderable assets
         run: python scripts/build_fire_assets.py
+      - name: Generate premium burning VENOM artwork and preview
+        run: python scripts/build_burning_logo_v5.py
       - name: Commit generated textures
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add assets/venom_flames_rgba_v3.png assets/venom_flames_loop_v3.webp
+          git add assets/venom_flames_rgba_v3.png assets/venom_flames_loop_v3.webp assets/venom_fire_logo_v5.webp assets/venom_fire_logo_v5.png assets/venom_fire_v5_preview.png
           if ! git diff --cached --quiet; then
             git commit -m "Render fire alpha textures: RGBA atlas and animated WebP"
             git push
