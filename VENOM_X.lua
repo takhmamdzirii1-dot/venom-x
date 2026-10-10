@@ -1,12 +1,12 @@
 script = script or {}
 
-local VERSION = '3.25.4'
+local VERSION = '3.25.5'
 
 local L = {
   -- English navigation/actions, Arabic contextual guidance and feedback.
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.25.4',
+  versionTag = 'v3.25.5',
   ready = 'VENOM X جاهز | CTRL+SHIFT+X لفتح القائمة',
   emergencyMode = 'VENOM X: خطأ في الواجهة، تم تشغيل القائمة الاحتياطية',
   navHome = 'HOME',
@@ -150,6 +150,7 @@ local state = {
   clock = 0,
   hudVisible = true,
   logoFire = true,
+  logoFirePower = 100,
   rpmBar = true,
   hudOp = 90,
   hudScale = 100,
@@ -447,6 +448,7 @@ local function loadStored()
     return ac.storage({
       vx_hud = true,
       vx_logo_fire = true,
+      vx_logo_power = 100,
       vx_rpm = true,
       vx_op = 90,
       vx_sc = 100,
@@ -473,6 +475,9 @@ local function loadStored()
     stored = res
     if res.vx_hud ~= nil then state.hudVisible = res.vx_hud end
     if type(res.vx_logo_fire)=='boolean' then state.logoFire=res.vx_logo_fire end
+    if type(res.vx_logo_power)=='number' then
+      state.logoFirePower=clamp(res.vx_logo_power,40,100)
+    end
     if res.vx_rpm ~= nil then state.rpmBar = res.vx_rpm end
     if type(res.vx_op) == 'number' then state.hudOp = clamp(res.vx_op, 40, 100) end
     if type(res.vx_sc) == 'number' then state.hudScale = clamp(res.vx_sc, 80, 130) end
@@ -506,6 +511,7 @@ local function persist()
   if not stored then return end
   stored.vx_hud = state.hudVisible
   stored.vx_logo_fire = state.logoFire
+  stored.vx_logo_power = state.logoFirePower
   stored.vx_rpm = state.rpmBar
   stored.vx_op = state.hudOp
   stored.vx_sc = state.hudScale
@@ -2304,7 +2310,15 @@ local function drawHud()
       'تم إيقاف تأثير النار حول الشعار')
   end
   if ui.itemHovered() then ui.setTooltip(
-    'نار متحركة خفيفة حول شعار VENOM. التأثير يعمل على جهازك فقط، دون إرسال أي بيانات للسيرفر.') end
+    'نار واضحة متحركة على حواف شعار VENOM. يتم رسمها على جهازك فقط، ولا تستهلك موارد السيرفر.') end
+  local firePower,fireChanged=ui.slider('FIRE INTENSITY',
+    state.logoFirePower or 100,40,100,'%d%%',true)
+  if fireChanged then
+    state.logoFirePower=firePower
+    persist()
+  end
+  if ui.itemHovered() then ui.setTooltip(
+    'قوة لهب الشعار: 100% للعرض القوي، أو قلّلها إذا تريد تأثيرا أهدأ.') end
   uiHint('FIRE: '..tostring(state.logoFireStatus or 'LOADING'))
   if ui.itemHovered() then ui.setTooltip('إذا لم تظهر النار افتح لوق CSP وابحث عن VENOM X FIRE لمعرفة حالة تحميل الصورة.') end
   if ui.checkbox(L.speedometer, state.hudVisible) then
@@ -3427,70 +3441,27 @@ local function withBrandFont(draw)
   if not ok then error(err) end
 end
 
--- VENOM FIRE v3: CSP-native animated WebP, with RGBA atlas fallback.
--- Source files are cached HTTPS images; rendering remains entirely client-side.
--- Unlike v2: fire is drawn ABOVE the artwork, not hidden under opaque letters.
--- Source flame alpha fades out at its lower edge, preventing a solid bar.
-local VENOM_FIRE_ANIM_URL =
-  'https://raw.githubusercontent.com/takhmamdzirii1-dot/venom-x/main/assets/venom_flames_loop_v3.webp'
-local VENOM_FIRE_RGBA_URL =
-  'https://raw.githubusercontent.com/takhmamdzirii1-dot/venom-x/main/assets/venom_flames_rgba_v3.png'
+-- VENOM X FIRE v5: precomposed logo + strong silhouette-anchored flames.
+-- Only one small cached animated WebP is decoded by the local CSP client.
+-- A static precomposed PNG fallback guarantees visible flames while loading.
+-- No per-frame HTTP requests, physics access, server messages or particles.
+local VENOM_BURNING_WEBP_URL =
+  'https://raw.githubusercontent.com/takhmamdzirii1-dot/venom-x/main/assets/venom_fire_logo_v5.webp'
+local VENOM_BURNING_STILL_URL =
+  'https://raw.githubusercontent.com/takhmamdzirii1-dot/venom-x/main/assets/venom_fire_logo_v5.png'
 
-local FIRE_ANIM_PLAYER=nil
+local VENOM_BURNING_PLAYER=nil
 do
   if type(ui.GIFPlayer)=='function' then
-    local ok,p=pcall(ui.GIFPlayer,VENOM_FIRE_ANIM_URL,false)
-    if ok then FIRE_ANIM_PLAYER=p end
-  end
-end
-
-local function drawLogoAnimation(w,h)
-  if not state.logoFire then
-    state.logoFireStatus='OFF'
-    return
-  end
-  -- The animated translucent flames are deliberately composited ON TOP of
-  -- the logo. They only occupy the upper portion and don't cover the mirror.
-  -- WebP GIFPlayer efficiently decodes its cached 12 frames locally.
-  local dst1=vec2(0,0)
-  local dst2=vec2(w,h*.84)
-  if FIRE_ANIM_PLAYER then
-    local readyOK,ready=pcall(function() return FIRE_ANIM_PLAYER:ready() end)
-    if readyOK and ready then
-      ui.drawImage(FIRE_ANIM_PLAYER,dst1,dst2,rgbm(1,1,1,.96))
-      state.logoFireStatus='ANIMATED WEBP'
-      return
-    end
-  end
-  -- Robust fallback: standard, genuine RGBA PNG rather than PNG palette/tRNS.
-  -- UV arguments select one 256x70 sprite from the 4x3 1024x210 atlas.
-  local idx=math.floor(state.clock*10)%12
-  local cx,cy=idx%4,math.floor(idx/4)
-  local padX,padY=.35/1024,.35/210
-  ui.drawImage(VENOM_FIRE_RGBA_URL,dst1,dst2,rgbm(1,1,1,.96),
-    vec2(cx/4+padX,cy/3+padY),
-    vec2((cx+1)/4-padX,(cy+1)/3-padY))
-  -- Cached texture-resolution probe once a second, not once per frame.
-  -- Helps tell an asset-fetch failure apart from a UI layering problem.
-  if not state.fireImageCheckAt or state.clock-state.fireImageCheckAt>=1 then
-    state.fireImageCheckAt=state.clock
-    if type(ui.imageSize)=='function' then
-      local ok,img=pcall(ui.imageSize,VENOM_FIRE_RGBA_URL)
-      state.fireImageReady=ok and img~=nil and img.x>=1024 and img.y>=210
-    end
-  end
-  if state.fireImageReady then
-    state.logoFireStatus='RGBA READY / WEBP LOADING'
-  elseif state.clock>12 then
-    state.logoFireStatus='ASSET NOT READY / CHECK CSP LOG'
-  else
-    state.logoFireStatus='LOADING FIRE TEXTURES'
+    local ok,player=pcall(ui.GIFPlayer,VENOM_BURNING_WEBP_URL,false)
+    if ok then VENOM_BURNING_PLAYER=player end
   end
 end
 
 local function drawVenomOfficialLogo()
   local screen=getScreenSize()
   if not screen or type(ui.drawImage)~='function' then return end
+  -- Original anchor and screen footprint stay unchanged above Virtual Mirror.
   local width=clamp(screen.x*.16,155,252)
   local height=width*(665/2048)
   local left=math.floor((screen.x-width)*.5)
@@ -3500,10 +3471,31 @@ local function drawVenomOfficialLogo()
     ui.beginTransparentWindow('vx_official_logo',
       vec2(left,top),vec2(width,height+1),true,false)
     began=true
-    -- Ensure main original logo is always visible even if fire decoding fails.
     ui.drawImage(VENOM_LOGO_URL,vec2(0,0),
       vec2(width,height),rgbm(1,1,1,.99))
-    drawLogoAnimation(width,height)
+    if state.logoFire then
+      local power=clamp((state.logoFirePower or 100)/100,.4,1)
+      local ready=false
+      if VENOM_BURNING_PLAYER then
+        local r,available=pcall(function()
+          return VENOM_BURNING_PLAYER:ready() and
+            VENOM_BURNING_PLAYER:valid()
+        end)
+        ready=r and available==true
+      end
+      if ready then
+        ui.drawImage(VENOM_BURNING_PLAYER,vec2(0,0),
+          vec2(width,height),rgbm(1,1,1,power))
+        state.logoFireStatus='FIRE ANIMATED / 16 FRAMES'
+      else
+        -- A genuine bright flame+logo still image: never return to invisible FX.
+        ui.drawImage(VENOM_BURNING_STILL_URL,vec2(0,0),
+          vec2(width,height),rgbm(1,1,1,power))
+        state.logoFireStatus='FIRE STATIC / WEBP LOADING'
+      end
+    else
+      state.logoFireStatus='OFF'
+    end
     ui.endTransparentWindow()
     began=false
   end)
