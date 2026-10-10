@@ -3454,10 +3454,11 @@ local function drawVenomOfficialLogo()
       local ux=0.55/1024
       local uy=0.55/246
       local uvStart=vec2(column/4+ux,row/3+uy)
-      local uvEnd=vec2((column+1)/4-ux,(row+1)/3-uy)
+      -- Crop off the solid flame base: never render a red bar below VENOM.
+      local uvEnd=vec2((column+1)/4-ux,(row*82+70)/246-uy)
       ui.drawImage(VENOM_FIRE_ATLAS_URL,
-        vec2(0,0),vec2(width,height-1),
-        rgbm(1,1,1,.82),uvStart,uvEnd)
+        vec2(0,0),vec2(width,height-11),
+        rgbm(1,1,1,.75),uvStart,uvEnd)
     end
     -- Draw pristine original art in FRONT of the animated flames:
     -- no flickering rectangles below the logo, no orange text tint.
