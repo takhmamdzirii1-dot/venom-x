@@ -1958,8 +1958,13 @@ end
 -- Clear English buttons with native larger Title font; Arabic hover explanations.
 -- Built-in CSP Title font avoids bundling font files and scales correctly.
 local function actionButton(label, size, explanation)
-  ui.pushFont(ui.Font.Title)
-  local pressed = ui.button(label, size)
+  -- Use a larger native Title font only when the label actually fits.
+  -- On narrow 318 px layouts, Main keeps every action fully readable.
+  local caption=tostring(label):match('^(.-)##') or tostring(label)
+  local w=tonumber(size and size.x) or 0
+  local fits=w<1 or ui.measureDWriteText(caption,18,-1).x<w-14
+  ui.pushFont(fits and ui.Font.Title or ui.Font.Main)
+  local pressed=ui.button(label,size)
   ui.popFont()
   if explanation and ui.itemHovered() then ui.setTooltip(explanation) end
   return pressed
@@ -2089,21 +2094,17 @@ local function drawTeleport()
     end
     if open then
       for _, d in ipairs(g) do
-        if ui.button(d.name, vec2(0, 23)) then
-          teleportDest(d)
-        end
-        if ui.itemHovered() then ui.setTooltip(string.format('%s\n%s', d.name, d.group)) end
+        if actionButton(d.name,vec2(0,32),
+          'انتقل إلى هذا المكان من الخريطة: '..d.name) then teleportDest(d) end
       end
     end
   end
   ui.separator()
-  if ui.button(L.refresh, vec2(0, 26)) then
-    refreshDestinations(true)
-  end
+  if actionButton(L.refresh,vec2(0,33),
+    'حدّث قائمة المواقع المتاحة من السيرفر.') then refreshDestinations(true) end
   ui.sameLine()
-  if ui.button(L.returnToPits, vec2(0, 26)) then
-    returnToPits()
-  end
+  if actionButton(L.returnToPits,vec2(0,33),
+    'ارجع بسيارتك إلى موقع البداية.') then returnToPits() end
   ui.separator()
   uiHint(recoveryStatusLine())
   if actionButton('RECOVER / UNSTUCK##vxTpRecover',vec2(0,34),
@@ -2795,7 +2796,7 @@ local function drawVenomPanel()
     end
     ui.dwriteDrawText('VENOM', 21, vec2(18, 10), C.text)
     ui.dwriteDrawText('X', 21, vec2(105, 10), C.accent)
-    ui.dwriteDrawText('التحكم  /  LA CANYONS', 13, vec2(18, 39), C.dim)
+    ui.dwriteDrawText('CONTROL SYSTEM / LA CANYONS', 14, vec2(18, 39), C.dim)
     ui.drawRectFilled(vec2(18,59),vec2(73,61),C.accent,1)
 
     ui.setCursor(vec2(PANEL_W - 46, 17))
@@ -2807,25 +2808,26 @@ local function drawVenomPanel()
       local row = math.floor((i - 1) / 3)
       local column = (i - 1) % 3
       local xx = 12 + column * (navW + 6)
-      local yy = 76 + row * 36
+      local yy = 76 + row * 40
       local selected = state.section == item.key
       ui.setCursor(vec2(xx, yy))
       if selected then
         ui.pushStyleColor(ui.StyleColor.Button, C.btnActive)
         ui.pushStyleColor(ui.StyleColor.Text, C.text)
       end
-      local click = ui.button(item.label .. '##vxnav_' .. i, vec2(navW, 30))
+      local click = actionButton(item.label..'##vxnav_'..i,vec2(navW,34),
+        NAV_HELP[item.key])
       if selected then
         ui.popStyleColor(2)
-        ui.drawRectFilled(vec2(xx + 16, yy + 29),
-          vec2(xx + navW - 16, yy + 31), col(C.accent, clamp(state.sectT * 2, .3, 1)), 1)
+        ui.drawRectFilled(vec2(xx + 16, yy + 33),
+          vec2(xx + navW - 16, yy + 35), col(C.accent, clamp(state.sectT * 2, .3, 1)), 1)
       end
       if click then setSection(item.key) end
     end
 
-    ui.drawLine(vec2(13, 153), vec2(PANEL_W - 13, 153), C.accentFaint, 1)
-    ui.setCursor(vec2(12, 160))
-    local contentH = math.max(100, PANEL_H - 218)
+    ui.drawLine(vec2(13, 163), vec2(PANEL_W - 13, 163), C.accentFaint, 1)
+    ui.setCursor(vec2(12, 170))
+    local contentH = math.max(100, PANEL_H - 228)
     local opened = ui.beginChild('vx_feature_content', vec2(PANEL_W - 24, contentH), false, ui.WindowFlags.None)
     local ok, err = pcall(function()
       if opened then
