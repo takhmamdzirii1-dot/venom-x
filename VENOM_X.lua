@@ -2086,7 +2086,8 @@ local function drawTeleport()
     local label = (open and '-  ' or '+  ') .. gname .. '  (' .. #g .. ')'
     ui.pushStyleColor(ui.StyleColor.Button, open and C.btnActive or C.btnFlat)
     ui.pushStyleColor(ui.StyleColor.Text, C.accent)
-    local clicked = ui.button(label, vec2(0, 26))
+    local clicked = actionButton(label,vec2(0,34),
+      'افتح أو اغلق مجموعة المواقع هذه، ثم اختر الموقع الذي تريد الانتقال إليه.')
     ui.popStyleColor(2)
     if clicked then
       state.groupOpen[gname] = not open
@@ -2200,6 +2201,7 @@ local function drawColor()
   end
   local pickerFlags = bit.bor(ui.ColorPickerFlags.NoAlpha, ui.ColorPickerFlags.PickerHueBar, ui.ColorPickerFlags.NoSidePreview)
   local changed = ui.colorPicker('##vx_picker', state.picker, pickerFlags)
+  if ui.itemHovered() then ui.setTooltip('اختر لونا من المؤشر ليتم تطبيقه على السيارة.') end
   if changed then
     state.pickerDirty = true
   end
@@ -2230,6 +2232,7 @@ local function drawTime()
   sectionLabel('CHOOSE YOUR TIME')
   local tv=shownTimeSeconds()
   local nv=ui.slider('##vx_personal_time',tv,0,86399,'',1)
+  if ui.itemHovered() then ui.setTooltip('حرّك المؤشر لاختيار ساعة خاصة بك. لن يتغير وقت اللاعبين الآخرين.') end
   if math.abs(nv-tv)>0.5 then
     queueServerSky(true,nv,true)
     tm.lastControl='SLIDER'
@@ -2703,6 +2706,7 @@ local function drawQuickPopup()
         ui.textColored(fmtSec(now),C.accentSoft)
         uiHint(timeLabel())
         local selected=ui.slider('##vxq_clock',now,0,86399,'',1)
+        if ui.itemHovered() then ui.setTooltip('حرّك المؤشر لتغيير وقت السماء الخاص بك فقط.') end
         if math.abs(selected-now)>.5 then
           queueServerSky(true,selected,true)
           tm.lastControl='QUICK SLIDER'
