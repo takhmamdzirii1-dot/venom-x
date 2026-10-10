@@ -1,4 +1,4 @@
-# VENOM X — AssettoServer online HUD (v3.25.4)
+# VENOM X — AssettoServer online HUD (v3.25.5)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
@@ -22,6 +22,26 @@ One auto-downloaded CSP online Lua script for VENOM LA Canyons:
   no new AssettoServer plugins, sockets or server packets.
 - **Not visually verified in game yet:** success requires a real client screenshot
   and a status showing that textures have loaded.
+
+### v3.25.5 — Bold and readable 16-frame animated fire logo
+
+- Previous v3.25.4 emitted only a dim flicker in the user's real game screenshot.
+  Instead of a translucent flame overlay, the new animated WebP contains the
+  **original sharp logo and visible edge-anchored red/orange flames together**.
+- 16 animation frames are generated deterministically offline, then resized
+  to 576×194 and cached once by CSP (target <900 KB). CSP only draws one
+  image per frame; no procedural per-frame flames or server work.
+- The static PNG fallback is itself a bright burning logo, so while the WebP
+  loads the user sees flames instead of a plain logo.
+- **LOGO FIRE FX** toggles the effect and **FIRE INTENSITY** (40–100%)
+  adjusts its opacity per player; both choices persist locally.
+- HUD displays "FIRE ANIMATED / 16 FRAMES" or "FIRE STATIC / WEBP
+  LOADING" so a missing animation can be diagnosed without guessing.
+- Original VENOM asset is always a fallback, and none of the TIME, GHOST,
+  traffic, radio or other server gameplay code is touched.
+- A sky-blue visual preview is available as
+  [assets/venom_fire_v5_preview.png](assets/venom_fire_v5_preview.png).
+  A live CSP screenshot is still required to verify the final visual result.
 
 ### v3.25.3 — Replace line/rectangle flames with cached animated fire atlas
 
