@@ -1,8 +1,27 @@
-# VENOM X — AssettoServer online HUD (v3.25.1)
+# VENOM X — AssettoServer online HUD (v3.25.2)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
 `https://raw.githubusercontent.com/takhmamdzirii1-dot/venom-x/main/VENOM_X.lua`
+
+### v3.25.2 — Animated VENOM logo with local-only Fire FX
+
+- Keeps the original transparent official VENOM logo at exactly the same
+  centered screen position above the virtual mirror.
+- Lightweight native CSP procedural flames (11 fixed wisps) and rising embers
+  (6 fixed sprites drawn as circles), warm orange/red glow; no GIF, sprite
+  downloads, audio, new HTTP calls, server messages or third-party assets.
+- Fully **client-side rendering only**. There is no AssettoServer processing,
+  traffic simulation change or bandwidth from the animation, though client
+  graphics still perform a small number of extra draw calls.
+- The English `LOGO FIRE FX` checkbox in HUD Settings lets each player disable
+  the flames; its choice persists via `ac.storage`. Arabic hover text explains
+  this option and Arabic toast confirms the toggle.
+- Designed to remain non-interactive and avoid covering the logo or virtual
+  mirror. Static render fallback is simply a checkbox click.
+- CI covers Lua syntax, bounded flame/ember loops, no networking or physics in
+  the flame drawing helpers, and preservation of existing GHOST/TIME features.
+  In-game visual balance and FPS still require one real CSP client test.
 
 ### v3.25.1 — English buttons and menus, Arabic help and larger text
 
