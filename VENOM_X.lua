@@ -2646,6 +2646,7 @@ local function drawQuickPopup()
     ui.dwriteDrawText('VENOM X / QUICK CONTROL',12,vec2(15,34),C.dim)
     ui.setCursor(vec2(w-37,12))
     if ui.button('X##vxqclose',vec2(25,24)) then state.quickMode=nil end
+    if ui.itemHovered() then ui.setTooltip('اغلق نافذة الاختصارات هذه.') end
     ui.drawLine(vec2(13,54),vec2(w-13,54),C.accentFaint,1)
     ui.setCursor(vec2(13,63))
     local opened=ui.beginChild('vx_quick_body',vec2(w-26,h-76),false,ui.WindowFlags.None)
@@ -2656,21 +2657,23 @@ local function drawQuickPopup()
         else
           for i,d in ipairs(state.destList) do
             if i>16 then break end
-            if ui.button(d.name..'##vxqd_'..i,vec2(w-50,31)) then
+            if actionButton(d.name..'##vxqd_'..i,vec2(w-50,36),
+              'انتقل إلى هذا الموقع من الخريطة.') then
               teleportDest(d)
               state.quickMode=nil
             end
-            if ui.itemHovered() then ui.setTooltip(d.group or 'موقع') end
           end
         end
         ui.separator()
-        if ui.button('العودة للحظيرة##vxqpit',vec2(w-50,30)) then
+        if actionButton('RETURN TO PITS##vxqpit',vec2(w-50,36),
+          'ارجع إلى موقع البداية في السيرفر.') then
           returnToPits()
           state.quickMode=nil
         end
         ui.separator()
         uiHint(recoveryStatusLine())
-        if ui.button('استرجاع السيارة##vxqRecover',vec2(w-50,30)) then
+        if actionButton('RECOVER / UNSTUCK##vxqRecover',vec2(w-50,36),
+          'ارجع لآخر نقطة آمنة مسجلة بعد توقف سيارتك أو انقلابها.') then
           if tryRecoverCar() then state.quickMode=nil end
         end
       elseif mode=='FRIEND' then
@@ -2679,7 +2682,8 @@ local function drawQuickPopup()
         for i,p in ipairs(state.players) do
           if i>6 then break end
           local name=#p.name>22 and p.name:sub(1,21)..'...' or p.name
-          if ui.button(name..'  /  TP##vxqfriend_'..i,vec2(w-50,34)) then
+          if actionButton(name..' / TP##vxqfriend_'..i,vec2(w-50,38),
+            'انتقل خلف هذا اللاعب بمسافة آمنة من دون نقل اللاعب نفسه.') then
             teleportToPlayer(p)
             state.quickMode=nil
           end
@@ -2701,12 +2705,14 @@ local function drawQuickPopup()
         local bw=(w-55)/2
         for i,preset in ipairs(TIME_PRESETS) do
           if i%2==0 then ui.sameLine() end
-          if ui.button(preset.label..'##vxqt_'..i,vec2(bw,31)) then
+          if actionButton(preset.label..'##vxqt_'..i,vec2(bw,36),
+            'اجعل السماء والوقت عندك على '..preset.label..' فقط.') then
             setTimePreset(preset,i)
             tm.lastControl=preset.label
           end
         end
-        if ui.button('وقت السيرفر##vxqreset',vec2(w-50,28)) then
+        if actionButton('RESET TO SERVER TIME##vxqreset',vec2(w-50,35),
+          'ارجع إلى توقيت السيرفر الأصلي بدل الوقت الخاص.') then
           queueServerSky(false)
           tm.lastControl='RESET'
         end
@@ -2731,11 +2737,13 @@ local function drawQuickPopup()
         local ww=(w-68)/4
         for i,preset in ipairs(PRESETS) do
           if (i-1)%4~=0 then ui.sameLine() end
-          local click=ui.button(preset.label..'##vxqp_'..i,vec2(ww,30))
+          local click=actionButton(preset.label..'##vxqp_'..i,vec2(ww,34),
+            'طبّق اللون '..(COLOR_HELP[preset.label] or preset.label)..' على سيارتك.')
           if click then applyColor(preset) end
-          if ui.itemHovered() then ui.setTooltip(preset.label..' - تطبيق اللون') end
+          -- Arabic hover description is owned by actionButton.
         end
-        if ui.button('استرجاع اللون الأصلي##vxqoriginal',vec2(w-50,30)) then applyColor(nil) end
+        if actionButton('ORIGINAL COLOR##vxqoriginal',vec2(w-50,36),
+          'ارجع إلى اللون الأصلي للسيارة.') then applyColor(nil) end
         ui.textDisabled('تغيير اللون يعتمد على صلاحيات السيرفر.')
       end
     end
@@ -2772,6 +2780,7 @@ local function drawVenomPanel()
     ui.setCursor(vec2(12, 10))
     ui.invisibleButton('##vxhead_drag', vec2(math.max(90, PANEL_W - 76), 51))
     local hovered = ui.itemHovered()
+    if hovered then ui.setTooltip('اسحب من هنا لتحريك قائمة VENOM X.') end
     local mouse = ui.mousePos()
     if not state.panelDrag and hovered and ui.mouseClicked(0) then
       state.panelDrag = {
@@ -2800,7 +2809,8 @@ local function drawVenomPanel()
     ui.drawRectFilled(vec2(18,59),vec2(73,61),C.accent,1)
 
     ui.setCursor(vec2(PANEL_W - 46, 17))
-    if ui.button('X##vx_panel_close', vec2(30, 28)) then closePanel() end
+    if ui.button('X##vx_panel_close',vec2(30,28)) then closePanel() end
+    if ui.itemHovered() then ui.setTooltip('اغلق قائمة VENOM X.') end
 
     -- Compact segmented navigation with meaningful hover/active styling.
     local navW = math.floor((PANEL_W - 36) / 3)
@@ -2858,6 +2868,7 @@ local function drawVenomPanel()
     -- Bottom right drag handle, size changes in real time. No full-screen input.
     ui.setCursor(vec2(PANEL_W - 39, PANEL_H - 39))
     ui.invisibleButton('##vxresize', vec2(28, 29))
+    if ui.itemHovered() then ui.setTooltip('اسحب لتكبير أو تصغير نافذة القائمة.') end
     if ui.itemActive() and ui.mouseDown(0) then
       local delta = ui.mouseDelta()
       local scr = getScreenSize()
