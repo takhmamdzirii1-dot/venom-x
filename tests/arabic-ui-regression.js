@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 
 const source = fs.readFileSync('VENOM_X.lua','utf8');
 const mustInclude=[
-  "local VERSION = '3.25.3'",
+  "local VERSION = '3.25.4'",
   "return ui.DWriteFont('Segoe UI'):weight(700)",
   "navHome = 'HOME'",
   "navTp = 'TELEPORT'",
@@ -34,11 +34,15 @@ const mustInclude=[
   "physics.disableCarCollisions",
   "vx_logo_fire = true",
   "stored.vx_logo_fire = state.logoFire",
-  "if state.logoFire then",
-  "VENOM_FIRE_ATLAS_URL",
-  "assets/venom_flames_atlas_v2.png",
+  "local VENOM_FIRE_ANIM_URL",
+  "assets/venom_flames_loop_v3.webp",
+  "assets/venom_flames_rgba_v3.png",
   "local idx=math.floor(state.clock*10)%12",
-  "ui.drawImage(VENOM_FIRE_ATLAS_URL",
+  "ui.drawImage(FIRE_ANIM_PLAYER",
+  "ui.drawImage(VENOM_FIRE_RGBA_URL",
+  "state.logoFireStatus='ANIMATED WEBP'",
+  "state.logoFireStatus='RGBA FALLBACK / LOADING WEBP'",
+  "VENOM X FIRE:",
   "LOGO FIRE FX"
 ];
 for (const marker of mustInclude) {
@@ -66,21 +70,26 @@ assert.ok(source.includes("local quickTimeLabels={'RISE 07:15'"),
   'Compact quick time labels missing');
 assert.ok(source.includes("local ww=(w-68)/3"), 'Quick paint buttons are too narrow');
 assert.ok(source.includes('local fontSize=18'), 'Larger toast font regression');
-// Sprite Atlas is client-only: no network event or procedural loops per frame.
-const fireStart=source.indexOf('local VENOM_FIRE_ATLAS_URL');
+// Real RGBA + WebP assets must exist, and WebP must carry animation frames.
+const png=fs.readFileSync('assets/venom_flames_rgba_v3.png');
+const webp=fs.readFileSync('assets/venom_flames_loop_v3.webp');
+assert.equal(png.subarray(1,4).toString('utf8'),'PNG');
+assert.equal(png[25],6,'PNG must be true RGBA, not indexed palette');
+assert.equal(webp.subarray(0,4).toString('utf8'),'RIFF');
+assert.equal(webp.subarray(8,12).toString('utf8'),'WEBP');
+assert.ok(webp.includes(Buffer.from('ANIM')),'WebP must be animated');
+const fireStart=source.indexOf('local VENOM_FIRE_ANIM_URL');
 const fireEnd=source.indexOf('function script.drawUI()',fireStart);
-assert.ok(fireStart>0 && fireEnd>fireStart,'Atlas renderer missing');
+assert.ok(fireStart>0&&fireEnd>fireStart,'Fire renderer missing');
 const fire=source.slice(fireStart,fireEnd);
-assert.ok(!/ac\.OnlineEvent|fetch\(|physics\.|drawLogoFire|drawLogoEmbers/.test(fire),
-  'Animated logo must not interact with physics, online events or old line-based fire');
-assert.ok(fire.includes('math.floor(state.clock*10)%12'),'Frame selection must remain bounded');
-assert.ok(fire.includes('column/4+ux') && fire.includes('row/3+uy'),
-  'Atlas UV cropping must match 4×3 frames');
-assert.ok(fire.indexOf('ui.drawImage(VENOM_FIRE_ATLAS_URL')<
-  fire.indexOf('ui.drawImage(VENOM_LOGO_URL'),
-  'Animation must be drawn behind original logo');
-assert.ok(!source.includes('ui.drawLine(bottom,center'),
-  'Old vertical flame sticks must be completely removed');
+assert.ok(!/ac\\.OnlineEvent|fetch\\(|physics\\.|drawLogoFire|drawLogoEmbers/.test(fire),
+  'Animated logo must not affect server or physics or restore old flame sticks');
+assert.ok(fire.includes('local idx=math.floor(state.clock*10)%12'),'Fallback bounded');
+assert.ok(fire.indexOf('ui.drawImage(VENOM_LOGO_URL')<
+  fire.indexOf('drawLogoAnimation(width,height)'),
+  'Flames must draw ON TOP, unlike invisible v2');
+assert.ok(fire.includes('FIRE_ANIM_PLAYER:ready()'),'Animated WebP readiness check required');
+assert.ok(!source.includes('ui.drawLine(bottom,center'),'Never restore old bars');
 assert.ok(!source.includes("'الانتقال إلى موقع  >##vxhomeTP'"),
   'Arabic UI action labels should be English');
-console.log('PASS: English menus, Arabic hover, sprite atlas fire client render, saved toggle, original protocols');
+console.log('PASS: English menus, Arabic hover, WebP+RGBA fire client render, saved toggle, original protocols');
