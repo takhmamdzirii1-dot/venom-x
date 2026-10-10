@@ -46,6 +46,15 @@ foreach (var enabled in new[] { false, true })
     if (VenomPersonalTimePlugin.VenomPersonalTimePlugin.TryDecodeChatTime(packet, out _))
         throw new Exception("GHOST event was incorrectly treated as a TIME event");
 }
+// Actual 2026-10-10 CSP client GHOST event captures:
+if (!VenomPersonalTimePlugin.VenomPersonalTimePlugin.TryDecodeChatGhost(
+    "\t\t\t\t$CSP0:YOrCGMSb", out var compactOff) || compactOff.Enabled)
+    throw new Exception("Compact real-world 6-byte OFF packet must decode as false");
+if (!VenomPersonalTimePlugin.VenomPersonalTimePlugin.TryDecodeChatGhost(
+    "\t\t\t\t$CSP0:YOrCGMSbAQ", out var actualOn) || !actualOn.Enabled)
+    throw new Exception("Real-world 7-byte ON packet must decode as true");
+Console.WriteLine("PASS: real captured compact OFF / expanded ON packets");
+
 if (VenomPersonalTimePlugin.VenomPersonalTimePlugin.TryDecodeChatGhost(
     "\t\t\t\t$CSP0:" + "YOpFD5uQc2V0ADA", out _))
     throw new Exception("TIME packet should never decode as GHOST.");
