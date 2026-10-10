@@ -87,7 +87,7 @@ local C = {
   accentSoft = rgbm(1.00, 0.59, 0.63, 1.00),
   accentFaint = rgbm(0.92, 0.23, 0.29, 0.27),
   text = rgbm(0.98, 0.97, 0.97, 1.00),
-  dim = rgbm(0.74, 0.74, 0.77, 1.00),
+  dim = rgbm(0.84, 0.84, 0.88, 1.00),
   glass = rgbm(0.026, 0.027, 0.034, 0.89),
   glassDeep = rgbm(0.015, 0.016, 0.022, 0.96),
   card = rgbm(0.091, 0.082, 0.098, 0.63),
@@ -1962,57 +1962,58 @@ end
 
 local function drawHome()
   refreshPlayers(false)
-  sectionLabel('LA CANYONS  /  ONLINE')
+  sectionLabel('LA CANYONS  /  متصل')
   local p = ui.getCursor()
   local w = PANEL_W - 37
   ui.drawRectFilled(p, vec2(p.x + w, p.y + 91), C.cardSolid, 13)
   ui.drawRect(p, vec2(p.x + w, p.y + 91), C.accentFaint, 13, ui.CornerFlags.All, 1)
   ui.dwriteDrawText('FREEROAM', 22, vec2(p.x + 15,p.y + 10), C.text)
-  ui.dwriteDrawText('Explore / Drive / Connect', 12, vec2(p.x + 15,p.y + 41),C.dim)
+  ui.dwriteDrawText('تجول / قيادة / تواصل', 13, vec2(p.x + 15,p.y + 41),C.dim)
   ui.drawCircleFilled(vec2(p.x + 19,p.y + 76),4,C.ok)
-  ui.dwriteDrawText(tostring(#state.players + 1)..' HUMAN DRIVERS',12,
+  ui.dwriteDrawText(tostring(#state.players + 1)..' لاعبون متصلون',13,
     vec2(p.x + 30,p.y + 68),C.accentSoft)
   ui.dummy(vec2(0,106))
-  sectionLabel('QUICK CONTROL')
+  sectionLabel('التحكم السريع')
   ui.dummy(vec2(0,7))
-  if ui.button('TELEPORT   /   DESTINATIONS   >##vxhomeTP', vec2(0,40)) then setSection('TELEPORT') end
-  if ui.button('PLAYERS   /   GO TO FRIEND   >##vxhomePL', vec2(0,40)) then setSection('PLAYERS') end
-  if ui.button('CAR COLOR   /   CUSTOM PAINT   >##vxhomeCL', vec2(0,40)) then setSection('COLOR') end
-  if ui.button('TIME & SKY   /   ENVIRONMENT   >##vxhomeTM', vec2(0,40)) then setSection('TIME') end
+  if ui.button('الانتقال إلى موقع  >##vxhomeTP', vec2(0,40)) then setSection('TELEPORT') end
+  if ui.button('الانتقال إلى لاعب  >##vxhomePL', vec2(0,40)) then setSection('PLAYERS') end
+  if ui.button('لون السيارة وتخصيصها  >##vxhomeCL', vec2(0,40)) then setSection('COLOR') end
+  if ui.button('الوقت والسماء  >##vxhomeTM', vec2(0,40)) then setSection('TIME') end
   ui.separator()
-  sectionLabel('GHOST MODE / PLAYERS ONLY')
+  sectionLabel('GHOST MODE / للاعبين فقط')
   local ghost=state.ghost
-  if ui.button((ghost.enabled and 'GHOST MODE   ON  /  DISABLE' or
-      'GHOST MODE   OFF  /  ENABLE')..'##vxhomeGHOST',vec2(0,38)) then
+  if ui.button((ghost.enabled and 'GHOST ON / إيقاف' or
+      'GHOST OFF / تشغيل')..'##vxhomeGHOST',vec2(0,38)) then
     toggleGhostMode()
   end
-  ui.textDisabled(tostring(ghost.lastStatus))
-  ui.textDisabled(ghost.confirmed and
-    'Players only / server sync confirmed.' or
-    'Player ghost is NOT verified until server ACK. Update DLL if needed.')
+  uiHint(ghostLabel())
+  uiHint(ghost.confirmed and
+    'خاص باللاعبين فقط - السيرفر أكد الطلب' or
+    'لن نعتبر الوضع مؤكدا حتى يصل رد السيرفر')
+  if ui.itemHovered() then ui.setTooltip(tostring(ghost.lastStatus)) end
   ui.separator()
-  sectionLabel('SMART TP PROTECTION / UNSTUCK')
-  ui.textDisabled(recoveryStatusLine())
-  if ui.button('RECOVER / LAST SAFE STOP##vxhomeRecover',vec2(0,33)) then
+  sectionLabel('الاسترجاع / حماية الانتقال')
+  uiHint(recoveryStatusLine())
+  if ui.button('استرجاع السيارة / آخر نقطة آمنة##vxhomeRecover',vec2(0,33)) then
     tryRecoverCar()
   end
-  ui.textDisabled('Last stable checkpoint; double-click to confirm fallback.')
+  uiHint('آخر نقطة آمنة محفوظة. اضغط مرتين للتأكيد عند الحاجة.')
   ui.separator()
   local me = car()
   if me then
     local bw = math.max(80,(PANEL_W-52)/2)
-    if ui.button(me.headlightsActive and 'LIGHTS ON##vxhl' or 'LIGHTS OFF##vxhl',vec2(bw,30)) then toggleHeadlights() end
+    if ui.button(me.headlightsActive and 'الأنوار: تعمل##vxhl' or 'الأنوار: مطفأة##vxhl',vec2(bw,30)) then toggleHeadlights() end
     ui.sameLine()
-    if ui.button(me.highBeams and 'BEAMS ON##vxhb' or 'BEAMS OFF##vxhb',vec2(bw,30)) then toggleHighBeams() end
+    if ui.button(me.highBeams and 'الضوء العالي: يعمل##vxhb' or 'الضوء العالي: مطفأ##vxhb',vec2(bw,30)) then toggleHighBeams() end
   end
-  if ui.button('RETURN TO PITS##vxhomePit',vec2(0,30)) then returnToPits() end
+  if ui.button('العودة إلى الحظيرة##vxhomePit',vec2(0,30)) then returnToPits() end
 end
 
 local function drawTeleport()
-  sectionLabel(state.destSource == 'chat' and 'SERVER DESTINATIONS' or 'CONFIG DESTINATIONS')
+  sectionLabel(state.destSource == 'chat' and 'مواقع السيرفر' or 'المواقع المتاحة')
   local changed, entered
   state.search, changed, entered = ui.inputText(L.destSearch, state.search)
-  if ui.itemHovered() then ui.setTooltip('Filter destinations by name or group') end
+  if ui.itemHovered() then ui.setTooltip('ابحث باسم الموقع أو المجموعة') end
   if #state.destList == 0 then
     ui.textDisabled(L.noDestinations)
     return
@@ -2065,15 +2066,15 @@ local function drawTeleport()
     returnToPits()
   end
   ui.separator()
-  ui.textDisabled(recoveryStatusLine())
-  if ui.button('UNSTUCK / RECOVER##vxTpRecover',vec2(0,28)) then
+  uiHint(recoveryStatusLine())
+  if ui.button('استرجاع السيارة##vxTpRecover',vec2(0,28)) then
     tryRecoverCar()
   end
 end
 
 local function drawPlayers()
   refreshPlayers(false)
-  ui.textColored(string.format('%d CONNECTED', #state.players), C.accentSoft)
+  ui.textColored(string.format('%d لاعبون متصلون', #state.players), C.accentSoft)
   ui.textDisabled(L.teleportHint)
   if #state.players == 0 then
     ui.textDisabled(L.noPlayers)
@@ -2088,7 +2089,7 @@ local function drawPlayers()
         ui.dwriteDrawText(title, 14, ui.cursorScreenPos(), C.text)
         ui.dummy(vec2(0, 18))
         ui.textDisabled(string.format('%s - %d m', prettyModel(pl.model), math.floor(pl.dist + 0.5)))
-        if ui.button('TELEPORT##pl' .. pl.index, vec2(0, 24)) then
+        if ui.button('انتقال##pl' .. pl.index, vec2(0, 24)) then
           teleportToPlayer(pl)
         end
       end
@@ -2097,10 +2098,11 @@ local function drawPlayers()
     ui.popStyleVar()
     if not okp then error(errp, 0) end
   end
-  ui.textDisabled(L.trafficHidden)
-  ui.textDisabled('CAR CONTROLS: '..tostring(state.optionsStatus))
+  uiHint(L.trafficHidden)
+  uiHint(optionsLabel())
+  if ui.itemHovered() then ui.setTooltip(tostring(state.optionsStatus)) end
   ui.textColored(optionsReadout(),C.accentSoft)
-  ui.textDisabled('Auto-tracked while driving; restored after teleports.')
+  uiHint('يتم حفظ الخيارات أثناء القيادة واستعادتها بعد الانتقال.')
   if state.teleportCooldown > 0.05 then
     ui.textColored(string.format(L.cooldown, state.teleportCooldown), C.warn)
   end
@@ -2613,7 +2615,7 @@ local function drawQuickPopup()
           state.quickMode=nil
         end
         ui.separator()
-        ui.textDisabled(recoveryStatusLine())
+        uiHint(recoveryStatusLine())
         if ui.button('UNSTUCK / RECOVER##vxqRecover',vec2(w-50,30)) then
           if tryRecoverCar() then state.quickMode=nil end
         end
