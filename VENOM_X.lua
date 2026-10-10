@@ -1,12 +1,12 @@
 script = script or {}
 
-local VERSION = '3.25.1'
+local VERSION = '3.25.2'
 
 local L = {
   -- English navigation/actions, Arabic contextual guidance and feedback.
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.25.1',
+  versionTag = 'v3.25.2',
   ready = 'VENOM X جاهز | CTRL+SHIFT+X لفتح القائمة',
   emergencyMode = 'VENOM X: خطأ في الواجهة، تم تشغيل القائمة الاحتياطية',
   navHome = 'HOME',
@@ -149,6 +149,7 @@ local state = {
   dt = 0.016,
   clock = 0,
   hudVisible = true,
+  logoFire = true,
   rpmBar = true,
   hudOp = 90,
   hudScale = 100,
@@ -445,6 +446,7 @@ local function loadStored()
   local ok, res = pcall(function()
     return ac.storage({
       vx_hud = true,
+      vx_logo_fire = true,
       vx_rpm = true,
       vx_op = 90,
       vx_sc = 100,
@@ -470,6 +472,7 @@ local function loadStored()
   if ok and type(res) == 'table' then
     stored = res
     if res.vx_hud ~= nil then state.hudVisible = res.vx_hud end
+    if type(res.vx_logo_fire)=='boolean' then state.logoFire=res.vx_logo_fire end
     if res.vx_rpm ~= nil then state.rpmBar = res.vx_rpm end
     if type(res.vx_op) == 'number' then state.hudOp = clamp(res.vx_op, 40, 100) end
     if type(res.vx_sc) == 'number' then state.hudScale = clamp(res.vx_sc, 80, 130) end
@@ -502,6 +505,7 @@ end
 local function persist()
   if not stored then return end
   stored.vx_hud = state.hudVisible
+  stored.vx_logo_fire = state.logoFire
   stored.vx_rpm = state.rpmBar
   stored.vx_op = state.hudOp
   stored.vx_sc = state.hudScale
@@ -2293,6 +2297,14 @@ end
 
 local function drawHud()
   sectionLabel(L.hudSettings)
+  if ui.checkbox('LOGO FIRE FX',state.logoFire) then
+    state.logoFire=not state.logoFire
+    persist()
+    toast(state.logoFire and 'تم تشغيل تأثير النار المتحركة حول شعار VENOM' or
+      'تم إيقاف تأثير النار حول الشعار')
+  end
+  if ui.itemHovered() then ui.setTooltip(
+    'نار متحركة خفيفة حول شعار VENOM. التأثير يعمل على جهازك فقط، دون إرسال أي بيانات للسيرفر.') end
   if ui.checkbox(L.speedometer, state.hudVisible) then
     state.hudVisible = not state.hudVisible
     persist()
