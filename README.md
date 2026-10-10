@@ -1,8 +1,27 @@
-# VENOM X — AssettoServer online HUD (v3.24.0)
+# VENOM X — AssettoServer online HUD (v3.25.0)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
 `https://raw.githubusercontent.com/takhmamdzirii1-dot/venom-x/main/VENOM_X.lua`
+
+### v3.25.0 — Arabic-first UX and typography consistency
+
+- Arabic-first navigation, quick controls, time presets, ghost controls, player
+  teleport, car colors, HUD settings and recovery notices. Protocol strings,
+  car model IDs, Lua event keys and debug logs remain in their original form.
+- Windows-native **Segoe UI Bold (weight 700)** remains the shared interface
+  font, without bundling files or requiring any installation by players. The
+  original official logo stays unchanged above the virtual mirror.
+- Small-screen-safe labels, higher contrast for secondary text, wrapped hints,
+  and shorter GHOST/TIME/recovery status descriptions. Full technical statuses
+  remain available on hover for diagnostics; no success is claimed until the
+  server acknowledgement arrives.
+- Fixed a previously duplicated `presetBlue` localization key: blue car paint
+  and the 18:40 blue-hour time preset now have separate labels.
+- No change to personal TIME, GHOST network/physics, options persistence,
+  teleport algorithms, logo placement, or server DLL in this UI-only release.
+- CI parses the CSP Lua script and executes regression tests; **Arabic shaping
+  and layout still need an in-game screenshot check on a real CSP client**.
 
 ### Functions
 - Draggable glass UI and X launcher, Ctrl+Shift+X toggle.
