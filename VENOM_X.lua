@@ -600,7 +600,7 @@ end
 
 local function teleportConfigDest(d)
   if not d or not d.pos then return false end
-  return teleportSelf(d.pos, headingDir(d.heading), string.format('TELEPORTED TO %s', d.name))
+  return teleportSelf(d.pos, headingDir(d.heading), string.format(L.teleportedToPlayer, d.name))
 end
 
 local function teleportDest(d)
@@ -1348,7 +1348,7 @@ local function setGhostEnabled(enabled)
   local g=state.ghost
   initGhostEvent()
   if not g.supported or not g.event then
-    toast(g.lastStatus,'warn')
+    toast('وضع GHOST غير متاح. تأكد من نسخة CSP واتصال السيرفر.','warn')
     return false
   end
   g.enabled=enabled==true
@@ -1573,7 +1573,7 @@ tryRecoverCar=function()
   -- Move exactly to a previously observed upright stationary position.
   -- Orientation is inverted to match physics.setCarPosition.
   local ok=teleportSelf(vec3(spot.x,spot.y+0.18,spot.z),
-    vec3(spot.dirX,0,spot.dirZ),'RECOVERED TO LAST CHECKPOINT')
+    vec3(spot.dirX,0,spot.dirZ),'تم استرجاع السيارة إلى آخر نقطة آمنة')
   if not ok then
     recovery.status='RECOVERY FAILED'
     recovery.cooldownUntil=state.clock
@@ -2446,7 +2446,12 @@ local function toggleHazards()
   local mode=c.hazardLights and ac.TurningLights.None or ac.TurningLights.Hazards
   if mode==nil then toast('التحذير غير متاح','warn') return end
   local ok,result=pcall(ac.setTurningLights,mode)
-  if not ok or result==false then toast('تعذر تبديل إشارات التحذير','warn') end
+  if not ok or result==false then
+    toast('تعذر تبديل إشارات التحذير','warn')
+  else
+    toast(c.hazardLights and 'تم طلب إطفاء إشارات التحذير' or
+      'تم طلب تشغيل إشارات التحذير')
+  end
 end
 
 local function quickGlyph(kind,cx,cy,paint)
@@ -2904,7 +2909,7 @@ local function drawToasts()
   local okc = pcall(function()
     local yStart=toastSafeTop(scr)
     ui.beginTransparentWindow('vx_toasts', vec2(0, 0), vec2(scr.x, scr.y), true, false)
-    local visible=math.max(1,math.floor((scr.y-yStart-8)/48))
+    local visible=math.max(1,math.floor((scr.y-yStart-8)/56))
     local first=math.max(1,#state.toasts-visible+1)
     for i=first,#state.toasts do
       local t=state.toasts[i]
@@ -2912,17 +2917,24 @@ local function drawToasts()
       local aOut = clamp((t.dur - t.t) / 0.3, 0, 1)
       local a = easeOutCubic(aIn) * aOut
       if a > 0.02 then
-        local tsz = ui.measureDWriteText(t.text, 15, -1)
-        local w = math.max(240, tsz.x + 44)
-        local h = 40
+        local fontSize=18
+        local maxTextW=math.max(155,math.min(700,scr.x-82))
+        local tsz=ui.measureDWriteText(t.text,fontSize,-1)
+        if tsz.x>maxTextW then
+          fontSize=math.max(12,fontSize*maxTextW/tsz.x)
+          tsz=ui.measureDWriteText(t.text,fontSize,-1)
+        end
+        local w=math.min(scr.x-24,math.max(240,tsz.x+44))
+        local h=46
         local slide = (1 - easeOutCubic(aIn)) * -18
         local x = (scr.x - w) * 0.5
-        local y = yStart + (i - first) * (h + 8) + slide
+        local y = yStart + (i - first) * (h + 10) + slide
         ui.drawRectFilled(vec2(x, y), vec2(x + w, y + h), rgbm(0.045, 0.055, 0.090, 0.95 * a), 10)
         ui.drawRect(vec2(x, y), vec2(x + w, y + h), rgbm(C.accent.r, C.accent.g, C.accent.b, 0.35 * a), 10, ui.CornerFlags.All, 1)
         local barC = t.kind == 'warn' and C.warn or C.ok
         ui.drawRectFilled(vec2(x + 1, y + 8), vec2(x + 5, y + h - 8), rgbm(barC.r, barC.g, barC.b, a), 2)
-        ui.dwriteDrawText(t.text, 15, vec2(x + 18, y + (h - 19) * 0.5), rgbm(1, 1, 1, a))
+        ui.dwriteDrawText(t.text,fontSize,
+          vec2(x+18,y+(h-(fontSize+5))*.5),rgbm(1,1,1,a))
       end
     end
     ui.endTransparentWindow()
