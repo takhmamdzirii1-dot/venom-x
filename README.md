@@ -1,8 +1,27 @@
-# VENOM X — AssettoServer online HUD (v3.25.3)
+# VENOM X — AssettoServer online HUD (v3.25.4)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
 `https://raw.githubusercontent.com/takhmamdzirii1-dot/venom-x/main/VENOM_X.lua`
+
+### v3.25.4 — Make invisible flames visible and prove asset readiness
+
+- Fixed major v3.25.3 layering issue: fire was *behind* the original logo
+  which obscured most of it. Now draws a feathered, semi-transparent animation
+  above the upper 84% of the image while keeping all artwork anchored above mirror.
+- Fixed another possible texture loading problem: old PNG used an indexed
+  palette with tRNS; generated real RGBA PNG as fallback and an independently
+  looping 12-frame transparent animated WEBP, decoded with CSP `ui.GIFPlayer`.
+- Optimized PNG and WEBP generated from the existing 4x3 fire frame atlas via
+  a Python/Pillow GitHub Actions workflow (small, download only on cache miss).
+- Added `HUD > LOGO FIRE FX` status:
+  `ANIMATED WEBP`, `RGBA READY / WEBP LOADING`,
+  `LOADING FIRE TEXTURES`, `OFF`, or `ASSET NOT READY / CHECK CSP LOG`.
+  Status changes are logged as `VENOM X FIRE: ...` to client CSP logs.
+- Original VENOM logo persists as the base layer. Entire feature is client-only:
+  no new AssettoServer plugins, sockets or server packets.
+- **Not visually verified in game yet:** success requires a real client screenshot
+  and a status showing that textures have loaded.
 
 ### v3.25.3 — Replace line/rectangle flames with cached animated fire atlas
 
