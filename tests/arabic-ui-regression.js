@@ -41,7 +41,7 @@ const mustInclude=[
   "ui.drawImage(FIRE_ANIM_PLAYER",
   "ui.drawImage(VENOM_FIRE_RGBA_URL",
   "state.logoFireStatus='ANIMATED WEBP'",
-  "state.logoFireStatus='RGBA FALLBACK / LOADING WEBP'",
+  "state.logoFireStatus='RGBA READY / WEBP LOADING'",
   "VENOM X FIRE:",
   "LOGO FIRE FX"
 ];
