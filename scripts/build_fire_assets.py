@@ -17,6 +17,13 @@ for i in range(12):
     r, g, b, a = frame.split()
     # Boost pale low-alpha tongues but preserve natural falloff and transparent edges.
     a = a.point(lambda n: min(255, round(n * 1.9)))
+    # Feather the bottom 18 px to remove the horizontal strip visible
+    # against Virtual Mirror; let individual flame tips remain above.
+    for row in range(52, 70):
+        attenuation = max(0.0, (69-row)/17.0)**1.5
+        line = a.crop((0, row, 256, row+1)).point(
+            lambda n: min(255, round(n*attenuation)))
+        a.paste(line, (0, row))
     frame.putalpha(a)
     frames.append(frame)
 # Fixed-size 4-by-3 RGBA atlas for clients without animated WebP playback.
