@@ -82,7 +82,8 @@ const fireStart=source.indexOf('local VENOM_FIRE_ANIM_URL');
 const fireEnd=source.indexOf('function script.drawUI()',fireStart);
 assert.ok(fireStart>0&&fireEnd>fireStart,'Fire renderer missing');
 const fire=source.slice(fireStart,fireEnd);
-assert.ok(!/ac\\.OnlineEvent|fetch\\(|physics\\.|drawLogoFire|drawLogoEmbers/.test(fire),
+assert.ok(!['ac.OnlineEvent','fetch(','physics.','drawLogoFire','drawLogoEmbers']
+  .some(marker=>fire.includes(marker)),
   'Animated logo must not affect server or physics or restore old flame sticks');
 assert.ok(fire.includes('local idx=math.floor(state.clock*10)%12'),'Fallback bounded');
 assert.ok(fire.indexOf('ui.drawImage(VENOM_LOGO_URL')<
