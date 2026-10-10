@@ -3470,7 +3470,22 @@ local function drawLogoAnimation(w,h)
   ui.drawImage(VENOM_FIRE_RGBA_URL,dst1,dst2,rgbm(1,1,1,.96),
     vec2(cx/4+padX,cy/3+padY),
     vec2((cx+1)/4-padX,(cy+1)/3-padY))
-  state.logoFireStatus='RGBA FALLBACK / LOADING WEBP'
+  -- Cached texture-resolution probe once a second, not once per frame.
+  -- Helps tell an asset-fetch failure apart from a UI layering problem.
+  if not state.fireImageCheckAt or state.clock-state.fireImageCheckAt>=1 then
+    state.fireImageCheckAt=state.clock
+    if type(ui.imageSize)=='function' then
+      local ok,img=pcall(ui.imageSize,VENOM_FIRE_RGBA_URL)
+      state.fireImageReady=ok and img~=nil and img.x>=1024 and img.y>=210
+    end
+  end
+  if state.fireImageReady then
+    state.logoFireStatus='RGBA READY / WEBP LOADING'
+  elseif state.clock>12 then
+    state.logoFireStatus='ASSET NOT READY / CHECK CSP LOG'
+  else
+    state.logoFireStatus='LOADING FIRE TEXTURES'
+  end
 end
 
 local function drawVenomOfficialLogo()
