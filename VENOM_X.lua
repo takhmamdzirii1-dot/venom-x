@@ -1,12 +1,12 @@
 script = script or {}
 
-local VERSION = '3.25.3'
+local VERSION = '3.25.4'
 
 local L = {
   -- English navigation/actions, Arabic contextual guidance and feedback.
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.25.3',
+  versionTag = 'v3.25.4',
   ready = 'VENOM X جاهز | CTRL+SHIFT+X لفتح القائمة',
   emergencyMode = 'VENOM X: خطأ في الواجهة، تم تشغيل القائمة الاحتياطية',
   navHome = 'HOME',
@@ -2305,6 +2305,8 @@ local function drawHud()
   end
   if ui.itemHovered() then ui.setTooltip(
     'نار متحركة خفيفة حول شعار VENOM. التأثير يعمل على جهازك فقط، دون إرسال أي بيانات للسيرفر.') end
+  uiHint('FIRE: '..tostring(state.logoFireStatus or 'LOADING'))
+  if ui.itemHovered() then ui.setTooltip('إذا لم تظهر النار افتح لوق CSP وابحث عن VENOM X FIRE لمعرفة حالة تحميل الصورة.') end
   if ui.checkbox(L.speedometer, state.hudVisible) then
     state.hudVisible = not state.hudVisible
     persist()
@@ -3425,17 +3427,55 @@ local function withBrandFont(draw)
   if not ok then error(err) end
 end
 
--- VENOM FIRE v2: ONE small cached 12-frame RGBA sprite atlas (~250 KB),
--- ONE sampled native CSP drawImage per frame. No procedural rectangles, lines,
--- texture generation, server updates, timers or game physics involvement.
--- 4 columns x 3 rows; frame size 256x82. Sprite animation is entirely local.
-local VENOM_FIRE_ATLAS_URL =
-  'https://raw.githubusercontent.com/takhmamdzirii1-dot/venom-x/main/assets/venom_flames_atlas_v2.png'
+-- VENOM FIRE v3: CSP-native animated WebP, with RGBA atlas fallback.
+-- Source files are cached HTTPS images; rendering remains entirely client-side.
+-- Unlike v2: fire is drawn ABOVE the artwork, not hidden under opaque letters.
+-- Source flame alpha fades out at its lower edge, preventing a solid bar.
+local VENOM_FIRE_ANIM_URL =
+  'https://raw.githubusercontent.com/takhmamdzirii1-dot/venom-x/main/assets/venom_flames_loop_v3.webp'
+local VENOM_FIRE_RGBA_URL =
+  'https://raw.githubusercontent.com/takhmamdzirii1-dot/venom-x/main/assets/venom_flames_rgba_v3.png'
+
+local FIRE_ANIM_PLAYER=nil
+do
+  if type(ui.GIFPlayer)=='function' then
+    local ok,p=pcall(ui.GIFPlayer,VENOM_FIRE_ANIM_URL,false)
+    if ok then FIRE_ANIM_PLAYER=p end
+  end
+end
+
+local function drawLogoAnimation(w,h)
+  if not state.logoFire then
+    state.logoFireStatus='OFF'
+    return
+  end
+  -- The animated translucent flames are deliberately composited ON TOP of
+  -- the logo. They only occupy the upper portion and don't cover the mirror.
+  -- WebP GIFPlayer efficiently decodes its cached 12 frames locally.
+  local dst1=vec2(0,0)
+  local dst2=vec2(w,h*.84)
+  if FIRE_ANIM_PLAYER then
+    local readyOK,ready=pcall(function() return FIRE_ANIM_PLAYER:ready() end)
+    if readyOK and ready then
+      ui.drawImage(FIRE_ANIM_PLAYER,dst1,dst2,rgbm(1,1,1,.96))
+      state.logoFireStatus='ANIMATED WEBP'
+      return
+    end
+  end
+  -- Robust fallback: standard, genuine RGBA PNG rather than PNG palette/tRNS.
+  -- UV arguments select one 256x70 sprite from the 4x3 1024x210 atlas.
+  local idx=math.floor(state.clock*10)%12
+  local cx,cy=idx%4,math.floor(idx/4)
+  local padX,padY=.35/1024,.35/210
+  ui.drawImage(VENOM_FIRE_RGBA_URL,dst1,dst2,rgbm(1,1,1,.96),
+    vec2(cx/4+padX,cy/3+padY),
+    vec2((cx+1)/4-padX,(cy+1)/3-padY))
+  state.logoFireStatus='RGBA FALLBACK / LOADING WEBP'
+end
 
 local function drawVenomOfficialLogo()
   local screen=getScreenSize()
   if not screen or type(ui.drawImage)~='function' then return end
-  -- Preserve existing centered VENOM artwork above the virtual mirror.
   local width=clamp(screen.x*.16,155,252)
   local height=width*(665/2048)
   local left=math.floor((screen.x-width)*.5)
@@ -3445,30 +3485,22 @@ local function drawVenomOfficialLogo()
     ui.beginTransparentWindow('vx_official_logo',
       vec2(left,top),vec2(width,height+1),true,false)
     began=true
-    if state.logoFire then
-      -- 10 fps, repeating with a smooth 12-frame loop. UV crop avoids
-      -- sampling adjacent cells and stays inside the same cached texture.
-      local idx=math.floor(state.clock*10)%12
-      local column=idx%4
-      local row=math.floor(idx/4)
-      local ux=0.55/1024
-      local uy=0.55/246
-      local uvStart=vec2(column/4+ux,row/3+uy)
-      -- Crop off the solid flame base: never render a red bar below VENOM.
-      local uvEnd=vec2((column+1)/4-ux,(row*82+70)/246-uy)
-      ui.drawImage(VENOM_FIRE_ATLAS_URL,
-        vec2(0,0),vec2(width,height-11),
-        rgbm(1,1,1,.75),uvStart,uvEnd)
-    end
-    -- Draw pristine original art in FRONT of the animated flames:
-    -- no flickering rectangles below the logo, no orange text tint.
+    -- Ensure main original logo is always visible even if fire decoding fails.
     ui.drawImage(VENOM_LOGO_URL,vec2(0,0),
       vec2(width,height),rgbm(1,1,1,.99))
+    drawLogoAnimation(width,height)
     ui.endTransparentWindow()
     began=false
   end)
   if began then pcall(ui.endTransparentWindow) end
-  if not ok then error(err) end
+  if not ok then
+    state.logoFireStatus='DRAW ERROR: '..tostring(err):sub(1,70)
+    error(err)
+  end
+  if state.logoFireStatus~=state.fireLastStatus then
+    state.fireLastStatus=state.logoFireStatus
+    pcall(ac.log,'VENOM X FIRE: '..tostring(state.logoFireStatus))
+  end
 end
 
 function script.drawUI()
