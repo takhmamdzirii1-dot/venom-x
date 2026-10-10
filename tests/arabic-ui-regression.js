@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 
 const source = fs.readFileSync('VENOM_X.lua','utf8');
 const mustInclude=[
-  "local VERSION = '3.25.1'",
+  "local VERSION = '3.25.2'",
   "return ui.DWriteFont('Segoe UI'):weight(700)",
   "navHome = 'HOME'",
   "navTp = 'TELEPORT'",
@@ -31,7 +31,14 @@ const mustInclude=[
   "ui.drawImage(VENOM_LOGO_URL",
   "ac.StructItem.key('VENOMX_Ghost_v1')",
   "ac.StructItem.key('VENOMX_SetTime')",
-  "physics.disableCarCollisions"
+  "physics.disableCarCollisions",
+  "vx_logo_fire = true",
+  "stored.vx_logo_fire = state.logoFire",
+  "if state.logoFire then drawLogoFire(width,height) end",
+  "if state.logoFire then drawLogoEmbers(width,height) end",
+  "local function drawLogoFire(w,h)",
+  "local function drawLogoEmbers(w,h)",
+  "LOGO FIRE FX"
 ];
 for (const marker of mustInclude) {
   assert.ok(source.includes(marker), `Required marker missing: ${marker}`);
@@ -58,6 +65,15 @@ assert.ok(source.includes("local quickTimeLabels={'RISE 07:15'"),
   'Compact quick time labels missing');
 assert.ok(source.includes("local ww=(w-68)/3"), 'Quick paint buttons are too narrow');
 assert.ok(source.includes('local fontSize=18'), 'Larger toast font regression');
+// Decorative fire never alters online physics, networking or logo resource paths.
+const fireStart=source.indexOf('local function drawLogoFire(w,h)');
+const fireEnd=source.indexOf('local function drawVenomOfficialLogo()',fireStart);
+assert.ok(fireStart>0 && fireEnd>fireStart);
+const fire=source.slice(fireStart,fireEnd);
+assert.ok(!/ac\.OnlineEvent|http\.|web\.|net\.|fetch|require\(|physics\./.test(fire),
+  'Logo fire must be local render-only and independent of networking/physics');
+assert.match(fire,/for i=1,11 do/,'Flame count must stay bounded');
+assert.match(fire,/for i=1,6 do/,'Ember count must stay bounded');
 assert.ok(!source.includes("'الانتقال إلى موقع  >##vxhomeTP'"),
   'Arabic UI action labels should be English');
-console.log('PASS: English controls, Arabic hover/help and feedback, large fonts, UI fit, protocol IDs');
+console.log('PASS: English menus, Arabic hover, fire FX bounded client render, saved toggle, original protocols');
