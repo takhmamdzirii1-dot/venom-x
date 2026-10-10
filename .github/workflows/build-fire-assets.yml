@@ -30,5 +30,7 @@ jobs:
           git add assets/venom_flames_rgba_v3.png assets/venom_flames_loop_v3.webp assets/venom_fire_logo_v5.webp assets/venom_fire_logo_v5.png assets/venom_fire_v5_preview.png
           if ! git diff --cached --quiet; then
             git commit -m "Render fire alpha textures: RGBA atlas and animated WebP"
-            git push
+            git fetch origin main
+            git rebase origin/main
+            git push origin HEAD:main
           fi
