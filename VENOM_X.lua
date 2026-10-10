@@ -2268,7 +2268,7 @@ local function drawTime()
   uiHint('وقت السيرفر: '..fmtSec(wrapDay(serverSec())))
   uiHint('آخر اختيار: '..tostring(tm.lastControl))
   if tm.serverSkyEnabled then
-    ui.textColored('TIME | ننتظر تحديث السماء من السيرفر',C.accentSoft)
+    uiHint('TIME | ننتظر تحديث السماء من السيرفر')
   elseif tm.mode=='LEGACY COMPANION' then
     ui.textColored('V2 COMPANION: '..tostring(tm.legacyAck),C.accentSoft)
     uiHint('تحقق من مظهر الشمس والسماء داخل اللعبة.')
@@ -2601,7 +2601,7 @@ local function drawQuickDock()
       local iconPaint=(selected or hovered) and C.accentSoft or C.text
       quickGlyph(item.key,xx+23,centerY,col(iconPaint,visibility))
       ui.dwriteDrawText(item.label,15,
-        vec2(xx+45,centerY-8),
+        vec2(xx+45,centerY-10),
         col((active or hovered) and C.text or C.dim,visibility))
       if tileW>115 then
         ui.dwriteDrawText(string.format('%02d',i),9,
@@ -2621,7 +2621,7 @@ local function drawQuickPopup()
   if not b then return end
   local scr=getScreenSize()
   local w=math.min(302,math.max(220,scr.x-16))
-  local h=mode=='TIME' and 418 or mode=='PAINT' and 220 or 270
+  local h=mode=='TIME' and 418 or mode=='PAINT' and 330 or 285
   h=math.min(h,math.max(160,scr.y-78))
   -- Open flyouts beside the vertical rail, aligned to the selected icon.
   local chosenRow=1
@@ -2689,23 +2689,25 @@ local function drawQuickPopup()
           end
           ui.textDisabled(string.format('   %d م',math.floor(p.dist+.5)))
         end
-        ui.textDisabled('الترافيك غير مدرج. الانتقال خلف اللاعب باتجاهه.')
-        ui.textDisabled(optionsLabel())
+        uiHint('الترافيك غير مدرج. الانتقال خلف اللاعب باتجاهه.')
+        uiHint(optionsLabel())
         ui.textColored(optionsReadout(),C.accentSoft)
       elseif mode=='TIME' then
         local tm=state.time
         local now=shownTimeSeconds()
         ui.textColored(fmtSec(now),C.accentSoft)
-        ui.textColored(timeLabel(),C.accentSoft)
+        uiHint(timeLabel())
         local selected=ui.slider('##vxq_clock',now,0,86399,'',1)
         if math.abs(selected-now)>.5 then
           queueServerSky(true,selected,true)
           tm.lastControl='QUICK SLIDER'
         end
         local bw=(w-55)/2
+        local quickTimeLabels={'RISE 07:15','DAY 12:00','SUNSET 18:00',
+          'BLUE 18:40','NIGHT 00:00'}
         for i,preset in ipairs(TIME_PRESETS) do
           if i%2==0 then ui.sameLine() end
-          if actionButton(preset.label..'##vxqt_'..i,vec2(bw,36),
+          if actionButton(quickTimeLabels[i]..'##vxqt_'..i,vec2(bw,36),
             'اجعل السماء والوقت عندك على '..preset.label..' فقط.') then
             setTimePreset(preset,i)
             tm.lastControl=preset.label
@@ -2734,9 +2736,9 @@ local function drawQuickPopup()
         end
         ui.textDisabled('تأكيد السيرفر لا يثبت تغير السماء. تحقق بعينك.')
       elseif mode=='PAINT' then
-        local ww=(w-68)/4
+        local ww=(w-68)/3
         for i,preset in ipairs(PRESETS) do
-          if (i-1)%4~=0 then ui.sameLine() end
+          if (i-1)%3~=0 then ui.sameLine() end
           local click=actionButton(preset.label..'##vxqp_'..i,vec2(ww,34),
             'طبّق اللون '..(COLOR_HELP[preset.label] or preset.label)..' على سيارتك.')
           if click then applyColor(preset) end
