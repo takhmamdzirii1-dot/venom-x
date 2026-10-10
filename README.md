@@ -1,8 +1,30 @@
-# VENOM X — AssettoServer online HUD (v3.25.0)
+# VENOM X — AssettoServer online HUD (v3.25.1)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
 `https://raw.githubusercontent.com/takhmamdzirii1-dot/venom-x/main/VENOM_X.lua`
+
+### v3.25.1 — English buttons and menus, Arabic help and larger text
+
+The design is now deliberately **English for controls** and **Arabic for guidance**:
+- HOME / TELEPORT / PLAYERS / COLOR / TIME / HUD navigation and every quick rail
+  action, destination/crew buttons, paint controls, time presets, and settings
+  labels stay in English. No partial Arabic/English control labels.
+- Hover any major button to see a specific Arabic explanation of exactly what
+  the action does. Runtime information, success/warnings, Ghost and Time
+  diagnostic status text remain Arabic. Car names and player names are unchanged.
+- Native CSP `Segoe UI` Bold (700) used without packaging fonts; section headings
+  and main buttons use the larger built-in Title font when text fits, falling
+  back to Main on narrow windows to avoid clipped labels.
+- Toast notifications use **18 px** by default with dynamic fit for narrower
+  displays; quick rail labels enlarged, time preset captions shortened within
+  2-column compact flyout, and car color flyout uses 3 columns for legibility.
+- Preserved the server ACK requirement for GHOST and TIME, existing teleport and
+  collision behavior, server DLL, speedometer and centered VENOM logo.
+- Automated Lua syntax, real-Lua GHOST/TIME/car-restore tests, and a dedicated
+  English-label/Arabic-help UI regression suite run in GitHub Actions.
+- **CSP rendering and Arabic text shaping are not verified until an in-game
+  screenshot from an actual client.**
 
 ### v3.25.0 — Arabic-first UX and typography consistency
 
