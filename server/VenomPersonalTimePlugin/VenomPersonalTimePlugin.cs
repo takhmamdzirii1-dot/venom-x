@@ -136,12 +136,16 @@ public sealed class VenomPersonalTimePlugin : IHostedService
         try
         {
             var bytes = Convert.FromBase64String(encoded.PadRight((encoded.Length + 3) / 4 * 4, '='));
-            if (bytes.Length != 7 || BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(0, 2)) != 60000)
+            // CSP compact OnlineEvent transport omits the trailing false
+            // Boolean byte (observed in user's 2026-10-10 live server log).
+            // ON = 7 bytes; OFF = 6 bytes with implied false.
+            if (bytes.Length is not (6 or 7) ||
+                BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(0, 2)) != 60000)
                 return false;
             if (BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(2, 4)) != VenomGhostEvent.PacketType)
                 return false;
-            if (bytes[6] > 1) return false;
-            message.Enabled = bytes[6] == 1;
+            if (bytes.Length == 7 && bytes[6] > 1) return false;
+            message.Enabled = bytes.Length == 7 && bytes[6] == 1;
             return true;
         }
         catch (FormatException)
@@ -180,6 +184,8 @@ public sealed class VenomPersonalTimePlugin : IHostedService
 
         var response = new VenomGhostEvent { SessionId = 255, Enabled = command.Enabled };
         player.SendPacket(response); // real server ACK; never fake it locally
+        Log.Information("[VENOM GHOST] ACK packet queued for {Player} (session {Session}, enabled={Enabled})",
+            player.Name, session, command.Enabled);
 
         foreach (var entry in _entryCarManager.EntryCars)
         {
@@ -192,7 +198,7 @@ public sealed class VenomPersonalTimePlugin : IHostedService
             });
         }
         if (old != command.Enabled)
-            Log.Information("[VENOM GHOST] {Session} -> {Enabled}, sent to connected peers",
+            Log.Information("[VENOM GHOST] {Session} -> {Enabled}, relayed to connected peers",
                 session, command.Enabled);
     }
 
