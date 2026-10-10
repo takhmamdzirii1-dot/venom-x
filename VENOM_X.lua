@@ -1,12 +1,12 @@
 script = script or {}
 
-local VERSION = '3.25.2'
+local VERSION = '3.25.3'
 
 local L = {
   -- English navigation/actions, Arabic contextual guidance and feedback.
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.25.2',
+  versionTag = 'v3.25.3',
   ready = 'VENOM X جاهز | CTRL+SHIFT+X لفتح القائمة',
   emergencyMode = 'VENOM X: خطأ في الواجهة، تم تشغيل القائمة الاحتياطية',
   navHome = 'HOME',
@@ -3425,61 +3425,49 @@ local function withBrandFont(draw)
   if not ok then error(err) end
 end
 
--- Lightweight local-client fire: 11 fixed flame wisps, 6 embers, 1 glow line.
--- Native CSP drawing only (no animated files, downloads, HTTP, server packets).
--- Render behind the existing transparent logo so lettering remains readable.
-local function drawLogoFire(w,h)
-  local t=state.clock
-  local scale=w/205
-  local baseY=h+4*scale
-  local pulse=.68+.22*math.sin(t*3.3)
-  ui.drawLine(vec2(w*.09,baseY),vec2(w*.91,baseY),
-    rgbm(.92,.10,.035,.19*pulse),3.1*scale)
-  for i=1,11 do
-    local offset=i*1.63
-    local x=w*(.045+.91*i/12)
-    local flicker=.5+.5*math.sin(t*4.1+offset)
-    local rise=(17+11*flicker)*scale
-    local sway=math.sin(t*2.9+offset)*4*scale
-    local bottom=vec2(x,baseY)
-    local center=vec2(x+sway*.40,baseY-rise*.52)
-    local tip=vec2(x+sway,baseY-rise)
-    local a=(.29+.16*flicker)*pulse
-    ui.drawLine(bottom,center,rgbm(.92,.08,.025,a),5.0*scale)
-    ui.drawLine(center,tip,rgbm(1,.43,.055,a*.87),2.5*scale)
-    ui.drawCircleFilled(tip,1.2*scale,rgbm(1,.75,.20,a*.65),8)
-  end
-end
-
-local function drawLogoEmbers(w,h)
-  local t=state.clock
-  local scale=w/205
-  for i=1,6 do
-    local progress=(t*(.16+.021*(i%3))+i*.19)%1
-    local px=w*(.08+.84*i/7)+math.sin(t*1.4+i*2.4)*5*scale
-    local py=h+5*scale-progress*h*.72
-    local alpha=(.21*(1-progress))*(.76+.24*math.sin(t*2+i))
-    ui.drawCircleFilled(vec2(px,py),(.85+(i%3)*.25)*scale,
-      rgbm(1,.43+.07*(i%2),.08,alpha),8)
-  end
-end
+-- VENOM FIRE v2: ONE small cached 12-frame RGBA sprite atlas (~250 KB),
+-- ONE sampled native CSP drawImage per frame. No procedural rectangles, lines,
+-- texture generation, server updates, timers or game physics involvement.
+-- 4 columns x 3 rows; frame size 256x82. Sprite animation is entirely local.
+local VENOM_FIRE_ATLAS_URL =
+  'https://raw.githubusercontent.com/takhmamdzirii1-dot/venom-x/main/assets/venom_flames_atlas_v2.png'
 
 local function drawVenomOfficialLogo()
   local screen=getScreenSize()
   if not screen or type(ui.drawImage)~='function' then return end
-  -- Keep the real logo at the same screen position above the virtual mirror.
+  -- Preserve existing centered VENOM artwork above the virtual mirror.
   local width=clamp(screen.x*.16,155,252)
   local height=width*(665/2048)
   local left=math.floor((screen.x-width)*.5)
   local top=2
-  -- The extra 10px below the artwork is reserved for small flame tips.
-  ui.beginTransparentWindow('vx_official_logo',
-    vec2(left,top),vec2(width,height+10),true,false)
-  if state.logoFire then drawLogoFire(width,height) end
-  ui.drawImage(VENOM_LOGO_URL,vec2(0,0),
-    vec2(width,height),rgbm(1,1,1,.97))
-  if state.logoFire then drawLogoEmbers(width,height) end
-  ui.endTransparentWindow()
+  local began=false
+  local ok,err=pcall(function()
+    ui.beginTransparentWindow('vx_official_logo',
+      vec2(left,top),vec2(width,height+1),true,false)
+    began=true
+    if state.logoFire then
+      -- 10 fps, repeating with a smooth 12-frame loop. UV crop avoids
+      -- sampling adjacent cells and stays inside the same cached texture.
+      local idx=math.floor(state.clock*10)%12
+      local column=idx%4
+      local row=math.floor(idx/4)
+      local ux=0.55/1024
+      local uy=0.55/246
+      local uvStart=vec2(column/4+ux,row/3+uy)
+      local uvEnd=vec2((column+1)/4-ux,(row+1)/3-uy)
+      ui.drawImage(VENOM_FIRE_ATLAS_URL,
+        vec2(0,0),vec2(width,height-1),
+        rgbm(1,1,1,.82),uvStart,uvEnd)
+    end
+    -- Draw pristine original art in FRONT of the animated flames:
+    -- no flickering rectangles below the logo, no orange text tint.
+    ui.drawImage(VENOM_LOGO_URL,vec2(0,0),
+      vec2(width,height),rgbm(1,1,1,.99))
+    ui.endTransparentWindow()
+    began=false
+  end)
+  if began then pcall(ui.endTransparentWindow) end
+  if not ok then error(err) end
 end
 
 function script.drawUI()
