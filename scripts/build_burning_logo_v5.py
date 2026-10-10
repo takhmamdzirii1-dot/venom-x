@@ -112,8 +112,12 @@ for frame in range(N):
     frames.append(canvas)
 
 # Decode 16 distinct frames and preserve alpha. No GIF palette conversion.
-frames[0].save(OUT,"WEBP",save_all=True,append_images=frames[1:],
-    duration=95,loop=0,quality=89,method=6)
+# The HUD displays at 155-252 px wide. Resample the cached animation to
+# 640 px before WebP encoding to cut client download and decode overhead.
+output_frames=[frame.resize((640,215),Image.Resampling.LANCZOS)
+               for frame in frames]
+output_frames[0].save(OUT,"WEBP",save_all=True,
+    append_images=output_frames[1:],duration=95,loop=0,quality=81,method=6)
 frames[0].save(STILL,"PNG",optimize=True)
 # Visible preview against a bright sky tone similar to LA Canyons screenshot.
 preview=Image.new("RGB",(W,H),(66,147,218))
@@ -121,7 +125,7 @@ preview.paste(frames[0],(0,0),frames[0])
 preview.save(PREVIEW,"PNG",optimize=True)
 with Image.open(OUT) as check:
     assert check.n_frames==N, check.n_frames
-    assert check.size==(W,H)
-assert OUT.stat().st_size < 2_000_000,OUT.stat().st_size
+    assert check.size==(640,215)
+assert OUT.stat().st_size < 900_000,OUT.stat().st_size
 print("strong fire WebP",OUT.stat().st_size,"bytes / frames",N)
 print("original art source",SOURCE,"logo at",lx,ly,"flames",len(flames))
