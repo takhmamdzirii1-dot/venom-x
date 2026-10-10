@@ -610,7 +610,7 @@ local function teleportDest(d)
     local ok, res = pcall(function() return state.chatEx.teleportTo(d.id) end)
     if ok and res then
       if startTeleportShield then startTeleportShield() end
-      toast(string.format('TELEPORTED TO %s', d.name))
+      toast(string.format(L.teleportedToPlayer, d.name))
       return
     end
     state.optionsRestore=nil
@@ -1074,12 +1074,12 @@ local function teleportToPlayer(p)
   local x=look and tonumber(look.x)
   local z=look and tonumber(look.z)
   if not x or not z then
-    toast('TELEPORT: TARGET HEADING UNAVAILABLE','warn')
+    toast('الانتقال | تعذر تحديد اتجاه اللاعب','warn')
     return
   end
   local length=math.sqrt(x*x+z*z)
   if length<0.01 then
-    toast('TELEPORT: INVALID TARGET HEADING','warn')
+    toast('الانتقال | اتجاه اللاعب غير صالح','warn')
     return
   end
   x,z=x/length,z/length
@@ -1120,12 +1120,12 @@ local function verifyPlayerTeleport()
   local me=car()
   local pos=me and me.position
   if not pos then
-    toast('TELEPORT: POSITION NOT VERIFIED','warn') return
+    toast('الانتقال | لم يتم تأكيد الموقع','warn') return
   end
   local dx=pos.x-pending.dest.x
   local dz=pos.z-pending.dest.z
   if dx*dx+dz*dz>=64 or math.abs(pos.y-pending.dest.y)>=9 then
-    toast('TELEPORT BLOCKED OR NOT UPDATED','warn')
+    toast('الانتقال | لم يتغير الموقع','warn')
     return
   end
   -- Confirm our physical car orientation matches the target's heading.
@@ -1137,7 +1137,7 @@ local function verifyPlayerTeleport()
     if norm>0.01 then
       local facingDot=(mx*pending.lookX+mz*pending.lookZ)/norm
       if facingDot<0.7 then
-        toast('TELEPORTED, BUT CAR FACING WRONG WAY','warn')
+        toast('تم الانتقال لكن اتجاه السيارة غير صحيح','warn')
         pcall(ac.log,string.format('VENOM X teleport heading mismatch: dot=%.3f',facingDot))
         return
       end
@@ -1479,7 +1479,7 @@ local function updateTeleportShield()
   if state.clock>=shield.minUntil and
      (not nearbyCars(12) or state.clock>=shield.untilAt) then
     if state.clock>=shield.untilAt and nearbyCars(12) then
-      toast('TP SHIELD ENDING / WATCH NEARBY TRAFFIC','warn')
+      toast('حماية الانتقال انتهت | انتبه للسيارات القريبة','warn')
     end
     stopTeleportShield()
   end
@@ -2229,8 +2229,8 @@ local function drawTime()
     ui.textColored('TIME | تم إرسال الأمر، تأثير السماء غير مؤكد',C.accentSoft)
   else
     ui.textColored('TIME | لا يمكن التحقق من السماء الآن',C.warn)
-    ui.textDisabled('V2: '..tostring(tm.legacyAck):sub(1,70))
-    ui.textDisabled('CSP: '..tostring(tm.nativeResult):sub(1,70))
+    uiHint('V2: '..tostring(tm.legacyAck):sub(1,70))
+    uiHint('CSP: '..tostring(tm.nativeResult):sub(1,70))
   end
   -- Sun and moon are read-only here. Never fabricate fake night exposure.
   if tm.lastSunHeight~=nil then
@@ -2280,8 +2280,8 @@ local function drawHud()
   ui.separator()
   sectionLabel('التشخيص')
   local spdErr = state.spdErrors or 0
-  ui.textDisabled('عداد السرعة: ' .. (spdErr == 0 and 'ACTIVE' or ('ERROR x' .. tostring(spdErr))))
-  if state.spdErrorMsg then ui.textWrapped('Last error: ' .. tostring(state.spdErrorMsg):sub(1, 180)) end
+  ui.textDisabled('عداد السرعة: ' .. (spdErr == 0 and 'يعمل' or ('خطأ ×' .. tostring(spdErr))))
+  if state.spdErrorMsg then ui.textWrapped('آخر خطأ: ' .. tostring(state.spdErrorMsg):sub(1, 180)) end
   local dx0, dy0 = speedoRect()
   ui.textDisabled(string.format('X: %d  Y: %d', math.floor(dx0 + 0.5), math.floor(dy0 + 0.5)))
   ui.textDisabled(string.format('Scale: %d%%  Opacity: %d%%', clamp(state.hudScale or 100, 80, 130), clamp(state.hudOp or 90, 40, 100)))
@@ -2607,7 +2607,7 @@ local function drawQuickPopup()
               teleportDest(d)
               state.quickMode=nil
             end
-            if ui.itemHovered() then ui.setTooltip(d.group or 'Destination') end
+            if ui.itemHovered() then ui.setTooltip(d.group or 'موقع') end
           end
         end
         ui.separator()
@@ -2667,8 +2667,8 @@ local function drawQuickPopup()
           ui.textDisabled('CSP | تغيير السماء غير مؤكد بصريا')
         else
           ui.textColored('TIME | السماء لم تتغير بعد',C.warn)
-          ui.textDisabled('V2: '..tostring(tm.legacyAck):sub(1,54))
-          ui.textDisabled('NATIVE: '..tostring(tm.nativeResult):sub(1,54))
+          uiHint('V2: '..tostring(tm.legacyAck):sub(1,54))
+          uiHint('CSP: '..tostring(tm.nativeResult):sub(1,54))
         end
         if tm.lastSunHeight~=nil then
           ui.textDisabled(string.format('ارتفاع الشمس: %.3f',tm.lastSunHeight))
