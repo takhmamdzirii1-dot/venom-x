@@ -1,4 +1,5 @@
 'use strict';
+// v3.25.5 final verification: packed burning-logo asset generated and published.
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
 
