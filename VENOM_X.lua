@@ -2293,16 +2293,21 @@ local function drawHud()
     state.hudVisible = not state.hudVisible
     persist()
   end
+  if ui.itemHovered() then ui.setTooltip('إظهار أو إخفاء عداد السرعة على الشاشة.') end
   if ui.checkbox(L.rpmBar, state.rpmBar) then
     state.rpmBar = not state.rpmBar
     persist()
   end
+  if ui.itemHovered() then ui.setTooltip('إظهار أو إخفاء حلقة دوران المحرك RPM.') end
   local v1, m1 = ui.slider(L.opacity, state.hudOp, 40, 100, '%d%%', true)
   state.hudOp = v1
+  if ui.itemHovered() then ui.setTooltip('تحكم في شفافية عداد السرعة والعناصر المرتبطة به.') end
   local v2, m2 = ui.slider(L.scale, state.hudScale, 80, 130, '%d%%', true)
   state.hudScale = v2
+  if ui.itemHovered() then ui.setTooltip('كبّر أو صغّر عداد السرعة حسب حجم شاشتك.') end
   if m1 or m2 then persist() end
-  if ui.button(L.resetPositions, vec2(0, 28)) then
+  if actionButton(L.resetPositions, vec2(0, 38),
+    'أرجع مواقع وحجم عناصر VENOM X إلى الإعدادات الافتراضية.') then
     state.hudVisible = true
     state.hudOp = 90
     state.hudScale = 100
@@ -2310,21 +2315,22 @@ local function drawHud()
     state.spdX, state.spdY = -1, -1
     setPanelSize(1)
     persist()
-    toast(L.resetPositions)
+    toast('تم إرجاع أماكن عناصر الواجهة إلى الوضع الأصلي')
   end
   ui.separator()
-  sectionLabel('حجم القائمة')
+  sectionLabel('PANEL SIZE')
   local szW = (PANEL_W - 40) / 3
   local szNames = { 'S', 'M', 'L' }
   for i = 0, 2 do
     if i > 0 then ui.sameLine() end
     local lbl = (state.panelSize == i) and ('[' .. szNames[i + 1] .. ']') or (' ' .. szNames[i + 1] .. ' ')
-    if ui.button(lbl, vec2(szW, 28)) then setPanelSize(i) end
+    if actionButton(lbl,vec2(szW,35),
+      'اختر حجم قائمة VENOM X: صغير أو متوسط أو كبير.') then setPanelSize(i) end
   end
   ui.separator()
   uiHint(L.hudNote)
   ui.separator()
-  sectionLabel('التشخيص')
+  sectionLabel('DIAGNOSTICS')
   local spdErr = state.spdErrors or 0
   ui.textDisabled('عداد السرعة: ' .. (spdErr == 0 and 'يعمل' or ('خطأ ×' .. tostring(spdErr))))
   if state.spdErrorMsg then ui.textWrapped('آخر خطأ: ' .. tostring(state.spdErrorMsg):sub(1, 180)) end
@@ -2419,15 +2425,15 @@ end
 -- VENOM X QUICK DOCK: compact interactive native CSP tool windows.
 -- No external icons, fonts, installed plugins or fake input overlays.
 local QUICK_ACTIONS = {
-  { key='DEST', label='مواقع', hint='الانتقال إلى موقع' },
-  { key='FRIEND', label='لاعبون', hint='الانتقال خلف لاعب حقيقي' },
-  { key='TIME', label='الوقت', hint='اختر الوقت الخاص بك' },
-  { key='PAINT', label='اللون', hint='تغيير لون السيارة' },
-  { key='LIGHT', label='الأنوار', hint='تشغيل أو إطفاء الأنوار' },
-  { key='HAZARD', label='التحذير', hint='إشارات الخطر' },
-  { key='HUD', label='العداد', hint='إظهار أو إخفاء عداد السرعة' },
-  { key='GHOST', label='GHOST', hint='وضع الشبح - للاعبين فقط' },
-  { key='MENU', label='القائمة', hint='فتح قائمة VENOM X الكاملة' },
+  { key='DEST', label='MAP', hint='افتح مواقع الخريطة وانتقل إلى المكان الذي تختاره.' },
+  { key='FRIEND', label='CREW', hint='اعرض اللاعبين الحقيقيين وانتقل خلف صديقك.' },
+  { key='TIME', label='TIME', hint='اختر الوقت الخاص بك دون التأثير على بقية اللاعبين.' },
+  { key='PAINT', label='PAINT', hint='غيّر لون سيارتك أو أرجع لونها الأصلي.' },
+  { key='LIGHT', label='LIGHTS', hint='شغّل أو أطفئ أنوار السيارة الأمامية.' },
+  { key='HAZARD', label='HAZARD', hint='شغّل أو أطفئ إشارات التحذير الرباعية.' },
+  { key='HUD', label='HUD', hint='أظهر أو أخفِ عداد السرعة.' },
+  { key='GHOST', label='GHOST', hint='ألغِ التصادم مع اللاعبين الحقيقيين فقط، ولا يشمل الترافيك.' },
+  { key='MENU', label='MENU', hint='افتح القائمة الكاملة لكل إعدادات VENOM X.' },
 }
 
 local function toggleHazards()
@@ -2496,7 +2502,7 @@ local function quickDockGeometry()
   local count=#QUICK_ACTIONS
   -- VENOM vertical quick rail: icon + readable label, always one column.
   local gap,pad,headerH,footerH=4,9,30,9
-  local width=clamp(math.floor(scr.x*.12),126,152)
+  local width=clamp(math.floor(scr.x*.12),146,170)
   local maxHeight=math.max(210,scr.y-90)
   local tileH=clamp(
     math.floor((maxHeight-headerH-footerH-pad*2-(count-1)*gap)/count),
@@ -2556,7 +2562,7 @@ local function drawQuickDock()
       14,ui.CornerFlags.All,1)
     ui.drawRectFilled(vec2(14,0),vec2(w-14,2),
       col(C.accent,visibility),1)
-    ui.dwriteDrawText('VENOM / سريع',12,vec2(pad+5,11),
+    ui.dwriteDrawText('VENOM / QUICK',13,vec2(pad+5,11),
       col(C.text,visibility*(.65+.35*reveal)))
     ui.drawLine(vec2(pad,headerH),vec2(w-pad,headerH),
       col(C.accent,visibility*.26),1)
@@ -2593,7 +2599,7 @@ local function drawQuickDock()
       local centerY=yy+tileH*.5
       local iconPaint=(selected or hovered) and C.accentSoft or C.text
       quickGlyph(item.key,xx+23,centerY,col(iconPaint,visibility))
-      ui.dwriteDrawText(item.label,13,
+      ui.dwriteDrawText(item.label,15,
         vec2(xx+45,centerY-8),
         col((active or hovered) and C.text or C.dim,visibility))
       if tileW>115 then
@@ -2633,10 +2639,10 @@ local function drawQuickPopup()
     ui.drawRectFilled(vec2(0,0),vec2(w,h),C.glassDeep,15)
     ui.drawRect(vec2(1,1),vec2(w-1,h-1),col(C.accent,.32),15,ui.CornerFlags.All,1)
     ui.drawRectFilled(vec2(13,0),vec2(73,2),C.accent,1)
-    local heads={DEST='المواقع السريعة',FRIEND='الانتقال إلى صديق',
-      TIME='الوقت الخاص',PAINT='لون السيارة'}
-    ui.dwriteDrawText(heads[mode] or 'التحكم السريع',15,vec2(15,14),C.text)
-    ui.dwriteDrawText('VENOM X  /  تحكم سريع',12,vec2(15,34),C.dim)
+    local heads={DEST='QUICK DESTINATIONS',FRIEND='TELEPORT TO CREW',
+      TIME='PERSONAL TIME',PAINT='QUICK PAINT'}
+    ui.dwriteDrawText(heads[mode] or 'QUICK ACCESS',17,vec2(15,12),C.text)
+    ui.dwriteDrawText('VENOM X / QUICK CONTROL',12,vec2(15,34),C.dim)
     ui.setCursor(vec2(w-37,12))
     if ui.button('X##vxqclose',vec2(25,24)) then state.quickMode=nil end
     ui.drawLine(vec2(13,54),vec2(w-13,54),C.accentFaint,1)
