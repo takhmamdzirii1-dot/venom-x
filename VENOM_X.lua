@@ -1362,8 +1362,8 @@ local function setGhostEnabled(enabled)
   scanGhostCollisions()
   sendGhostState()
   g.nextSync=state.clock+6
-  toast(g.enabled and 'GHOST ON REQUESTED / WAIT FOR SERVER' or
-    'GHOST OFF REQUESTED / WAIT FOR SERVER')
+  toast(g.enabled and 'GHOST ON | ننتظر تأكيد السيرفر' or
+    'GHOST OFF | ننتظر تأكيد السيرفر')
   return true
 end
 
@@ -1537,13 +1537,13 @@ tryRecoverCar=function()
   local recovery=state.recovery
   local me=car()
   if not me or not me.position then
-    toast('RECOVERY UNAVAILABLE','warn') return false
+    toast('الاسترجاع غير متاح الآن','warn') return false
   end
   if state.clock<recovery.cooldownUntil then
-    toast('RECOVERY COOLDOWN / WAIT','warn') return false
+    toast('الاسترجاع | انتظر قليلا','warn') return false
   end
   if state.pendingTeleport then
-    toast('WAIT FOR PREVIOUS TELEPORT','warn') return false
+    toast('انتظر حتى يكتمل الانتقال السابق','warn') return false
   end
   local key=tostring(stateVal(me,'id') or 'UNKNOWN')
   local spot=recovery.spot
@@ -1553,8 +1553,8 @@ tryRecoverCar=function()
   if not hasSpot or speed>30 then
     if state.clock>=recovery.confirmUntil then
       recovery.confirmUntil=state.clock+4
-      toast(hasSpot and 'RECOVER WHILE MOVING? PRESS AGAIN TO CONFIRM' or
-        'NO CHECKPOINT / PRESS AGAIN TO RETURN TO PITS','warn')
+      toast(hasSpot and 'استرجاع أثناء القيادة؟ اضغط مجددا للتأكيد' or
+        'لا توجد نقطة آمنة | اضغط مجددا للعودة للحظيرة','warn')
       return false
     end
   end
@@ -1594,13 +1594,13 @@ local function recoveryStatusLine()
   local r=state.recovery
   local shield=state.tpShield
   if shield.active then
-    return string.format('TP SHIELD ACTIVE  /  %.0fs MAX',
+    return string.format('حماية الانتقال تعمل | %.0f ثانية',
       math.max(0,shield.untilAt-state.clock))
   end
   if r.spot and state.clock-r.spot.at<1200 then
-    return 'RECOVERY READY  /  LAST STABLE CHECKPOINT'
+    return 'الاسترجاع جاهز | آخر نقطة آمنة محفوظة'
   end
-  return 'RECOVERY: NO CHECKPOINT / PITS FALLBACK'
+  return 'لا توجد نقطة آمنة | الرجوع للحظيرة بعد التأكيد'
 end
 
 local function refreshDestinations(force)
@@ -2373,27 +2373,27 @@ end
 -- VENOM X QUICK DOCK: compact interactive native CSP tool windows.
 -- No external icons, fonts, installed plugins or fake input overlays.
 local QUICK_ACTIONS = {
-  { key='DEST', label='MAP', hint='Teleport to a location' },
-  { key='FRIEND', label='CREW', hint='Teleport behind a real player' },
-  { key='TIME', label='TIME', hint='Select a personal clock preset' },
-  { key='PAINT', label='PAINT', hint='Apply a color in one click' },
-  { key='LIGHT', label='LIGHT', hint='Toggle vehicle headlights' },
-  { key='HAZARD', label='HAZ', hint='Toggle vehicle hazard lights' },
-  { key='HUD', label='HUD', hint='Toggle speedometer display' },
-  { key='GHOST', label='GHOST', hint='Toggle player-only collision ghost mode' },
-  { key='MENU', label='MENU', hint='Open complete VENOM X menu' },
+  { key='DEST', label='مواقع', hint='الانتقال إلى موقع' },
+  { key='FRIEND', label='لاعبون', hint='الانتقال خلف لاعب حقيقي' },
+  { key='TIME', label='الوقت', hint='اختر الوقت الخاص بك' },
+  { key='PAINT', label='اللون', hint='تغيير لون السيارة' },
+  { key='LIGHT', label='الأنوار', hint='تشغيل أو إطفاء الأنوار' },
+  { key='HAZARD', label='التحذير', hint='إشارات الخطر' },
+  { key='HUD', label='العداد', hint='إظهار أو إخفاء عداد السرعة' },
+  { key='GHOST', label='GHOST', hint='وضع الشبح - للاعبين فقط' },
+  { key='MENU', label='القائمة', hint='فتح قائمة VENOM X الكاملة' },
 }
 
 local function toggleHazards()
   local c=car()
   if not c or not ac.TurningLights or type(ac.setTurningLights)~='function' then
-    toast('HAZARD CONTROL UNAVAILABLE','warn')
+    toast('التحذير غير متاح','warn')
     return
   end
   local mode=c.hazardLights and ac.TurningLights.None or ac.TurningLights.Hazards
-  if mode==nil then toast('HAZARD CONTROL UNAVAILABLE','warn') return end
+  if mode==nil then toast('التحذير غير متاح','warn') return end
   local ok,result=pcall(ac.setTurningLights,mode)
-  if not ok or result==false then toast('HAZARD CONTROL REJECTED','warn') end
+  if not ok or result==false then toast('تعذر تبديل إشارات التحذير','warn') end
 end
 
 local function quickGlyph(kind,cx,cy,paint)
@@ -2587,9 +2587,9 @@ local function drawQuickPopup()
     ui.drawRectFilled(vec2(0,0),vec2(w,h),C.glassDeep,15)
     ui.drawRect(vec2(1,1),vec2(w-1,h-1),col(C.accent,.32),15,ui.CornerFlags.All,1)
     ui.drawRectFilled(vec2(13,0),vec2(73,2),C.accent,1)
-    local heads={DEST='QUICK DESTINATIONS',FRIEND='TELEPORT TO CREW',
-      TIME='PERSONAL TIME',PAINT='QUICK CAR PAINT'}
-    ui.dwriteDrawText(heads[mode] or 'QUICK ACCESS',15,vec2(15,14),C.text)
+    local heads={DEST='المواقع السريعة',FRIEND='الانتقال إلى صديق',
+      TIME='الوقت الخاص',PAINT='لون السيارة'}
+    ui.dwriteDrawText(heads[mode] or 'التحكم السريع',15,vec2(15,14),C.text)
     ui.dwriteDrawText('VENOM X  /  تحكم سريع',12,vec2(15,34),C.dim)
     ui.setCursor(vec2(w-37,12))
     if ui.button('X##vxqclose',vec2(25,24)) then state.quickMode=nil end
@@ -2599,7 +2599,7 @@ local function drawQuickPopup()
     if opened then
       if mode=='DEST' then
         if #state.destList==0 then
-          ui.textDisabled('No destinations configured on server.')
+          ui.textDisabled('لا توجد مواقع انتقال في السيرفر')
         else
           for i,d in ipairs(state.destList) do
             if i>16 then break end
@@ -2611,18 +2611,18 @@ local function drawQuickPopup()
           end
         end
         ui.separator()
-        if ui.button('RETURN TO PITS##vxqpit',vec2(w-50,30)) then
+        if ui.button('العودة للحظيرة##vxqpit',vec2(w-50,30)) then
           returnToPits()
           state.quickMode=nil
         end
         ui.separator()
         uiHint(recoveryStatusLine())
-        if ui.button('UNSTUCK / RECOVER##vxqRecover',vec2(w-50,30)) then
+        if ui.button('استرجاع السيارة##vxqRecover',vec2(w-50,30)) then
           if tryRecoverCar() then state.quickMode=nil end
         end
       elseif mode=='FRIEND' then
         refreshPlayers(false)
-        if #state.players==0 then ui.textDisabled('No other human drivers online.') end
+        if #state.players==0 then ui.textDisabled('لا يوجد لاعبون آخرون متصلون') end
         for i,p in ipairs(state.players) do
           if i>6 then break end
           local name=#p.name>22 and p.name:sub(1,21)..'...' or p.name
@@ -2630,16 +2630,16 @@ local function drawQuickPopup()
             teleportToPlayer(p)
             state.quickMode=nil
           end
-          ui.textDisabled(string.format('   %d m away',math.floor(p.dist+.5)))
+          ui.textDisabled(string.format('   %d م',math.floor(p.dist+.5)))
         end
-        ui.textDisabled('AI traffic excluded. Behind driver / same heading.')
-        ui.textDisabled('Car switches: '..tostring(state.optionsStatus))
+        ui.textDisabled('الترافيك غير مدرج. الانتقال خلف اللاعب باتجاهه.')
+        ui.textDisabled(optionsLabel())
         ui.textColored(optionsReadout(),C.accentSoft)
       elseif mode=='TIME' then
         local tm=state.time
         local now=shownTimeSeconds()
         ui.textColored(fmtSec(now),C.accentSoft)
-        ui.textColored('REAL SKY: '..tostring(tm.serverSkyStatus):sub(1,48),C.accentSoft)
+        ui.textColored(timeLabel(),C.accentSoft)
         local selected=ui.slider('##vxq_clock',now,0,86399,'',1)
         if math.abs(selected-now)>.5 then
           queueServerSky(true,selected,true)
@@ -2653,37 +2653,37 @@ local function drawQuickPopup()
             tm.lastControl=preset.label
           end
         end
-        if ui.button('RESET TIME##vxqreset',vec2(w-50,28)) then
+        if ui.button('وقت السيرفر##vxqreset',vec2(w-50,28)) then
           queueServerSky(false)
           tm.lastControl='RESET'
         end
         if tm.serverSkyEnabled then
-          ui.textColored('REAL SKY / SERVER WEATHERFX REQUESTED',C.accentSoft)
-          ui.textDisabled('Requires VENOM Personal Time server plugin.')
+          ui.textColored('TIME | جار تحديث السماء من السيرفر',C.accentSoft)
+          ui.textDisabled('تحتاج إضافة VENOM Personal Time بالسيرفر')
         elseif tm.mode=='LEGACY COMPANION' then
-          ui.textColored('ORIGINAL v2 TIME CHANNEL',C.accentSoft)
+          ui.textColored('TIME | قناة التوقيت القديمة v2',C.accentSoft)
           ui.textDisabled(tostring(tm.legacyAck))
         elseif tm.mode=='CSP NATIVE' then
-          ui.textDisabled('CSP local sky API detected (not visually verified).')
+          ui.textDisabled('CSP | تغيير السماء غير مؤكد بصريا')
         else
-          ui.textColored('REAL SKY NOT CHANGING',C.warn)
+          ui.textColored('TIME | السماء لم تتغير بعد',C.warn)
           ui.textDisabled('V2: '..tostring(tm.legacyAck):sub(1,54))
           ui.textDisabled('NATIVE: '..tostring(tm.nativeResult):sub(1,54))
         end
         if tm.lastSunHeight~=nil then
-          ui.textDisabled(string.format('ACTUAL SUN Y: %.3f',tm.lastSunHeight))
+          ui.textDisabled(string.format('ارتفاع الشمس: %.3f',tm.lastSunHeight))
         end
-        ui.textDisabled('ACK proves receipt; verify physical sun in-game.')
+        ui.textDisabled('تأكيد السيرفر لا يثبت تغير السماء. تحقق بعينك.')
       elseif mode=='PAINT' then
         local ww=(w-68)/4
         for i,preset in ipairs(PRESETS) do
           if (i-1)%4~=0 then ui.sameLine() end
           local click=ui.button(preset.label..'##vxqp_'..i,vec2(ww,30))
           if click then applyColor(preset) end
-          if ui.itemHovered() then ui.setTooltip(preset.label..' - apply car color') end
+          if ui.itemHovered() then ui.setTooltip(preset.label..' - تطبيق اللون') end
         end
-        if ui.button('ORIGINAL LIVERY##vxqoriginal',vec2(w-50,30)) then applyColor(nil) end
-        ui.textDisabled('Color sync depends on server permissions.')
+        if ui.button('استرجاع اللون الأصلي##vxqoriginal',vec2(w-50,30)) then applyColor(nil) end
+        ui.textDisabled('تغيير اللون يعتمد على صلاحيات السيرفر.')
       end
     end
     ui.endChild()
