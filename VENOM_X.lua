@@ -2123,7 +2123,7 @@ local function drawColor()
   local prev = hasCustom and cc or state.picker
   ui.drawRectFilled(p, vec2(p.x + 34, p.y + 34), rgbm(prev.r, prev.g, prev.b, 1), 8)
   ui.drawRect(p, vec2(p.x + 34, p.y + 34), rgbm(1, 1, 1, 0.4), 8, ui.CornerFlags.All, 1)
-  ui.dwriteDrawText(hasCustom and 'CURRENT' or 'LIVERY', 12, vec2(p.x + 44, p.y + 2), C.dim)
+  ui.dwriteDrawText(hasCustom and 'اللون الحالي' or 'اللون الأصلي', 13, vec2(p.x + 44, p.y + 2), C.dim)
   ui.dwriteDrawText(string.format('%d %d %d', math.floor(prev.r * 255 + 0.5), math.floor(prev.g * 255 + 0.5), math.floor(prev.b * 255 + 0.5)), 12, vec2(p.x + 44, p.y + 18), C.text)
   ui.dummy(vec2(0, 40))
   if not state.chatEx then
@@ -2168,21 +2168,22 @@ end
 
 local function drawTime()
   local tm=state.time
-  sectionLabel('PERSONAL TIME / EACH PLAYER')
-  ui.textColored('REAL SKY / SERVER: '..tostring(tm.serverSkyStatus),C.accentSoft)
-  ui.textDisabled('WeatherFX plugin required. Sent does not confirm applied.')
+  sectionLabel('الوقت الخاص / لكل لاعب')
+  ui.textColored(timeLabel(),C.accentSoft)
+  if ui.itemHovered() then ui.setTooltip(tostring(tm.serverSkyStatus)) end
+  uiHint('تغيير السماء يتطلب WeatherFX. تأكيد السيرفر لا يعني تحقق التأثير بصريا.')
   ui.dummy(vec2(0,5))
   local p=ui.getCursor()
   ui.drawRectFilled(p,vec2(p.x+PANEL_W-35,p.y+80),C.cardSolid,12)
   ui.drawRect(p,vec2(p.x+PANEL_W-35,p.y+80),C.accentFaint,12,ui.CornerFlags.All,1)
   ui.dwriteDrawText(fmtSec(shownTimeSeconds()),34,
     vec2(p.x+16,p.y+7),C.text)
-  ui.dwriteDrawText('YOUR SELECTED TIME',11,vec2(p.x+16,p.y+56),C.accentSoft)
+  ui.dwriteDrawText('الوقت الذي اخترته',13,vec2(p.x+16,p.y+56),C.accentSoft)
   ui.dummy(vec2(0,90))
 
   -- Controls must never disappear just because online CSP blocks global
   -- weather APIs. This is independent personal UI state for each player.
-  sectionLabel('CHOOSE YOUR TIME')
+  sectionLabel('اختر وقتك')
   local tv=shownTimeSeconds()
   local nv=ui.slider('##vx_personal_time',tv,0,86399,'',1)
   if math.abs(nv-tv)>0.5 then
@@ -2196,16 +2197,16 @@ local function drawTime()
     if ui.button(preset.label..'##vx_solar_'..i,vec2(bw,32)) then
       setTimePreset(preset,i)
       tm.lastControl=preset.label
-      toast('TIME: '..preset.label)
+      toast('TIME | تم اختيار '..preset.label)
     end
   end
-  if ui.button('RESET TO SERVER TIME##vx_time_reset',vec2(0,30)) then
+  if ui.button('العودة لوقت السيرفر##vx_time_reset',vec2(0,30)) then
     queueServerSky(false)
     tm.lastControl='RESET'
-    toast('TIME: SERVER CLOCK')
+    toast('TIME | تمت العودة لوقت السيرفر')
   end
 
-  sectionLabel('FINE TUNE / GOLDEN HOUR')
+  sectionLabel('ضبط الوقت بدقة')
   local fineW=math.max(56,(PANEL_W-57)/4)
   for i,minutes in ipairs({-15,-5,5,15}) do
     if i>1 then ui.sameLine() end
@@ -2217,26 +2218,26 @@ local function drawTime()
   end
 
   ui.separator()
-  ui.textDisabled('Server: '..fmtSec(wrapDay(serverSec())))
-  ui.textDisabled('Last selection: '..tostring(tm.lastControl))
+  uiHint('وقت السيرفر: '..fmtSec(wrapDay(serverSec())))
+  uiHint('آخر اختيار: '..tostring(tm.lastControl))
   if tm.serverSkyEnabled then
-    ui.textColored('REAL SKY: WAIT FOR SERVER WEATHERFX UPDATE',C.accentSoft)
+    ui.textColored('TIME | ننتظر تحديث السماء من السيرفر',C.accentSoft)
   elseif tm.mode=='LEGACY COMPANION' then
     ui.textColored('V2 COMPANION: '..tostring(tm.legacyAck),C.accentSoft)
-    ui.textDisabled('Actual sky must still be checked visually.')
+    uiHint('تحقق من مظهر الشمس والسماء داخل اللعبة.')
   elseif tm.mode=='CSP NATIVE' and tm.nativeApplied then
-    ui.textColored('CSP time API called; sky effect not verified.',C.accentSoft)
+    ui.textColored('TIME | تم إرسال الأمر، تأثير السماء غير مؤكد',C.accentSoft)
   else
-    ui.textColored('ACTUAL SKY TIME NOT AVAILABLE',C.warn)
+    ui.textColored('TIME | لا يمكن التحقق من السماء الآن',C.warn)
     ui.textDisabled('V2: '..tostring(tm.legacyAck):sub(1,70))
     ui.textDisabled('CSP: '..tostring(tm.nativeResult):sub(1,70))
   end
   -- Sun and moon are read-only here. Never fabricate fake night exposure.
   if tm.lastSunHeight~=nil then
-    ui.textDisabled(string.format('Real sun height: %.3f',tm.lastSunHeight))
+    ui.textDisabled(string.format('ارتفاع الشمس الفعلي: %.3f',tm.lastSunHeight))
   end
   if tm.lastMoonHeight~=nil then
-    ui.textDisabled(string.format('Real moon height: %.3f',tm.lastMoonHeight))
+    ui.textDisabled(string.format('ارتفاع القمر الفعلي: %.3f',tm.lastMoonHeight))
   end
 end
 
@@ -2266,7 +2267,7 @@ local function drawHud()
     toast(L.resetPositions)
   end
   ui.separator()
-  sectionLabel('PANEL SIZE')
+  sectionLabel('حجم القائمة')
   local szW = (PANEL_W - 40) / 3
   local szNames = { 'S', 'M', 'L' }
   for i = 0, 2 do
@@ -2275,11 +2276,11 @@ local function drawHud()
     if ui.button(lbl, vec2(szW, 28)) then setPanelSize(i) end
   end
   ui.separator()
-  ui.textDisabled(L.hudNote)
+  uiHint(L.hudNote)
   ui.separator()
-  sectionLabel('DEBUG')
+  sectionLabel('التشخيص')
   local spdErr = state.spdErrors or 0
-  ui.textDisabled('Speedometer renderer: ' .. (spdErr == 0 and 'ACTIVE' or ('ERROR x' .. tostring(spdErr))))
+  ui.textDisabled('عداد السرعة: ' .. (spdErr == 0 and 'ACTIVE' or ('ERROR x' .. tostring(spdErr))))
   if state.spdErrorMsg then ui.textWrapped('Last error: ' .. tostring(state.spdErrorMsg):sub(1, 180)) end
   local dx0, dy0 = speedoRect()
   ui.textDisabled(string.format('X: %d  Y: %d', math.floor(dx0 + 0.5), math.floor(dy0 + 0.5)))
@@ -2328,7 +2329,7 @@ local function drawVenomLauncher()
     local mouse = ui.mousePos()
 
     if hovered and ui.mouseClicked(1) then openPanel(nil) end
-    if hovered then ui.setTooltip('Click: show/hide shortcuts  /  Right click: full menu') end
+    if hovered then ui.setTooltip('ضغطة: الاختصارات / زر يمين: القائمة الكاملة') end
     if not state.orbPress and hovered and ui.mouseClicked(0) then
       state.orbPress = { mx = mouse.x, my = mouse.y, x = state.orbX, y = state.orbY, moved = false }
     end
@@ -2509,7 +2510,7 @@ local function drawQuickDock()
       14,ui.CornerFlags.All,1)
     ui.drawRectFilled(vec2(14,0),vec2(w-14,2),
       col(C.accent,visibility),1)
-    ui.dwriteDrawText('VENOM / QUICK',10,vec2(pad+5,11),
+    ui.dwriteDrawText('VENOM / سريع',12,vec2(pad+5,11),
       col(C.text,visibility*(.65+.35*reveal)))
     ui.drawLine(vec2(pad,headerH),vec2(w-pad,headerH),
       col(C.accent,visibility*.26),1)
@@ -2546,7 +2547,7 @@ local function drawQuickDock()
       local centerY=yy+tileH*.5
       local iconPaint=(selected or hovered) and C.accentSoft or C.text
       quickGlyph(item.key,xx+23,centerY,col(iconPaint,visibility))
-      ui.dwriteDrawText(item.label,11,
+      ui.dwriteDrawText(item.label,13,
         vec2(xx+45,centerY-8),
         col((active or hovered) and C.text or C.dim,visibility))
       if tileW>115 then
@@ -2589,7 +2590,7 @@ local function drawQuickPopup()
     local heads={DEST='QUICK DESTINATIONS',FRIEND='TELEPORT TO CREW',
       TIME='PERSONAL TIME',PAINT='QUICK CAR PAINT'}
     ui.dwriteDrawText(heads[mode] or 'QUICK ACCESS',15,vec2(15,14),C.text)
-    ui.dwriteDrawText('VENOM X  /  INSTANT CONTROL',11,vec2(15,34),C.dim)
+    ui.dwriteDrawText('VENOM X  /  تحكم سريع',12,vec2(15,34),C.dim)
     ui.setCursor(vec2(w-37,12))
     if ui.button('X##vxqclose',vec2(25,24)) then state.quickMode=nil end
     ui.drawLine(vec2(13,54),vec2(w-13,54),C.accentFaint,1)
@@ -2742,7 +2743,7 @@ local function drawVenomPanel()
     end
     ui.dwriteDrawText('VENOM', 21, vec2(18, 10), C.text)
     ui.dwriteDrawText('X', 21, vec2(105, 10), C.accent)
-    ui.dwriteDrawText('CONTROL SYSTEM   /   LA CANYONS', 12, vec2(18, 39), C.dim)
+    ui.dwriteDrawText('التحكم  /  LA CANYONS', 13, vec2(18, 39), C.dim)
     ui.drawRectFilled(vec2(18,59),vec2(73,61),C.accent,1)
 
     ui.setCursor(vec2(PANEL_W - 46, 17))
@@ -2797,7 +2798,7 @@ local function drawVenomPanel()
 
     local footY = PANEL_H - 45
     ui.drawLine(vec2(13, footY - 5), vec2(PANEL_W - 13, footY - 5), C.accentFaint, 1)
-    ui.dwriteDrawText('VENOM X   ' .. VERSION, 11, vec2(15, footY + 3), C.dim)
+    ui.dwriteDrawText('VENOM X   ' .. VERSION, 12, vec2(15, footY + 3), C.dim)
     ui.dwriteDrawText('CTRL+SHIFT+X', 10, vec2(15, footY + 20), C.accentSoft)
 
     -- Bottom right drag handle, size changes in real time. No full-screen input.
