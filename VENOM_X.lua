@@ -1,81 +1,82 @@
 script = script or {}
 
-local VERSION = '3.24.1'
+local VERSION = '3.25.0'
 
 local L = {
+  -- Arabic-first UI; retain Latin model names, units and technical keys.
   title = 'VENOM X',
   subtitle = 'LA CANYONS',
-  versionTag = 'v3.24.1',
-  ready = 'VENOM X READY | CTRL+SHIFT+X for menu',
-  emergencyMode = 'VENOM X: HUD error - fallback panel enabled from the lightbulb menu',
-  navHome = 'HOME',
-  navTp = 'TP',
-  navPlayers = 'PLAYERS',
-  navColor = 'COLOR',
-  navTime = 'TIME',
-  navHud = 'HUD',
-  online = 'ONLINE',
-  playersChip = '%d PLAYERS',
-  quickTeleport = 'TELEPORT',
-  quickColor = 'COLOR',
-  quickTime = 'TIME',
-  quickPit = 'PIT',
-  returnToPits = 'Return to Pits',
-  noDestinations = 'No teleport destinations configured',
+  versionTag = 'v3.25.0',
+  ready = 'VENOM X جاهز | CTRL+SHIFT+X لفتح القائمة',
+  emergencyMode = 'VENOM X: خطأ في الواجهة، تم تشغيل القائمة الاحتياطية',
+  navHome = 'الرئيسية',
+  navTp = 'المواقع',
+  navPlayers = 'اللاعبون',
+  navColor = 'الألوان',
+  navTime = 'الوقت',
+  navHud = 'الواجهة',
+  online = 'متصل',
+  playersChip = '%d لاعبين',
+  quickTeleport = 'انتقال',
+  quickColor = 'لون',
+  quickTime = 'وقت',
+  quickPit = 'الحظيرة',
+  returnToPits = 'العودة للحظيرة',
+  noDestinations = 'لا توجد مواقع انتقال متاحة',
   destSearch = '##vx_search',
-  refresh = 'Refresh',
+  refresh = 'تحديث',
   kmh = 'KM/H',
   gear = 'GEAR %s',
   rpmLabel = 'RPM %s',
-  teleportHint = 'Teleport 11 m behind a real player, even while driving',
-  cooldown = 'Teleport cooldown: %.1f s',
-  pleaseWait = 'Please wait %d s',
-  playerUnavailable = 'Player is no longer available',
-  teleportedToPlayer = 'TELEPORTED TO %s',
-  teleportFailed = 'Teleport failed',
-  noPlayers = 'No other players connected',
-  trafficHidden = 'AI traffic is never listed here',
-  unknownDriver = '(no name)',
-  other = 'Other',
-  carColor = 'CAR COLOR',
-  colorApply = 'APPLY',
-  colorReset = 'RESET',
-  colorUpdated = 'COLOR UPDATED',
-  colorResetMsg = 'Color reset to livery',
-  colorNotAllowed = 'Server does not allow color changes here',
-  colorFail = 'Color change failed',
-  colorNoModule = 'Color API unavailable in this session',
-  liveryNote = 'Textured liveries may not recolor',
-  presetWhite = 'WHITE',
-  presetBlack = 'BLACK',
-  presetGraphite = 'GRAPHITE',
-  presetSilver = 'SILVER',
-  presetRed = 'RED',
-  presetOrange = 'ORANGE',
-  presetYellow = 'YELLOW',
-  presetGreen = 'GREEN',
-  presetCyan = 'CYAN',
-  presetBlue = 'BLUE',
-  presetPurple = 'PURPLE',
-  presetPink = 'PINK',
-  localTime = 'LOCAL TIME',
-  timeReset = 'RESET TO SERVER',
-  presetSunrise = 'GOLDEN RISE 07:15',
-  presetDay = 'DAY 12:00',
-  presetSunset = 'GOLDEN SET 18:00',
-  presetBlue = 'BLUE HOUR 18:40',
-  presetNight = 'NIGHT 00:00',
-  hudSettings = 'HUD SETTINGS',
-  speedometer = 'Speedometer',
-  rpmBar = 'RPM ring',
-  opacity = 'HUD opacity',
-  scale = 'HUD scale',
-  resetPositions = 'Reset positions',
-  hudNote = 'Drag the floating X or panel header. CTRL+SHIFT+X opens the menu.',
-  nightMode = 'NIGHT MODE',
-  resetDone = 'Reset to server time',
-  spdOn = 'SPEEDOMETER ON',
-  spdOff = 'SPEEDOMETER OFF',
+  teleportHint = 'انتقل خلف لاعب حقيقي بمسافة آمنة (11 م)',
+  cooldown = 'انتظر %.1f ثانية لإعادة الانتقال',
+  pleaseWait = 'انتظر %d ثانية',
+  playerUnavailable = 'اللاعب لم يعد متاحا',
+  teleportedToPlayer = 'تم الانتقال إلى %s',
+  teleportFailed = 'تعذر الانتقال',
+  noPlayers = 'لا يوجد لاعبون آخرون متصلون',
+  trafficHidden = 'سيارات الترافيك لا تظهر في قائمة اللاعبين',
+  unknownDriver = '(بدون اسم)',
+  other = 'أخرى',
+  carColor = 'لون السيارة',
+  colorApply = 'تطبيق اللون',
+  colorReset = 'اللون الأصلي',
+  colorUpdated = 'تم تغيير لون السيارة',
+  colorResetMsg = 'تم استرجاع اللون الأصلي',
+  colorNotAllowed = 'السيرفر لا يسمح بتغيير اللون هنا',
+  colorFail = 'تعذر تغيير اللون',
+  colorNoModule = 'خاصية الألوان غير متاحة الآن',
+  liveryNote = 'بعض رسومات السيارة لا تدعم تغيير اللون',
+  presetWhite = 'أبيض',
+  presetBlack = 'أسود',
+  presetGraphite = 'رمادي',
+  presetSilver = 'فضي',
+  presetRed = 'أحمر',
+  presetOrange = 'برتقالي',
+  presetYellow = 'أصفر',
+  presetGreen = 'أخضر',
+  presetCyan = 'سماوي',
+  presetBlue = 'أزرق',
+  presetPurple = 'بنفسجي',
+  presetPink = 'وردي',
+  localTime = 'الوقت الخاص',
+  timeReset = 'وقت السيرفر',
+  presetSunrise = 'شروق 07:15',
+  presetDay = 'نهار 12:00',
+  presetSunset = 'غروب 18:00',
+  presetBlueHour = 'مساء 18:40',
+  presetNight = 'ليل 00:00',
+  hudSettings = 'إعدادات الواجهة',
+  speedometer = 'عداد السرعة',
+  rpmBar = 'حلقة RPM',
+  opacity = 'شفافية الواجهة',
+  scale = 'حجم الواجهة',
+  resetPositions = 'إرجاع أماكن العناصر',
+  hudNote = 'اسحب زر X أو أعلى القائمة لتحريكها. CTRL+SHIFT+X لفتح القائمة.',
+  nightMode = 'وضع الليل',
+  resetDone = 'تمت العودة لوقت السيرفر',
+  spdOn = 'تم تشغيل عداد السرعة',
+  spdOff = 'تم إخفاء عداد السرعة',
   footer = 'VENOM X %s - CSP Online Script',
 }
 
@@ -129,7 +130,7 @@ local TIME_PRESETS = {
   { label = L.presetSunrise, sec = 7 * 3600 + 15 * 60 },
   { label = L.presetDay, sec = 12 * 3600 },
   { label = L.presetSunset, sec = 18 * 3600 },
-  { label = L.presetBlue, sec = 18 * 3600 + 40 * 60 },
+  { label = L.presetBlueHour, sec = 18 * 3600 + 40 * 60 },
   { label = L.presetNight, sec = 0 },
 }
 
@@ -347,6 +348,54 @@ local function toast(message, kind)
   local list = state.toasts
   if #list >= 3 then table.remove(list, 1) end
   list[#list + 1] = t
+end
+
+-- Presentation-only localization: keep protocol values and diagnostics intact.
+-- Short strings are deliberate: HUD and quick popups remain legible at 318 px.
+local function ghostLabel()
+  local g=state.ghost
+  if not g.supported then return 'GHOST | غير متاح على نسخة CSP الحالية' end
+  if g.confirmed then
+    return g.enabled and 'GHOST ON | تم تأكيد التفعيل' or
+      'GHOST OFF | تم تأكيد الإيقاف'
+  end
+  if g.waiting or g.queued then return 'GHOST | ننتظر تأكيد السيرفر' end
+  if g.retries>3 then return 'GHOST | لم يصل تأكيد السيرفر' end
+  return g.enabled and 'GHOST ON | لم يتم التأكيد بعد' or 'GHOST OFF | غير مفعل'
+end
+
+local function timeLabel()
+  local tm=state.time
+  local status=tostring(tm.serverSkyStatus or '')
+  if status:find('SERVER ACK',1,true) and not status:find('NO SERVER ACK',1,true) then
+    return 'TIME | استلم السيرفر الطلب - تحقق من السماء'
+  end
+  if tm.serverSkyAwaiting or tm.serverSkyPending or status:find('RETRYING',1,true) then
+    return 'TIME | في انتظار رد السيرفر'
+  end
+  if status:find('NO SERVER ACK',1,true) then return 'TIME | تأخر رد السيرفر' end
+  if status:find('SERVER ERROR',1,true) or status:find('FAILED',1,true) then
+    return 'TIME | حدث خطأ في الطلب'
+  end
+  if status:find('EVENT READY',1,true) then return 'TIME | جاهز للاستخدام' end
+  if not tm.serverSkyEnabled then return 'TIME | وقت السيرفر' end
+  return 'TIME | تحقق من حالة WeatherFX'
+end
+
+local function optionsLabel()
+  local raw=tostring(state.optionsStatus or '')
+  if raw:find('MISMATCH',1,true) or raw:find('REJECTED',1,true) then
+    return 'خيارات السيارة | يوجد اختلاف يحتاج مراجعة'
+  end
+  if raw:find('RESTOR',1,true) or raw:find('RECOVER',1,true) then
+    return 'خيارات السيارة | جار استعادة الإعدادات'
+  end
+  if raw:find('VERIFIED',1,true) then return 'خيارات السيارة | تم التحقق من الإعدادات' end
+  if raw:find('TRACK',1,true) or raw:find('KEEPING',1,true) then
+    return 'خيارات السيارة | حفظ تلقائي نشط'
+  end
+  if raw=='NOT TESTED' then return 'خيارات السيارة | جار التحقق' end
+  return 'خيارات السيارة | '..raw
 end
 
 local function getScreenSize()
@@ -1893,6 +1942,13 @@ end
 
 local function sectionLabel(text)
   ui.textColored(text, C.accentSoft)
+end
+
+-- A single subdued wrapping style avoids clipping long diagnostic lines.
+local function uiHint(message)
+  ui.pushStyleColor(ui.StyleColor.Text, C.dim)
+  ui.textWrapped(tostring(message))
+  ui.popStyleColor()
 end
 
 local function drawChip(p, text, color, minWidth)
