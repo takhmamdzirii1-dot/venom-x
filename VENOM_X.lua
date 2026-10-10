@@ -1884,7 +1884,7 @@ local function pushGlass()
   ui.pushStyleVar(ui.StyleVar.WindowPadding, vec2(10, 8))
   ui.pushStyleVar(ui.StyleVar.ItemSpacing, vec2(6, 6))
   ui.pushStyleVar(ui.StyleVar.FrameRounding, 7)
-  ui.pushStyleVar(ui.StyleVar.FramePadding, vec2(9, 5))
+  ui.pushStyleVar(ui.StyleVar.FramePadding, vec2(9, 7))
   ui.pushStyleColor(ui.StyleColor.WindowBg, C.glassDeep)
   ui.pushStyleColor(ui.StyleColor.Border, C.accentFaint)
   ui.pushStyleColor(ui.StyleColor.ChildBg, C.cardSolid)
@@ -1951,6 +1951,32 @@ local function uiHint(message)
   ui.popStyleColor()
 end
 
+-- Clear English buttons with native larger Title font; Arabic hover explanations.
+-- Built-in CSP Title font avoids bundling font files and scales correctly.
+local function actionButton(label, size, explanation)
+  ui.pushFont(ui.Font.Title)
+  local pressed = ui.button(label, size)
+  ui.popFont()
+  if explanation and ui.itemHovered() then ui.setTooltip(explanation) end
+  return pressed
+end
+
+local NAV_HELP = {
+  HOME='الصفحة الرئيسية فيها أدوات التحكم السريع وحالة السيرفر.',
+  TELEPORT='اعرض مواقع الخريطة وانتقل إلى الوجهة المطلوبة.',
+  PLAYERS='شاهد اللاعبين الحقيقيين وانتقل خلف أحدهم.',
+  COLOR='غيّر لون سيارتك أو أعد لونها الأصلي.',
+  TIME='اضبط وقت اليوم والسماء عندك فقط، وليس للجميع.',
+  HUD='تحكم في العداد وحجم وشفافية عناصر الشاشة.'
+}
+
+local COLOR_HELP = {
+  WHITE='أبيض', BLACK='أسود', GRAPHITE='رمادي داكن',
+  SILVER='فضي', RED='أحمر', ORANGE='برتقالي',
+  YELLOW='أصفر', GREEN='أخضر', CYAN='سماوي',
+  BLUE='أزرق', PURPLE='بنفسجي', PINK='وردي'
+}
+
 local function drawChip(p, text, color, minWidth)
   local tsz = ui.measureDWriteText(text, 12, -1)
   local w = math.max(minWidth or 0, tsz.x + 22)
@@ -1962,28 +1988,33 @@ end
 
 local function drawHome()
   refreshPlayers(false)
-  sectionLabel('LA CANYONS  /  متصل')
+  sectionLabel('LA CANYONS  /  ONLINE')
   local p = ui.getCursor()
   local w = PANEL_W - 37
   ui.drawRectFilled(p, vec2(p.x + w, p.y + 91), C.cardSolid, 13)
   ui.drawRect(p, vec2(p.x + w, p.y + 91), C.accentFaint, 13, ui.CornerFlags.All, 1)
   ui.dwriteDrawText('FREEROAM', 22, vec2(p.x + 15,p.y + 10), C.text)
-  ui.dwriteDrawText('تجول / قيادة / تواصل', 13, vec2(p.x + 15,p.y + 41),C.dim)
+  ui.dwriteDrawText('EXPLORE / DRIVE / CONNECT', 14, vec2(p.x + 15,p.y + 41),C.dim)
   ui.drawCircleFilled(vec2(p.x + 19,p.y + 76),4,C.ok)
-  ui.dwriteDrawText(tostring(#state.players + 1)..' لاعبون متصلون',13,
+  ui.dwriteDrawText(tostring(#state.players + 1)..' HUMAN DRIVERS',14,
     vec2(p.x + 30,p.y + 68),C.accentSoft)
   ui.dummy(vec2(0,106))
-  sectionLabel('التحكم السريع')
+  sectionLabel('QUICK CONTROLS')
   ui.dummy(vec2(0,7))
-  if ui.button('الانتقال إلى موقع  >##vxhomeTP', vec2(0,40)) then setSection('TELEPORT') end
-  if ui.button('الانتقال إلى لاعب  >##vxhomePL', vec2(0,40)) then setSection('PLAYERS') end
-  if ui.button('لون السيارة وتخصيصها  >##vxhomeCL', vec2(0,40)) then setSection('COLOR') end
-  if ui.button('الوقت والسماء  >##vxhomeTM', vec2(0,40)) then setSection('TIME') end
+  if actionButton('TELEPORT / DESTINATIONS##vxhomeTP',vec2(0,42),
+    'افتح مواقع الخريطة واختر الوجهة التي تريد الانتقال إليها.') then setSection('TELEPORT') end
+  if actionButton('PLAYERS / TELEPORT##vxhomePL',vec2(0,42),
+    'اعرض اللاعبين المتصلين وانتقل خلف أحدهم بمسافة آمنة.') then setSection('PLAYERS') end
+  if actionButton('CAR COLOR / PAINT##vxhomeCL',vec2(0,42),
+    'اختر لون سيارتك أو ارجع إلى لونها الأصلي.') then setSection('COLOR') end
+  if actionButton('TIME / SKY##vxhomeTM',vec2(0,42),
+    'اختار وقت النهار أو الليل الخاص بك فقط.') then setSection('TIME') end
   ui.separator()
-  sectionLabel('GHOST MODE / للاعبين فقط')
+  sectionLabel('GHOST MODE / PLAYERS ONLY')
   local ghost=state.ghost
-  if ui.button((ghost.enabled and 'GHOST ON / إيقاف' or
-      'GHOST OFF / تشغيل')..'##vxhomeGHOST',vec2(0,38)) then
+  if actionButton((ghost.enabled and 'GHOST ON / DISABLE' or
+      'GHOST OFF / ENABLE')..'##vxhomeGHOST',vec2(0,40),
+    'تشغيل GHOST يلغي التصادم مع اللاعبين الحقيقيين فقط. لا يلغي اصطدام الترافيك أو الحواجز. انتظر تأكيد السيرفر.') then
     toggleGhostMode()
   end
   uiHint(ghostLabel())
@@ -1992,9 +2023,10 @@ local function drawHome()
     'لن نعتبر الوضع مؤكدا حتى يصل رد السيرفر')
   if ui.itemHovered() then ui.setTooltip(tostring(ghost.lastStatus)) end
   ui.separator()
-  sectionLabel('الاسترجاع / حماية الانتقال')
+  sectionLabel('RECOVERY / TP SHIELD')
   uiHint(recoveryStatusLine())
-  if ui.button('استرجاع السيارة / آخر نقطة آمنة##vxhomeRecover',vec2(0,33)) then
+  if actionButton('RECOVER / LAST SAFE STOP##vxhomeRecover',vec2(0,38),
+    'يرجع السيارة إلى آخر نقطة آمنة محفوظة. إذا ما لقاهاش، اضغط مرة ثانية لتأكيد الرجوع للحظيرة.') then
     tryRecoverCar()
   end
   uiHint('آخر نقطة آمنة محفوظة. اضغط مرتين للتأكيد عند الحاجة.')
@@ -2002,15 +2034,18 @@ local function drawHome()
   local me = car()
   if me then
     local bw = math.max(80,(PANEL_W-52)/2)
-    if ui.button(me.headlightsActive and 'الأنوار: تعمل##vxhl' or 'الأنوار: مطفأة##vxhl',vec2(bw,30)) then toggleHeadlights() end
+    if actionButton(me.headlightsActive and 'LIGHTS ON##vxhl' or 'LIGHTS OFF##vxhl',vec2(bw,36),
+      'تشغيل أو إطفاء الأنوار الأمامية للسيارة.') then toggleHeadlights() end
     ui.sameLine()
-    if ui.button(me.highBeams and 'الضوء العالي: يعمل##vxhb' or 'الضوء العالي: مطفأ##vxhb',vec2(bw,30)) then toggleHighBeams() end
+    if actionButton(me.highBeams and 'HIGH BEAMS ON##vxhb' or 'HIGH BEAMS OFF##vxhb',vec2(bw,36),
+      'تشغيل أو إطفاء الضوء العالي للسيارة.') then toggleHighBeams() end
   end
-  if ui.button('العودة إلى الحظيرة##vxhomePit',vec2(0,30)) then returnToPits() end
+  if actionButton('RETURN TO PITS##vxhomePit',vec2(0,36),
+    'يرجعك إلى نقطة البداية في السيرفر.') then returnToPits() end
 end
 
 local function drawTeleport()
-  sectionLabel(state.destSource == 'chat' and 'مواقع السيرفر' or 'المواقع المتاحة')
+  sectionLabel(state.destSource == 'chat' and 'SERVER DESTINATIONS' or 'DESTINATIONS')
   local changed, entered
   state.search, changed, entered = ui.inputText(L.destSearch, state.search)
   if ui.itemHovered() then ui.setTooltip('ابحث باسم الموقع أو المجموعة') end
@@ -2067,7 +2102,8 @@ local function drawTeleport()
   end
   ui.separator()
   uiHint(recoveryStatusLine())
-  if ui.button('استرجاع السيارة##vxTpRecover',vec2(0,28)) then
+  if actionButton('RECOVER / UNSTUCK##vxTpRecover',vec2(0,34),
+    'استرجاع سيارتك إلى آخر نقطة آمنة بعد التعطل أو الانقلاب.') then
     tryRecoverCar()
   end
 end
