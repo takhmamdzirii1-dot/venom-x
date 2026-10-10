@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 
 const source = fs.readFileSync('VENOM_X.lua','utf8');
 const mustInclude=[
-  "local VERSION = '3.25.2'",
+  "local VERSION = '3.25.3'",
   "return ui.DWriteFont('Segoe UI'):weight(700)",
   "navHome = 'HOME'",
   "navTp = 'TELEPORT'",
@@ -34,10 +34,11 @@ const mustInclude=[
   "physics.disableCarCollisions",
   "vx_logo_fire = true",
   "stored.vx_logo_fire = state.logoFire",
-  "if state.logoFire then drawLogoFire(width,height) end",
-  "if state.logoFire then drawLogoEmbers(width,height) end",
-  "local function drawLogoFire(w,h)",
-  "local function drawLogoEmbers(w,h)",
+  "if state.logoFire then",
+  "VENOM_FIRE_ATLAS_URL",
+  "assets/venom_flames_atlas_v2.png",
+  "local idx=math.floor(state.clock*10)%12",
+  "ui.drawImage(VENOM_FIRE_ATLAS_URL",
   "LOGO FIRE FX"
 ];
 for (const marker of mustInclude) {
@@ -65,15 +66,21 @@ assert.ok(source.includes("local quickTimeLabels={'RISE 07:15'"),
   'Compact quick time labels missing');
 assert.ok(source.includes("local ww=(w-68)/3"), 'Quick paint buttons are too narrow');
 assert.ok(source.includes('local fontSize=18'), 'Larger toast font regression');
-// Decorative fire never alters online physics, networking or logo resource paths.
-const fireStart=source.indexOf('local function drawLogoFire(w,h)');
-const fireEnd=source.indexOf('local function drawVenomOfficialLogo()',fireStart);
-assert.ok(fireStart>0 && fireEnd>fireStart);
+// Sprite Atlas is client-only: no network event or procedural loops per frame.
+const fireStart=source.indexOf('local VENOM_FIRE_ATLAS_URL');
+const fireEnd=source.indexOf('function script.drawUI()',fireStart);
+assert.ok(fireStart>0 && fireEnd>fireStart,'Atlas renderer missing');
 const fire=source.slice(fireStart,fireEnd);
-assert.ok(!/ac\.OnlineEvent|http\.|web\.|net\.|fetch|require\(|physics\./.test(fire),
-  'Logo fire must be local render-only and independent of networking/physics');
-assert.match(fire,/for i=1,11 do/,'Flame count must stay bounded');
-assert.match(fire,/for i=1,6 do/,'Ember count must stay bounded');
+assert.ok(!/ac\.OnlineEvent|fetch\(|physics\.|drawLogoFire|drawLogoEmbers/.test(fire),
+  'Animated logo must not interact with physics, online events or old line-based fire');
+assert.ok(fire.includes('math.floor(state.clock*10)%12'),'Frame selection must remain bounded');
+assert.ok(fire.includes('column/4+ux') && fire.includes('row/3+uy'),
+  'Atlas UV cropping must match 4×3 frames');
+assert.ok(fire.indexOf('ui.drawImage(VENOM_FIRE_ATLAS_URL')<
+  fire.indexOf('ui.drawImage(VENOM_LOGO_URL'),
+  'Animation must be drawn behind original logo');
+assert.ok(!source.includes('ui.drawLine(bottom,center'),
+  'Old vertical flame sticks must be completely removed');
 assert.ok(!source.includes("'الانتقال إلى موقع  >##vxhomeTP'"),
   'Arabic UI action labels should be English');
-console.log('PASS: English menus, Arabic hover, fire FX bounded client render, saved toggle, original protocols');
+console.log('PASS: English menus, Arabic hover, sprite atlas fire client render, saved toggle, original protocols');
