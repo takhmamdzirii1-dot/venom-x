@@ -1,8 +1,27 @@
-# VENOM X — AssettoServer online HUD (v3.25.2)
+# VENOM X — AssettoServer online HUD (v3.25.3)
 
 One auto-downloaded CSP online Lua script for VENOM LA Canyons:
 
 `https://raw.githubusercontent.com/takhmamdzirii1-dot/venom-x/main/VENOM_X.lua`
+
+### v3.25.3 — Replace line/rectangle flames with cached animated fire atlas
+
+The in-game screenshot of 3.25.2 showed ugly vertical translucent bars below
+the official VENOM logo. That effect is removed, not merely recolored.
+
+- Added `assets/venom_flames_atlas_v2.png`: 12 transparent 256×82 flame
+  frames in a single 4×3 indexed PNG atlas (~250 KB downloaded/cached once).
+- The CSP Lua overlay now displays exactly ONE UV-selected atlas frame behind
+  the original logo at 10 fps. Old procedural line and rectangle rendering
+  functions were deleted. The logo still sits centered above Virtual Mirror,
+  with no geometry extending beneath it.
+- Per-user `LOGO FIRE FX` in HUD remains functional and saved.
+- No new traffic/physics logic, server plugin, network events, remote polling or
+  per-frame downloads; users' CSP clients fetch the one PNG asset on cache miss.
+- GitHub Actions validates Lua syntax, TIME/GHOST/car options and that the old
+  line-based flame calls are gone.
+- **Design still requires screenshot/video review from the actual game**;
+  automated tests cannot prove visual quality or measure real frame time.
 
 ### v3.25.2 — Animated VENOM logo with local-only Fire FX
 
